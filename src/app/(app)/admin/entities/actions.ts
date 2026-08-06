@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
+import { seedChartOfAccounts } from '@/lib/ledger/coa'
 
 // Entity Manager — Admin only (spec §2.1). Remove = archive (soft):
 // hidden from dropdowns and the "Books of" switcher, data preserved,
@@ -49,12 +50,14 @@ export async function createEntity(formData: FormData) {
 
   await auditedTransaction(async (tx) => {
     const entity = await tx.entity.create({ data })
+    // Spec §4: Chart of Accounts auto-seeded on entity creation.
+    await seedChartOfAccounts(tx, entity.id)
     await audit(tx, {
       actorId: admin.id,
       action: 'entity.create',
       targetType: 'Entity',
       targetId: entity.id,
-      summary: `Created entity ${data.name} (${data.code})`,
+      summary: `Created entity ${data.name} (${data.code}) with seeded Chart of Accounts`,
       after: data,
     })
   })
@@ -138,8 +141,8 @@ export async function restoreEntity(formData: FormData) {
 
 /**
  * Hard delete — allowed only when the entity has zero transactions
- * (spec §2.1). In Phase 1 the strictest available check is "no bank
- * accounts and no cash locations"; Phase 2 adds the journal-entry check.
+ * (spec §2.1): no journal entries, no bank accounts, no cash locations.
+ * The seeded Chart of Accounts is removed along with it.
  */
 export async function hardDeleteEntity(formData: FormData) {
   const admin = await requireAdmin()
@@ -148,14 +151,25 @@ export async function hardDeleteEntity(formData: FormData) {
   await auditedTransaction(async (tx) => {
     const entity = await tx.entity.findUniqueOrThrow({
       where: { id },
-      include: { _count: { select: { bankAccounts: true, cashLocations: true } } },
+      include: {
+        _count: {
+          select: { bankAccounts: true, cashLocations: true, journalEntries: true },
+        },
+      },
     })
-    if (entity._count.bankAccounts > 0 || entity._count.cashLocations > 0) {
+    if (
+      entity._count.bankAccounts > 0 ||
+      entity._count.cashLocations > 0 ||
+      entity._count.journalEntries > 0
+    ) {
       throw new Error(
-        'Cannot hard-delete: entity has bank accounts or cash locations. Archive instead.',
+        'Cannot hard-delete: entity has accounts or transactions. Archive instead.',
       )
     }
     await tx.userEntityScope.deleteMany({ where: { entityId: id } })
+    await tx.periodLock.deleteMany({ where: { entityId: id } })
+    await tx.journalDoc.deleteMany({ where: { entityId: id } })
+    await tx.ledgerAccount.deleteMany({ where: { entityId: id } })
     await tx.entity.delete({ where: { id } })
     await audit(tx, {
       actorId: admin.id,

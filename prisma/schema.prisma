@@ -1,9 +1,15 @@
-// Ledgerly — Phase 1 (Core) schema
-// Users & single-admin model, permission matrix, entities, bank accounts,
-// cash locations, audit log, soft-delete/archive framework.
+// Ledgerly — Phases 1–2 schema
+// Phase 1: users & single-admin model, permission matrix, entities, bank
+//          accounts, cash locations, audit log, soft-delete/archive framework.
+// Phase 2: accounting engine — Chart of Accounts, double-entry journal,
+//          reversal-based edit/delete/undo, period locks.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
+//   - Every journal entry balances: total Dr = total Cr (deferred trigger)
+//   - Journal lines are append-only; entries cannot be deleted or have
+//     their financial fields updated (triggers)
+//   - No posting into a locked period (trigger)
 
 generator client {
   provider = "prisma-client"
@@ -82,9 +88,13 @@ model Entity {
   fyStartMonth Int        @default(4) // April
   archivedAt   DateTime? // archive = soft remove (spec §2.1)
 
-  bankAccounts  BankAccount[]
-  cashLocations CashLocation[]
-  userScopes    UserEntityScope[]
+  bankAccounts   BankAccount[]
+  cashLocations  CashLocation[]
+  userScopes     UserEntityScope[]
+  ledgerAccounts LedgerAccount[]
+  journalDocs    JournalDoc[]
+  journalEntries JournalEntry[]
+  periodLocks    PeriodLock[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -125,6 +135,138 @@ model CashLocation {
   updatedAt DateTime @updatedAt
 
   @@unique([entityId, name])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 — Accounting engine
+// ---------------------------------------------------------------------------
+
+enum AccountKind {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+// Chart of Accounts, per entity, auto-seeded on entity creation (spec §4).
+// Group accounts structure the tree and cannot be posted to; system accounts
+// are seeded and cannot be archived.
+model LedgerAccount {
+  id       String      @id @default(cuid())
+  entityId String
+  entity   Entity      @relation(fields: [entityId], references: [id])
+  code     String // "1000", "1101", ... unique per entity, sorts the tree
+  name     String
+  kind     AccountKind
+  parentId String?
+  parent   LedgerAccount?  @relation("tree", fields: [parentId], references: [id])
+  children LedgerAccount[] @relation("tree")
+  isGroup  Boolean         @default(false)
+  system   Boolean         @default(false)
+  archivedAt DateTime?
+
+  lines JournalLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityId, code])
+  @@index([entityId, kind])
+}
+
+enum EntryKind {
+  FORWARD // a version of the record's content
+  REVERSAL // exact negation of a forward entry (edit/delete mechanics, §5)
+}
+
+enum EntryState {
+  ACTIVE // current version of its document
+  REVERSED // superseded by an edit, or deleted — its reversal exists
+}
+
+// A logical, user-visible record ("one clean edited record", spec §5).
+// The ledger truth is its append-only entries; this header only tracks
+// which forward entry is current. currentEntryId = null ⇒ deleted (in bin).
+model JournalDoc {
+  id         String  @id @default(cuid())
+  entityId   String
+  entity     Entity  @relation(fields: [entityId], references: [id])
+  sourceType String // "manual" | "opening_balance" | (Phase 3+: "statement_txn", ...)
+  sourceId   String?
+  currentEntryId String?   @unique
+  currentEntry   JournalEntry? @relation("current", fields: [currentEntryId], references: [id])
+  deletedAt   DateTime?
+  deletedById String?
+
+  entries JournalEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([entityId, deletedAt])
+  @@index([sourceType, sourceId])
+}
+
+// One balanced double-entry posting. Append-only: never updated (except
+// state bookkeeping) and never deleted — edits/deletes post REVERSALs.
+model JournalEntry {
+  id        String     @id @default(cuid())
+  entityId  String
+  entity    Entity     @relation(fields: [entityId], references: [id])
+  docId     String
+  doc       JournalDoc @relation(fields: [docId], references: [id])
+  version   Int // 1, 2, 3... within the doc (REVERSALs carry their target's version)
+  kind      EntryKind
+  state     EntryState @default(ACTIVE)
+  date      DateTime   @db.Date
+  narration String
+  reference String?
+  // For REVERSAL entries: which forward entry this negates.
+  reversesId String?       @unique
+  reverses   JournalEntry? @relation("reversal", fields: [reversesId], references: [id])
+  reversedBy JournalEntry? @relation("reversal")
+  // Why this entry exists: "create" | "edit" | "delete" | "undo_delete" | "undo_edit"
+  action String
+
+  currentOf JournalDoc? @relation("current")
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  lines JournalLine[]
+
+  @@index([entityId, date])
+  @@index([docId])
+}
+
+// Exactly one of debit/credit is positive (CHECK in migration).
+model JournalLine {
+  id        String        @id @default(cuid())
+  entryId   String
+  entry     JournalEntry  @relation(fields: [entryId], references: [id])
+  accountId String
+  account   LedgerAccount @relation(fields: [accountId], references: [id])
+  debit     Decimal       @default(0) @db.Decimal(14, 2)
+  credit    Decimal       @default(0) @db.Decimal(14, 2)
+  memo      String?
+
+  @@index([accountId])
+  @@index([entryId])
+}
+
+// Admin locks a month after GST filing (spec §4): locked months reject
+// posting, edit, delete and undo. Unlock is admin-only and audit-logged.
+model PeriodLock {
+  id         String   @id @default(cuid())
+  entityId   String
+  entity     Entity   @relation(fields: [entityId], references: [id])
+  year       Int
+  month      Int // 1–12
+  lockedById String
+  lockedAt   DateTime @default(now())
+
+  @@unique([entityId, year, month])
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

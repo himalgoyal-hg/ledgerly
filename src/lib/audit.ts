@@ -2,16 +2,14 @@ import 'server-only'
 import { prisma } from '@/lib/db'
 import type { Prisma } from '@/generated/prisma/client'
 
-type Auditable = Prisma.InputJsonValue | undefined
-
 export interface AuditEntry {
   actorId: string | null
   action: string // "user.create" | "permission.update" | "entity.archive" | ...
   targetType: string
   targetId: string
   summary: string
-  before?: Auditable
-  after?: Auditable
+  before?: unknown // JSON-serializable snapshot
+  after?: unknown
 }
 
 /**
@@ -30,8 +28,15 @@ export async function audit(
       targetType: entry.targetType,
       targetId: entry.targetId,
       summary: entry.summary,
-      before: entry.before ?? undefined,
-      after: entry.after ?? undefined,
+      // Round-trip through JSON: strips undefined, guarantees serializability.
+      before:
+        entry.before === undefined
+          ? undefined
+          : (JSON.parse(JSON.stringify(entry.before)) as Prisma.InputJsonValue),
+      after:
+        entry.after === undefined
+          ? undefined
+          : (JSON.parse(JSON.stringify(entry.after)) as Prisma.InputJsonValue),
     },
   })
 }

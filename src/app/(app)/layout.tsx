@@ -29,6 +29,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/reimbursements', label: 'Reimbursements', show: hasPermission(user, 'reimbursementSubmit') || isAdmin(user) },
   ]
   const adminNav: { href: string; label: string }[] = [
+    { href: '/journal', label: 'Journal' },
+    { href: '/admin/trial-balance', label: 'Trial balance' },
+    { href: '/admin/ledgers', label: 'Ledgers' },
+    { href: '/admin/coa', label: 'Accounts' },
+    { href: '/admin/periods', label: 'Periods' },
     { href: '/admin/users', label: 'Users & permissions' },
     { href: '/admin/entities', label: 'Entities' },
     { href: '/admin/banking', label: 'Banking & cash' },
