@@ -5,6 +5,8 @@ import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { memberPayableName } from '@/lib/ops/reimburse'
+import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
+import { SourceSelect } from '../source-select'
 import {
   submitClaimAction,
   approveClaimAction,
@@ -57,7 +59,7 @@ export default async function ReimbursementsPage(props: {
   const { member: memberParam } = await props.searchParams
   const selected = tabUsers.find((u) => u.id === memberParam) ?? (admin ? tabUsers[0] : user)
 
-  const [claims, heads, costCentres, banks, cashLocations] = await Promise.all([
+  const [claims, heads, costCentres, baseSuggestion] = await Promise.all([
     prisma.reimbursement.findMany({
       where: { entityId: entity.id, memberId: selected.id },
       orderBy: { createdAt: 'desc' },
@@ -71,18 +73,8 @@ export default async function ReimbursementsPage(props: {
       where: { entityId: entity.id, archivedAt: null },
       orderBy: { name: 'asc' },
     }),
-    prisma.bankAccount.findMany({
-      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
-    }),
-    prisma.cashLocation.findMany({
-      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
-    }),
+    suggestPaymentSource({ entityId: entity.id, module: 'reimbursement' }),
   ])
-
-  const sourceOptions = [
-    ...banks.map((b) => ({ id: b.ledgerAccountId!, label: b.nickname })),
-    ...cashLocations.map((c) => ({ id: c.ledgerAccountId!, label: `Cash — ${c.name}` })),
-  ]
 
   return (
     <div className="space-y-6">
@@ -135,7 +127,7 @@ export default async function ReimbursementsPage(props: {
       )}
 
       {/* Admin settle */}
-      {admin && sourceOptions.length > 0 && (
+      {admin && baseSuggestion.options.length > 0 && (
         <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
           <h2 className="font-medium text-zinc-900">
             Settle {selected.name} — owed {displayINR(owedTo(selected.name))}
@@ -144,13 +136,10 @@ export default async function ReimbursementsPage(props: {
             <input type="hidden" name="entityId" value={entity.id} />
             <input type="hidden" name="memberId" value={selected.id} />
             <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <select name="sourceAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="">— pay from —</option>
-              {sourceOptions.map((s) => (
-                <option key={s.id} value={s.id}>{s.label}</option>
-              ))}
-            </select>
+            <input name="amount" required inputMode="decimal" defaultValue={owedTo(selected.name)} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+            <SourceSelect
+              suggestion={rankForAmount(baseSuggestion.options, owedTo(selected.name))}
+            />
             <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
               Settle (Dr payable / Cr source)
             </button>

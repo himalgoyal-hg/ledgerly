@@ -13,8 +13,9 @@ v3 consolidated spec.
 | 4. Operations | Reimbursements, cash, bills, salary, tasks, invoices — thin screens over posting rules | ✅ done |
 | 5. Tax | GST/TDS fields, split-posting, GSTR-1/3B + ITC, TDS register, deposit reminders | ✅ done |
 | 6. Reports & dashboard | P&L, Balance Sheet, Cash Flow, budget, cost centres, parties, salary + Overview tiles | ✅ done |
-| 7. Smart suggestions & automation | Balance engine, reminders, recurring generators, weekly email | ⏳ next |
-| 8–9 | AI layer, hardening | – |
+| 7. Smart suggestions & automation | Payment-source engine, reminders, recurring generators, weekly email | ✅ done |
+| 8. AI layer | PDF parsing, OCR, smarter auto-tagging | ⏳ next |
+| 9. Hardening | Verification plan §11, backups, restore drill, performance | – |
 
 ## Stack
 
@@ -65,12 +66,18 @@ App: http://localhost:3000 — sign in with the seeded users
 ```bash
 npm run build                      # typecheck + compile
 node scripts/verify-phase1.mjs     # 24 runtime checks against a running server
-npx tsx scripts/verify-phase2.ts   # 19 ledger checks through the service layer
-npx tsx scripts/verify-phase3.ts   # 37 statement-pipeline checks
-npx tsx scripts/verify-phase4.ts   # 34 operations checks
-npx tsx scripts/verify-phase5.ts   # 25 taxation checks
-npx tsx scripts/verify-phase6.ts   # 34 reporting checks
+npm run verify:2                   # 19 ledger checks through the service layer
+npm run verify:3                   # 37 statement-pipeline checks
+npm run verify:4                   # 34 operations checks
+npm run verify:5                   # 25 taxation checks
+npm run verify:6                   # 34 reporting checks
+npm run verify:7                   # 28 automation checks
+npm run verify                     # phases 2–7 in sequence
 ```
+
+The scripts run through the real service layer with `tsx --conditions=react-server`
+— that condition makes Next's `server-only` guard resolve the way it does
+inside the server bundle, instead of throwing.
 
 Phase 1 suite: anonymous → redirected; admin sees everything; a
 zero-permission member sees nothing gated; granting one flag opens exactly
@@ -116,6 +123,40 @@ balance and down to its source document; cash-flow classification (operating
 cost-centre, party, budget-variance and salary reports; reports reacting
 correctly to delete and undo; and the dashboard tiles agreeing with the
 ledger.
+
+Phase 7 suite (spec §8, §6.5, §10): suggestions falling back to liquidity
+without a mapping, honouring a mapping when one exists, preferring the more
+specific mapping, and abandoning a mapped account that cannot cover the
+amount; commitments inside the 7-day window reserving against their mapped
+account (and beyond it, not reserving); ad-hoc spend being steered away from
+reserved money with a warning rather than a silent allow; recurring
+generation being idempotent; and the whole job being a no-op on a second run
+in the same period.
+
+## Automation
+
+Nothing fires on a timer by itself — a scheduler has to call the job. The job
+is idempotent, so a missed or repeated run is harmless.
+
+```bash
+# .env
+CRON_SECRET=<a long random string>     # required; without it the endpoint is disabled
+SMTP_HOST=…                            # optional; without it messages queue instead of sending
+SMTP_PORT=587
+SMTP_USER=…
+SMTP_PASS=…
+SMTP_FROM="Ledgerly <books@example.com>"
+
+# crontab — once a day
+0 7 * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" \
+             https://<your-host>/api/automation/run
+```
+
+Each run generates recurring bills and tasks coming due within 14 days,
+queues reminders and low-balance alerts, adds the weekly summary on Mondays,
+and delivers whatever is queued. Admin → Automation shows the last run, the
+payment mapping, and the full outbox (including messages still queued because
+no SMTP is configured) — and has a "Run now" button.
 
 ## Database
 

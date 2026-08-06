@@ -3,6 +3,8 @@ import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { gstr1Summary, gstr3bView, tdsRegister, monthRange } from '@/lib/tax/register'
+import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
+import { SourceSelect } from '../source-select'
 import { fileAndLockPeriod, payGstAction, depositTdsAction } from './actions'
 
 // GST & TDS registers (spec §7): GSTR-1 outward summary, GSTR-3B with the
@@ -28,16 +30,15 @@ export default async function TaxPage(props: {
   const [year, month] = period.split('-').map(Number)
   const range = monthRange(year, month)
 
-  const [gstr1, gstr3b, tds, lock, banks, openTdsTasks] = await Promise.all([
+  const [gstr1, gstr3b, tds, lock, gstSuggestion, tdsSuggestion, openTdsTasks] = await Promise.all([
     gstr1Summary(entity.id, range),
     gstr3bView(entity.id, range),
     tdsRegister(entity.id, range),
     prisma.periodLock.findUnique({
       where: { entityId_year_month: { entityId: entity.id, year, month } },
     }),
-    prisma.bankAccount.findMany({
-      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
-    }),
+    suggestPaymentSource({ entityId: entity.id, module: 'gst', taskKind: 'gst' }),
+    suggestPaymentSource({ entityId: entity.id, module: 'tds', taskKind: 'tds' }),
     prisma.financeTask.findMany({
       where: { entityId: entity.id, kind: 'tds', status: 'OPEN' },
       orderBy: { dueDate: 'asc' },
@@ -104,12 +105,10 @@ export default async function TaxPage(props: {
                 <input type="hidden" name="year" value={year} />
                 <input type="hidden" name="month" value={month} />
                 <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <select name="sourceAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-                  <option value="">— pay from —</option>
-                  {banks.map((b) => (
-                    <option key={b.id} value={b.ledgerAccountId!}>{b.nickname}</option>
-                  ))}
-                </select>
+                <SourceSelect
+                  suggestion={rankForAmount(gstSuggestion.options, gstr3b.netPayable)}
+                  compact
+                />
                 <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
                   Pay net GST
                 </button>
@@ -230,12 +229,10 @@ export default async function TaxPage(props: {
                     <input type="hidden" name="taskId" value={task.id} />
                     <input type="hidden" name="amount" value={String(task.amount ?? 0)} />
                     <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-                    <select name="sourceAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
-                      <option value="">— pay from —</option>
-                      {banks.map((b) => (
-                        <option key={b.id} value={b.ledgerAccountId!}>{b.nickname}</option>
-                      ))}
-                    </select>
+                    <SourceSelect
+                      suggestion={rankForAmount(tdsSuggestion.options, String(task.amount ?? 0))}
+                      compact
+                    />
                     <button type="submit" className="rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700">
                       Deposit
                     </button>

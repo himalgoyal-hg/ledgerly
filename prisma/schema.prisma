@@ -11,6 +11,8 @@
 //          rows feeding GSTR-1 / GSTR-3B / TDS registers.
 // Phase 6: reports — every statement is a live query over the ledger; only
 //          budget targets are stored (nothing else is derived data).
+// Phase 7: automation — payment-source preferences, recurring generation,
+//          reminders and the weekly summary, all driven by one cron entry.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -726,6 +728,52 @@ model Budget {
 
   @@unique([entityId, accountId, year, month])
   @@index([entityId, year])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7 — Smart suggestions & automation (spec §8, §6.5, §10)
+// ---------------------------------------------------------------------------
+
+// "Entity/purpose mapping" (spec §8.1): which account normally pays for
+// what. purpose is "default", a task kind ("emi"/"gst"/"tds"/"payroll"),
+// a module ("salary"/"reimbursement"/"invoice_receipt"), or a specific
+// expense head ("head:<ledgerAccountId>").
+model PaymentPreference {
+  id              String   @id @default(cuid())
+  entityId        String
+  purpose         String
+  ledgerAccountId String // the bank / cash ledger account that normally pays
+  priority        Int      @default(0) // lower wins among equal matches
+  createdAt       DateTime @default(now())
+
+  @@unique([entityId, purpose, ledgerAccountId])
+  @@index([entityId])
+}
+
+enum NotifyStatus {
+  QUEUED // rendered and stored; no transport configured yet
+  SENT
+  FAILED
+}
+
+// Reminder / weekly-summary outbox (spec §6.5, §10). Messages are rendered
+// and stored first, then delivered — so a missing SMTP config loses nothing
+// and re-running the job never double-sends (dedupeKey is unique).
+model NotificationOutbox {
+  id        String       @id @default(cuid())
+  entityId  String
+  kind      String // weekly_summary | due_reminder | low_balance
+  channel   String // email | whatsapp
+  recipient String
+  subject   String
+  body      String
+  status    NotifyStatus @default(QUEUED)
+  dedupeKey String       @unique
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([entityId, kind, createdAt])
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

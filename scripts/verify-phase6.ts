@@ -66,7 +66,6 @@ async function main() {
   const fees = await account('4100')
   const rent = await account('5200')
   const travel = await account('5300')
-  const misc = await account('5900')
   const fixedAssets = await prisma.ledgerAccount.create({
     data: {
       entityId: entity.id, code: '1901', name: 'Laptops', kind: 'ASSET',

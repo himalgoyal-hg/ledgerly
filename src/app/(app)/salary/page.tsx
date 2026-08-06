@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
+import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
+import { SourceSelect } from '../source-select'
 import {
   upsertPersonAction,
   createRunAction,
@@ -18,7 +20,7 @@ export default async function SalaryPage() {
   const entity = await getCurrentEntity(admin)
   if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
-  const [people, runs, costCentres, banks] = await Promise.all([
+  const [people, runs, costCentres, baseSuggestion] = await Promise.all([
     prisma.salaryPerson.findMany({
       where: { entityId: entity.id, archivedAt: null },
       orderBy: [{ type: 'asc' }, { name: 'asc' }],
@@ -33,9 +35,7 @@ export default async function SalaryPage() {
       where: { entityId: entity.id, archivedAt: null },
       orderBy: { name: 'asc' },
     }),
-    prisma.bankAccount.findMany({
-      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
-    }),
+    suggestPaymentSource({ entityId: entity.id, module: 'salary' }),
   ])
   const personName = (id: string) => people.find((p) => p.id === id)?.name ?? '(archived)'
   const ccName = (id: string | null) => costCentres.find((c) => c.id === id)?.name
@@ -180,12 +180,10 @@ export default async function SalaryPage() {
                     <form action={payRunAction} className="flex flex-wrap items-center gap-2">
                       <input type="hidden" name="runId" value={run.id} />
                       <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                      <select name="sourceAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-                        <option value="">— pay from —</option>
-                        {banks.map((b) => (
-                          <option key={b.id} value={b.ledgerAccountId!}>{b.nickname}</option>
-                        ))}
-                      </select>
+                      <SourceSelect
+                        suggestion={rankForAmount(baseSuggestion.options, totals.net.toFixed(2))}
+                        compact
+                      />
                       <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
                         Mark paid
                       </button>

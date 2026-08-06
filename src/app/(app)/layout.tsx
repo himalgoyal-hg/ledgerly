@@ -42,6 +42,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/admin/users', label: 'Users & permissions' },
     { href: '/admin/entities', label: 'Entities' },
     { href: '/admin/banking', label: 'Banking & cash' },
+    { href: '/admin/automation', label: 'Automation' },
     { href: '/admin/audit', label: 'Audit log' },
   ]
 
