@@ -33,6 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: '/admin/trial-balance', label: 'Trial balance' },
     { href: '/admin/ledgers', label: 'Ledgers' },
     { href: '/admin/coa', label: 'Accounts' },
+    { href: '/admin/cost-centres', label: 'Cost centres' },
     { href: '/admin/periods', label: 'Periods' },
     { href: '/admin/users', label: 'Users & permissions' },
     { href: '/admin/entities', label: 'Entities' },

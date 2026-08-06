@@ -15,6 +15,7 @@ export interface LineInput {
   debit?: string // exactly one of debit/credit, positive, 2dp
   credit?: string
   memo?: string
+  costCentreId?: string // tier-3 tag (Phase 3) — carried through reversals
 }
 
 export interface EntryContent {
@@ -120,14 +121,15 @@ async function postEntry(tx: Prisma.TransactionClient, args: PostArgs) {
           debit: l.debit ?? '0',
           credit: l.credit ?? '0',
           memo: l.memo,
+          costCentreId: l.costCentreId,
         })),
       },
     },
   })
 }
 
-function negate(lines: { accountId: string; debit: unknown; credit: unknown; memo: string | null }[]): LineInput[] {
-  // Reversal = swap sides.
+function negate(lines: { accountId: string; debit: unknown; credit: unknown; memo: string | null; costCentreId: string | null }[]): LineInput[] {
+  // Reversal = swap sides. Cost centres ride along so their reports cancel too.
   return lines.map((l) => {
     const d = String(l.debit)
     const c = String(l.credit)
@@ -136,6 +138,7 @@ function negate(lines: { accountId: string; debit: unknown; credit: unknown; mem
       debit: parsePaise(c) > 0n ? c : undefined,
       credit: parsePaise(d) > 0n ? d : undefined,
       memo: l.memo ?? undefined,
+      costCentreId: l.costCentreId ?? undefined,
     }
   })
 }
@@ -318,6 +321,7 @@ export async function undoJournalDocument(
           debit: parsePaise(String(l.debit)) > 0n ? String(l.debit) : undefined,
           credit: parsePaise(String(l.credit)) > 0n ? String(l.credit) : undefined,
           memo: l.memo ?? undefined,
+          costCentreId: l.costCentreId ?? undefined,
         })),
       },
       actorId: args.actorId,

@@ -1,8 +1,10 @@
-// Ledgerly — Phases 1–2 schema
+// Ledgerly — Phases 1–3 schema
 // Phase 1: users & single-admin model, permission matrix, entities, bank
 //          accounts, cash locations, audit log, soft-delete/archive framework.
 // Phase 2: accounting engine — Chart of Accounts, double-entry journal,
 //          reversal-based edit/delete/undo, period locks.
+// Phase 3: statement pipeline — imports, statement transactions, tagging
+//          queue, rules + learning engine, cost centres.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -112,8 +114,10 @@ model BankAccount {
   openingDate    DateTime  @db.Date
   archivedAt     DateTime?
 
-  // Phase 2 wires this to the auto-created Chart of Accounts ledger account.
+  // Auto-created Chart of Accounts ledger account (Phase 2).
   ledgerAccountId String?
+
+  imports StatementImport[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -250,9 +254,13 @@ model JournalLine {
   debit     Decimal       @default(0) @db.Decimal(14, 2)
   credit    Decimal       @default(0) @db.Decimal(14, 2)
   memo      String?
+  // Tier 3 of tagging (spec §3 step 5) — flows into cost centre reports.
+  costCentreId String?
+  costCentre   CostCentre? @relation(fields: [costCentreId], references: [id])
 
   @@index([accountId])
   @@index([entryId])
+  @@index([costCentreId])
 }
 
 // Admin locks a month after GST filing (spec §4): locked months reject
@@ -267,6 +275,124 @@ model PeriodLock {
   lockedAt   DateTime @default(now())
 
   @@unique([entityId, year, month])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 — Statement pipeline
+// ---------------------------------------------------------------------------
+
+enum ImportStatus {
+  DETECTED // parsed; awaiting the confirmation banner (spec §3 step 2)
+  CONFIRMED // rows are in the tagging queue / posted
+}
+
+enum TxnStatus {
+  PENDING // in the tagging queue
+  TAGGED // tagged (by member or system), awaiting "Post All Confirmed"
+  POSTED // journal entry exists
+  DUPLICATE // previously imported — kept for display, never taggable
+}
+
+model StatementImport {
+  id            String       @id @default(cuid())
+  // Null while unrecognized — Admin maps it once, mapping is remembered.
+  bankAccountId String?
+  bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  entityId      String?
+  fileName      String
+  status        ImportStatus @default(DETECTED)
+  detectedVia   String // "account_number" | "ifsc" | "mapping" | "manual" | "unrecognized"
+  // Parsed rows as extracted — source of truth for (re)materializing
+  // transactions when the account is assigned or corrected.
+  rawRows         Json
+  headerSignature String
+  // Statement's own closing balance (from the balance column's last row) —
+  // must equal the ledger balance after import (spec §3 step 3).
+  closingBalance Decimal? @db.Decimal(14, 2)
+  rowsTotal      Int      @default(0)
+  rowsDuplicate  Int      @default(0)
+  uploadedById   String
+  createdAt      DateTime @default(now())
+
+  transactions StatementTransaction[]
+
+  @@index([bankAccountId])
+}
+
+model StatementTransaction {
+  id            String          @id @default(cuid())
+  importId      String
+  import        StatementImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  bankAccountId String
+  entityId      String
+  date          DateTime        @db.Date
+  narration     String
+  reference     String?
+  debit         Decimal         @default(0) @db.Decimal(14, 2)
+  credit        Decimal         @default(0) @db.Decimal(14, 2)
+  balance       Decimal?        @db.Decimal(14, 2) // statement running balance
+  // sha256(account + date + amount + narration + occurrence) — spec §3 step 3
+  dedupeHash    String
+  status        TxnStatus       @default(PENDING)
+
+  // 3-tier tag (spec §3 step 5): head + nature (auto-suggested) + cost centre
+  headAccountId String?
+  nature        String? // expense | income | transfer_own | loan_given | loan_received | capital
+  costCentreId  String?
+  autoTagged    Boolean   @default(false) // "Verified by System"
+  taggedById    String?
+  taggedAt      DateTime?
+
+  // Once posted: the journal document underneath (sourceType "statement_txn"),
+  // OR the mirror transaction whose document already carries this transfer
+  // (own-account transfers post once and auto-match the mirror row, spec §3.6).
+  docId       String? @unique
+  mirrorTxnId String? @unique
+
+  @@unique([bankAccountId, dedupeHash])
+  @@index([entityId, status])
+  @@index([importId])
+}
+
+// Rules + learning engine (spec §3 step 4). Every manual tag upserts a rule
+// keyed on the narration's party token; future imports auto-tag on match.
+model TagRule {
+  id            String   @id @default(cuid())
+  entityId      String
+  pattern       String // normalized party token, e.g. "SWIGGY"
+  headAccountId String
+  nature        String
+  costCentreId  String?
+  hits          Int      @default(0)
+  source        String   @default("learned") // learned | manual
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([entityId, pattern])
+}
+
+// Cost centres (spec §3 step 5 tier 3): Hyrox Project, Office Operations,
+// Personal, Consultant… Admin-managed masters, per entity.
+model CostCentre {
+  id         String    @id @default(cuid())
+  entityId   String
+  name       String
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  lines JournalLine[]
+
+  @@unique([entityId, name])
+}
+
+// "Map it once; mapping is remembered" (spec §3 step 2): an unrecognized
+// statement layout, once mapped by Admin, auto-routes next time.
+model StatementMapping {
+  id            String   @id @default(cuid())
+  signature     String   @unique // sha256 of the normalized header row
+  bankAccountId String
+  createdById   String
+  createdAt     DateTime @default(now())
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).
