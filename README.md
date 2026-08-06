@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ledgerly
 
-## Getting Started
+Multi-entity books with a double-entry engine underneath. Built per the
+v3 consolidated spec — Phase 1 (Core) is complete.
 
-First, run the development server:
+## Status
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1. Core | Auth, single-admin model, permission matrix, entity + bank account managers, audit, soft-delete | ✅ done |
+| 2. Accounting engine | CoA auto-seed, journal posting, ledgers, trial balance, period lock, reversal-based edit/delete/undo | ⏳ next |
+| 3. Statement pipeline | Upload → detect → extract → dedupe → auto-verify/queue → tag → post | – |
+| 4–9 | Operations, tax, reports, suggestions, AI layer, hardening | – |
+
+## Stack
+
+- Next.js 16 (App Router, server actions) + TypeScript + Tailwind
+- Prisma 7 + PostgreSQL 17 (local dev instance on port 55432)
+- iron-session (encrypted cookie sessions), bcryptjs, zod
+
+## Running locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Start the local Postgres (installed under ~/.local/ledgerly-pg)
+~/.local/ledgerly-pg/pg-start     # pg-stop / pg-status also available
+
+# 2. Start the app
+cd ~/Desktop/Project/ledgerly
+npm run dev                        # or: npm run build && npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+App: http://localhost:3000 — sign in with the seeded users
+(passwords come from `SEED_ADMIN_PASSWORD` / `SEED_MEMBER_PASSWORD` in `.env`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- Admin: `himal.goyal@accurest.co`
+- Members: `greeshma@` / `prakash@` / `sanjeevani@accurest.co` (zero permissions until granted)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Key invariants (enforced, tested)
 
-## Learn More
+- **Exactly one Main Admin** — partial unique DB index `one_main_admin`;
+  a second ADMIN row cannot exist. Admin cannot be deactivated/demoted in code.
+- **Zero-trust UI** — every page and server action re-checks role/permission
+  server-side (`requireAdmin` / `requirePermission` in `src/lib/auth.ts`).
+- **Audit rows are transactional** — written in the same DB transaction as
+  the mutation they describe (`src/lib/audit.ts`).
+- **Archive over delete** — entities/accounts/locations archive (soft);
+  hard delete only when nothing hangs off them.
 
-To learn more about Next.js, take a look at the following resources:
+## Verification
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run build                      # typecheck + compile
+node scripts/verify-phase1.mjs     # 24 runtime checks against a running server
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The runtime suite proves: anonymous → redirected; admin sees everything;
+a zero-permission member sees nothing gated; granting one flag opens
+exactly that capability; revocation/deactivation take effect immediately;
+forged cookies are rejected.
 
-## Deploy on Vercel
+## Database
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npx prisma migrate dev             # apply migrations
+npx prisma db seed                 # idempotent seed (admin + members)
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Connection settings live in `.env` (never committed). `prisma/schema.prisma`
+is the source of truth for the data model.

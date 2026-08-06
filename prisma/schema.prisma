@@ -1,0 +1,147 @@
+// Ledgerly — Phase 1 (Core) schema
+// Users & single-admin model, permission matrix, entities, bank accounts,
+// cash locations, audit log, soft-delete/archive framework.
+//
+// Invariants enforced in DB (see migrations):
+//   - At most one ADMIN user (partial unique index)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum EntityType {
+  INDIVIDUAL
+  PVT_LTD
+  PARTNERSHIP
+  LLP
+}
+
+model User {
+  id           String    @id @default(cuid())
+  name         String
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(MEMBER)
+  isActive     Boolean   @default(true)
+  // If true, this member only sees entities listed in entityScopes.
+  entityScoped Boolean   @default(false)
+  deletedAt    DateTime?
+
+  permissions  MemberPermission?
+  entityScopes UserEntityScope[]
+  auditLogs    AuditLog[]        @relation("actor")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// One row per member. Admin bypasses this entirely (holds every permission).
+// Members start with ZERO permissions except reimbursementSubmit (spec §1.1).
+model MemberPermission {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  statementUpload       Boolean @default(false) // Statement upload & import
+  transactionTagging    Boolean @default(false) // Tagging queue work
+  transactionEditDelete Boolean @default(false) // Transaction edit / delete / undo
+  viewFinancialReports  Boolean @default(false) // P&L / Balance Sheet
+  viewTaxRegisters      Boolean @default(false) // GST / TDS registers
+  cashEntries           Boolean @default(false) // Cash entry form
+  viewCashReports       Boolean @default(false) // Cash reports
+  reimbursementSubmit   Boolean @default(true)  // Submit own reimbursements
+
+  updatedAt DateTime @updatedAt
+}
+
+model UserEntityScope {
+  userId   String
+  entityId String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity   Entity @relation(fields: [entityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, entityId])
+}
+
+model Entity {
+  id           String     @id @default(cuid())
+  name         String
+  code         String     @unique // HG / MG / PG / ACPL / ...
+  type         EntityType
+  pan          String
+  gstin        String?
+  fyStartMonth Int        @default(4) // April
+  archivedAt   DateTime? // archive = soft remove (spec §2.1)
+
+  bankAccounts  BankAccount[]
+  cashLocations CashLocation[]
+  userScopes    UserEntityScope[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BankAccount {
+  id             String    @id @default(cuid())
+  entityId       String
+  entity         Entity    @relation(fields: [entityId], references: [id])
+  bankName       String
+  accountNumber  String
+  ifsc           String
+  nickname       String // "HG ICICI", "ACPL 7838"
+  openingBalance Decimal   @db.Decimal(14, 2)
+  openingDate    DateTime  @db.Date
+  archivedAt     DateTime?
+
+  // Phase 2 wires this to the auto-created Chart of Accounts ledger account.
+  ledgerAccountId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityId, accountNumber])
+}
+
+model CashLocation {
+  id         String    @id @default(cuid())
+  entityId   String
+  entity     Entity    @relation(fields: [entityId], references: [id])
+  name       String // Office Drawer, Locker, Car, With Mom, ...
+  archivedAt DateTime?
+
+  // Phase 2 wires this to its Chart of Accounts ledger account.
+  ledgerAccountId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityId, name])
+}
+
+// Append-only audit trail: who, when, what, before → after (spec §1.1, §5).
+model AuditLog {
+  id         String  @id @default(cuid())
+  actorId    String?
+  actor      User?   @relation("actor", fields: [actorId], references: [id])
+  action     String // "user.create" | "permission.update" | "entity.archive" | ...
+  targetType String // "User" | "Entity" | "BankAccount" | ...
+  targetId   String
+  summary    String
+  before     Json?
+  after      Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([targetType, targetId])
+  @@index([actorId])
+  @@index([createdAt])
+}
