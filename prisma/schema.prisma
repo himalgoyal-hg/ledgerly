@@ -9,6 +9,8 @@
 //          finance tasks, invoices. Thin records over posting rules.
 // Phase 5: taxation — GST/TDS fields with split-posting, TaxLine register
 //          rows feeding GSTR-1 / GSTR-3B / TDS registers.
+// Phase 6: reports — every statement is a live query over the ledger; only
+//          budget targets are stored (nothing else is derived data).
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -703,6 +705,27 @@ model TaxLine {
   createdAt  DateTime @default(now())
 
   @@index([entityId, date])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 — Reports. P&L, Balance Sheet, Cash Flow, cost centre and party
+// reports are all live queries over the journal (spec §3 step 7, §10) —
+// nothing is stored. Budget targets are the one exception: they are an
+// input, not derived data.
+// ---------------------------------------------------------------------------
+
+model Budget {
+  id        String   @id @default(cuid())
+  entityId  String
+  accountId String
+  year      Int
+  month     Int // 1–12
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([entityId, accountId, year, month])
+  @@index([entityId, year])
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

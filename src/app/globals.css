@@ -24,3 +24,32 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Printed reports (spec §10 "printable"; print → PDF covers the PDF export).
+   Drop the app chrome and the page's own controls, and let tables break
+   across pages without splitting a row. */
+@media print {
+  body {
+    background: #fff;
+    color: #000;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  table {
+    break-inside: auto;
+  }
+
+  tr,
+  thead {
+    break-inside: avoid;
+    break-after: auto;
+  }
+
+  thead {
+    display: table-header-group; /* repeat headers on every page */
+  }
+}

@@ -47,7 +47,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="min-h-screen bg-zinc-50">
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="border-b border-zinc-200 bg-white print:hidden">
         <div className="mx-auto flex max-w-6xl items-center gap-6 px-4 py-3">
           <Link href="/" className="text-lg font-semibold tracking-tight text-zinc-900">
             Ledgerly
@@ -127,7 +127,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           )}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 py-6 print:max-w-none">{children}</main>
     </div>
   )
 }

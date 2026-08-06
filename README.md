@@ -12,8 +12,9 @@ v3 consolidated spec.
 | 3. Statement pipeline | Upload → detect → extract → dedupe → auto-verify/queue → tag → post → balance validation | ✅ done |
 | 4. Operations | Reimbursements, cash, bills, salary, tasks, invoices — thin screens over posting rules | ✅ done |
 | 5. Tax | GST/TDS fields, split-posting, GSTR-1/3B + ITC, TDS register, deposit reminders | ✅ done |
-| 6. Reports & dashboard | All derived views + drill-down | ⏳ next |
-| 7–9 | Smart suggestions, AI layer, hardening | – |
+| 6. Reports & dashboard | P&L, Balance Sheet, Cash Flow, budget, cost centres, parties, salary + Overview tiles | ✅ done |
+| 7. Smart suggestions & automation | Balance engine, reminders, recurring generators, weekly email | ⏳ next |
+| 8–9 | AI layer, hardening | – |
 
 ## Stack
 
@@ -68,6 +69,7 @@ npx tsx scripts/verify-phase2.ts   # 19 ledger checks through the service layer
 npx tsx scripts/verify-phase3.ts   # 37 statement-pipeline checks
 npx tsx scripts/verify-phase4.ts   # 34 operations checks
 npx tsx scripts/verify-phase5.ts   # 25 taxation checks
+npx tsx scripts/verify-phase6.ts   # 34 reporting checks
 ```
 
 Phase 1 suite: anonymous → redirected; admin sees everything; a
@@ -105,6 +107,15 @@ from the vendor; statement rows splitting inclusive GST and grossing up
 net-of-TDS payments; GSTR-1 rate-wise, GSTR-3B ITC tracker → net payable;
 TDS register by section and deductee; deposit tasks accumulating per month;
 deleted postings dropping out of the registers; filing locks the period.
+
+Phase 6 suite (spec §10, §11.6): the identities that prove each statement —
+Balance Sheet (Assets = Liabilities + Equity + profit-to-date) and Cash Flow
+(opening + movements = closing); every P&L line traced back to the trial
+balance and down to its source document; cash-flow classification (operating
+/ investing / financing) with own-account transfers self-eliminating;
+cost-centre, party, budget-variance and salary reports; reports reacting
+correctly to delete and undo; and the dashboard tiles agreeing with the
+ledger.
 
 ## Database
 
