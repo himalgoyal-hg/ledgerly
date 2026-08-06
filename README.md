@@ -10,8 +10,9 @@ v3 consolidated spec.
 | 1. Core | Auth, single-admin model, permission matrix, entity + bank account managers, audit, soft-delete | ✅ done |
 | 2. Accounting engine | CoA auto-seed, journal posting, ledgers, trial balance, period lock, reversal-based edit/delete/undo | ✅ done |
 | 3. Statement pipeline | Upload → detect → extract → dedupe → auto-verify/queue → tag → post → balance validation | ✅ done |
-| 4. Operations | Reimbursements, cash, bills, salary, tasks, invoices | ⏳ next |
-| 5–9 | Tax, reports, suggestions, AI layer, hardening | – |
+| 4. Operations | Reimbursements, cash, bills, salary, tasks, invoices — thin screens over posting rules | ✅ done |
+| 5. Tax | GST/TDS fields, split-posting, registers, reminders | ⏳ next |
+| 6–9 | Reports, suggestions, AI layer, hardening | – |
 
 ## Stack
 
@@ -64,6 +65,7 @@ npm run build                      # typecheck + compile
 node scripts/verify-phase1.mjs     # 24 runtime checks against a running server
 npx tsx scripts/verify-phase2.ts   # 19 ledger checks through the service layer
 npx tsx scripts/verify-phase3.ts   # 37 statement-pipeline checks
+npx tsx scripts/verify-phase4.ts   # 34 operations checks
 ```
 
 Phase 1 suite: anonymous → redirected; admin sees everything; a
@@ -85,6 +87,14 @@ from manual tags and auto-verifies later imports; posting rules produce the
 spec's Dr/Cr table; own-account transfers post once and auto-match the
 mirror row; closing-balance validation holds imports open until resolved;
 retag/delete/undo of posted rows stay balanced; cost-centre report trace.
+
+Phase 4 suite (spec §6): approve/reject/settle reimbursements with live
+member-payable ledgers; cash receipt/payment/transfer/adjustment (reason
+mandatory) with the where-is-cash view; bills posting and clearing vendor
+payables, recurring instances spawning on payment; salary runs (draft →
+approve → pay) with per-person payables, TDS split and the auto-created
+deposit task; recurring finance tasks; invoice numbering, partial payments,
+aging buckets and settled debtors — books balanced across every module.
 
 ## Database
 

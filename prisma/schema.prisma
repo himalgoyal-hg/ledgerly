@@ -1,10 +1,12 @@
-// Ledgerly — Phases 1–3 schema
+// Ledgerly — Phases 1–4 schema
 // Phase 1: users & single-admin model, permission matrix, entities, bank
 //          accounts, cash locations, audit log, soft-delete/archive framework.
 // Phase 2: accounting engine — Chart of Accounts, double-entry journal,
 //          reversal-based edit/delete/undo, period locks.
 // Phase 3: statement pipeline — imports, statement transactions, tagging
 //          queue, rules + learning engine, cost centres.
+// Phase 4: operations — reimbursements, cash entries, bills, salary register,
+//          finance tasks, invoices. Thin records over posting rules.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -89,6 +91,10 @@ model Entity {
   gstin        String?
   fyStartMonth Int        @default(4) // April
   archivedAt   DateTime? // archive = soft remove (spec §2.1)
+
+  // Invoice auto-numbering (spec §6.6): "INV-0001", counter per entity.
+  invoicePrefix     String @default("INV")
+  nextInvoiceNumber Int    @default(1)
 
   bankAccounts   BankAccount[]
   cashLocations  CashLocation[]
@@ -393,6 +399,242 @@ model StatementMapping {
   bankAccountId String
   createdById   String
   createdAt     DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Phase 4 — Operations (spec §6). Every posting-backed record keeps its
+// JournalDoc id; edit/delete/undo ride the Phase 2 reversal machinery.
+// FKs to users/accounts/cost centres stay plain strings (resolved in code),
+// matching the statement-pipeline convention.
+// ---------------------------------------------------------------------------
+
+enum ClaimStatus {
+  PENDING // submitted, awaiting Admin review
+  APPROVED // posted: Dr Expense / Cr Member Payable
+  REJECTED // requires remarks; nothing posted
+}
+
+model Reimbursement {
+  id       String      @id @default(cuid())
+  entityId String
+  memberId String // who is owed
+  date     DateTime    @db.Date
+  category String // member's free-text category
+  amount   Decimal     @db.Decimal(14, 2)
+  link     String? // bill upload (Drive link)
+  remarks  String?
+  status   ClaimStatus @default(PENDING)
+
+  // Review (Admin-only): approve picks the expense head + cost centre.
+  reviewedById     String?
+  reviewedAt       DateTime?
+  rejectReason     String?
+  expenseAccountId String?
+  costCentreId     String?
+  docId            String?   @unique // approval posting
+
+  createdAt DateTime @default(now())
+
+  @@index([entityId, status])
+  @@index([memberId])
+}
+
+enum CashEntryKind {
+  RECEIPT // Dr Cash location / Cr head
+  PAYMENT // Dr head / Cr Cash location
+  TRANSFER // Dr to-location / Cr from-location
+  ADJUSTMENT // either direction; mandatory reason, flagged in audit
+}
+
+model CashEntry {
+  id            String        @id @default(cuid())
+  entityId      String
+  kind          CashEntryKind
+  date          DateTime      @db.Date
+  locationId    String // primary cash location
+  toLocationId  String? // TRANSFER target
+  headAccountId String? // RECEIPT / PAYMENT / ADJUSTMENT counter-head
+  costCentreId  String?
+  inflow        Boolean       @default(false) // ADJUSTMENT direction (cash increases)
+  amount        Decimal       @db.Decimal(14, 2)
+  remarks       String?
+  reason        String? // ADJUSTMENT: mandatory
+  docId         String?       @unique
+  createdById   String
+  createdAt     DateTime      @default(now())
+
+  @@index([entityId, date])
+}
+
+enum BillStatus {
+  PENDING // payable posted, not yet paid
+  PAID
+}
+
+enum Recurrence {
+  NONE
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+// Bills & insurance (spec §6.3): entry posts the payable; payment clears it.
+// Recurring bills spawn the next PENDING instance when the current one is
+// paid — no scheduler needed (email reminders arrive with Phase 7).
+model Bill {
+  id               String     @id @default(cuid())
+  entityId         String
+  vendor           String
+  billType         String // Electricity, Insurance, Rent, ...
+  amount           Decimal    @db.Decimal(14, 2)
+  billDate         DateTime   @db.Date
+  dueDate          DateTime   @db.Date
+  renewalDate      DateTime?  @db.Date // insurance
+  link             String? // Drive link
+  remarks          String?
+  recurrence       Recurrence @default(NONE)
+  expenseAccountId String
+  costCentreId     String?
+  status           BillStatus @default(PENDING)
+  entryDocId       String?    @unique // Dr Expense / Cr Vendor payable
+  paymentDocId     String?    @unique // Dr Vendor payable / Cr Bank-Cash
+  paidAt           DateTime?
+  seriesId         String? // recurring chain root
+  periodKey        String? // "2026-08" — one instance per period
+  createdById      String
+  createdAt        DateTime   @default(now())
+
+  @@unique([seriesId, periodKey])
+  @@index([entityId, status, dueDate])
+}
+
+enum PayrollType {
+  SALARY // TDS u/s 192
+  CONSULTANT // TDS u/s 194J
+}
+
+model SalaryPerson {
+  id                String      @id @default(cuid())
+  entityId          String
+  name              String
+  type              PayrollType
+  team              String?
+  costCentreId      String?
+  monthlyGross      Decimal     @db.Decimal(14, 2)
+  tdsSection        String // "192" | "194J"
+  tdsRate           Decimal     @db.Decimal(5, 2) // %
+  payableAccountId  String? // per-person payable under 2400
+  archivedAt        DateTime?
+  createdAt         DateTime    @default(now())
+
+  @@unique([entityId, name])
+}
+
+enum RunStatus {
+  DRAFT // HR fills variables
+  APPROVED // consolidated posting exists; payables + TDS payable live
+  PAID // mark-paid run posted
+}
+
+// Monthly run (spec §6.4): draft → Admin approves (consolidated posting:
+// Dr expense by cost centre / Cr per-person payables + Cr TDS Payable) →
+// mark-paid (Dr payables / Cr Bank) → TDS deposit becomes a Finance Task.
+model SalaryRun {
+  id           String    @id @default(cuid())
+  entityId     String
+  year         Int
+  month        Int // 1–12
+  status       RunStatus @default(DRAFT)
+  docId        String?   @unique
+  paymentDocId String?   @unique
+  approvedById String?
+  createdById  String
+  createdAt    DateTime  @default(now())
+
+  lines SalaryRunLine[]
+
+  @@unique([entityId, year, month])
+}
+
+model SalaryRunLine {
+  id           String    @id @default(cuid())
+  runId        String
+  run          SalaryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  personId     String
+  gross        Decimal   @db.Decimal(14, 2)
+  tds          Decimal   @db.Decimal(14, 2)
+  net          Decimal   @db.Decimal(14, 2)
+  costCentreId String?
+
+  @@unique([runId, personId])
+}
+
+enum TaskStatus {
+  OPEN
+  DONE
+}
+
+// Finance tasks (spec §6.5): EMI, subscriptions, payroll, GST/TDS payments,
+// renewals. Completing a recurring task spawns the next instance.
+model FinanceTask {
+  id            String     @id @default(cuid())
+  entityId      String
+  title         String
+  kind          String // emi | subscription | payroll | gst | tds | renewal | other
+  amount        Decimal?   @db.Decimal(14, 2)
+  dueDate       DateTime   @db.Date
+  recurrence    Recurrence @default(NONE)
+  status        TaskStatus @default(OPEN)
+  completedAt   DateTime?
+  completedById String?
+  notes         String?
+  seriesId      String?
+  periodKey     String?
+  createdById   String
+  createdAt     DateTime   @default(now())
+
+  @@unique([seriesId, periodKey])
+  @@index([entityId, status, dueDate])
+}
+
+enum InvoiceStatus {
+  OPEN
+  PARTIAL // some payment received
+  SETTLED // fully paid — archive
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  entityId        String
+  number          String // auto: prefix + zero-padded counter
+  customer        String
+  date            DateTime      @db.Date
+  dueDate         DateTime      @db.Date
+  amount          Decimal       @db.Decimal(14, 2)
+  narration       String?
+  incomeAccountId String
+  costCentreId    String?
+  debtorAccountId String // per-customer account under Sundry Debtors (1300)
+  status          InvoiceStatus @default(OPEN)
+  docId           String?       @unique // Dr Debtor / Cr Income
+  createdById     String
+  createdAt       DateTime      @default(now())
+
+  payments InvoicePayment[]
+
+  @@unique([entityId, number])
+  @@index([entityId, status])
+}
+
+model InvoicePayment {
+  id          String   @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  date        DateTime @db.Date
+  amount      Decimal  @db.Decimal(14, 2)
+  docId       String?  @unique // Dr Bank-Cash / Cr Debtor
+  createdById String
+  createdAt   DateTime @default(now())
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

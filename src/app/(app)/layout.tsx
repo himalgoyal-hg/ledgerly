@@ -30,6 +30,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]
   const adminNav: { href: string; label: string }[] = [
     { href: '/journal', label: 'Journal' },
+    { href: '/bills', label: 'Bills' },
+    { href: '/salary', label: 'Salary' },
+    { href: '/tasks', label: 'Tasks' },
+    { href: '/invoices', label: 'Invoices' },
     { href: '/admin/trial-balance', label: 'Trial balance' },
     { href: '/admin/ledgers', label: 'Ledgers' },
     { href: '/admin/coa', label: 'Accounts' },

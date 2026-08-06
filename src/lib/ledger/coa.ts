@@ -81,7 +81,13 @@ export const COA_SEED: SeedAccount[] = [
 export const COA = {
   BANK_GROUP: '1100',
   CASH_GROUP: '1200',
+  DEBTORS_GROUP: '1300',
+  CREDITORS_GROUP: '2100',
+  PAYABLES_GROUP: '2400',
+  TDS_PAYABLE: '2230',
   OPENING_BALANCES: '3200',
+  SALARIES: '5100',
+  CONSULTANT_FEES: '5110',
 } as const
 
 /** Create the full seed tree for a new entity. Idempotent per (entity, code). */
