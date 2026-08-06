@@ -1,13 +1,16 @@
 import { Prisma, type Invoice } from '@/generated/prisma/client'
-import { COA } from '@/lib/ledger/coa'
-import { createJournalDocument } from '@/lib/ledger/posting'
+import { COA, getSystemAccount } from '@/lib/ledger/coa'
+import { createJournalDocument, type LineInput } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
+import { rateBp, gstOnNet } from '@/lib/tax/calc'
+import { writeTaxLine } from '@/lib/tax/register'
 import { getPartyAccount } from './party'
 import { OpsError } from './reimburse'
 
-// Invoices & receivables (spec §6.6): auto numbering per entity, due-date
-// tracking, partial payments, aging buckets, settled archive. GST fields
-// (§7) arrive with Phase 5 — posting today is Dr Debtor / Cr Income.
+// Invoices & receivables (spec §6.6 + §7.1): auto numbering per entity,
+// due-date tracking, partial payments, aging buckets, settled archive.
+// With GST: `amount` input is the TAXABLE value; posting splits
+// Dr Debtor (total) / Cr Income (taxable) / Cr GST Output Liability.
 
 export async function createInvoice(
   tx: Prisma.TransactionClient,
@@ -16,17 +19,23 @@ export async function createInvoice(
     customer: string
     date: Date
     dueDate: Date
-    amount: string
+    amount: string // taxable value
     narration?: string | null
     incomeAccountId: string
     costCentreId?: string | null
+    gstType?: string | null
+    gstRate?: string | null
+    hsn?: string | null
+    customerGstin?: string | null
     actorId: string
   },
 ) {
   const customer = args.customer.trim()
   if (!customer) throw new OpsError('Customer is required')
-  if (parsePaise(args.amount) <= 0n) throw new OpsError('Amount must be positive')
-  const amount = formatPaise(parsePaise(args.amount))
+  const taxable = parsePaise(args.amount)
+  if (taxable <= 0n) throw new OpsError('Amount must be positive')
+  const gst = args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
+  const total = taxable + gst
 
   // Auto numbering (spec §6.6): per-entity prefix + counter, atomically.
   const entity = await tx.entity.update({
@@ -43,14 +52,27 @@ export async function createInvoice(
       customer,
       date: args.date,
       dueDate: args.dueDate,
-      amount,
+      amount: formatPaise(total),
       narration: args.narration ?? null,
       incomeAccountId: args.incomeAccountId,
       costCentreId: args.costCentreId ?? null,
       debtorAccountId: debtor.id,
+      gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
+      gstRate: gst > 0n ? args.gstRate : null,
+      hsn: args.hsn ?? null,
+      customerGstin: args.customerGstin ?? null,
+      gstAmount: formatPaise(gst),
       createdById: args.actorId,
     },
   })
+  const lines: LineInput[] = [
+    { accountId: debtor.id, debit: formatPaise(total) },
+    { accountId: args.incomeAccountId, credit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
+  ]
+  if (gst > 0n) {
+    const output = await getSystemAccount(tx, args.entityId, '2210')
+    lines.push({ accountId: output.id, credit: formatPaise(gst) })
+  }
   const { doc } = await createJournalDocument(tx, {
     entityId: args.entityId,
     sourceType: 'invoice',
@@ -60,12 +82,26 @@ export async function createInvoice(
       date: args.date,
       narration: `Invoice ${number} — ${customer}`,
       reference: number,
-      lines: [
-        { accountId: debtor.id, debit: amount },
-        { accountId: args.incomeAccountId, credit: amount, costCentreId: args.costCentreId ?? undefined },
-      ],
+      lines,
     },
   })
+  if (gst > 0n) {
+    await writeTaxLine(tx, {
+      entityId: args.entityId,
+      docId: doc.id,
+      date: args.date,
+      direction: 'output',
+      party: customer,
+      gstType: args.gstType ?? 'intra',
+      gstRate: args.gstRate,
+      hsn: args.hsn,
+      counterpartyGstin: args.customerGstin,
+      taxableValue: formatPaise(taxable),
+      gstAmount: formatPaise(gst),
+      sourceType: 'invoice',
+      sourceId: invoice.id,
+    })
+  }
   return tx.invoice.update({ where: { id: invoice.id }, data: { docId: doc.id } })
 }
 

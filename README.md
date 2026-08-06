@@ -11,8 +11,9 @@ v3 consolidated spec.
 | 2. Accounting engine | CoA auto-seed, journal posting, ledgers, trial balance, period lock, reversal-based edit/delete/undo | ✅ done |
 | 3. Statement pipeline | Upload → detect → extract → dedupe → auto-verify/queue → tag → post → balance validation | ✅ done |
 | 4. Operations | Reimbursements, cash, bills, salary, tasks, invoices — thin screens over posting rules | ✅ done |
-| 5. Tax | GST/TDS fields, split-posting, registers, reminders | ⏳ next |
-| 6–9 | Reports, suggestions, AI layer, hardening | – |
+| 5. Tax | GST/TDS fields, split-posting, GSTR-1/3B + ITC, TDS register, deposit reminders | ✅ done |
+| 6. Reports & dashboard | All derived views + drill-down | ⏳ next |
+| 7–9 | Smart suggestions, AI layer, hardening | – |
 
 ## Stack
 
@@ -66,6 +67,7 @@ node scripts/verify-phase1.mjs     # 24 runtime checks against a running server
 npx tsx scripts/verify-phase2.ts   # 19 ledger checks through the service layer
 npx tsx scripts/verify-phase3.ts   # 37 statement-pipeline checks
 npx tsx scripts/verify-phase4.ts   # 34 operations checks
+npx tsx scripts/verify-phase5.ts   # 25 taxation checks
 ```
 
 Phase 1 suite: anonymous → redirected; admin sees everything; a
@@ -95,6 +97,14 @@ payables, recurring instances spawning on payment; salary runs (draft →
 approve → pay) with per-person payables, TDS split and the auto-created
 deposit task; recurring finance tasks; invoice numbering, partial payments,
 aging buckets and settled debtors — books balanced across every module.
+
+Phase 5 suite (spec §7): paise-exact GST/TDS arithmetic (forward, inclusive
+and net-of-TDS grossing, with rounding that never loses a paisa); invoice
+GST splitting to Output Liability; bill GST → Input Credit with TDS withheld
+from the vendor; statement rows splitting inclusive GST and grossing up
+net-of-TDS payments; GSTR-1 rate-wise, GSTR-3B ITC tracker → net payable;
+TDS register by section and deductee; deposit tasks accumulating per month;
+deleted postings dropping out of the registers; filing locks the period.
 
 ## Database
 

@@ -21,7 +21,18 @@ function tagFields(formData: FormData) {
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
   if (!headAccountId) throw new Error('Pick a head')
   if (!nature) throw new Error('Pick a nature')
-  return { headAccountId, nature, costCentreId }
+  // Optional tax details (spec §3 step 5 / §7) — validated in the service.
+  const field = (name: string) => String(formData.get(name) ?? '').trim() || null
+  const tax = {
+    gstType: field('gstType'),
+    gstRate: field('gstRate'),
+    hsn: field('hsn'),
+    counterpartyGstin: field('counterpartyGstin'),
+    tdsSection: field('tdsSection'),
+    tdsRate: field('tdsRate'),
+    deducteePan: field('deducteePan'),
+  }
+  return { headAccountId, nature, costCentreId, tax }
 }
 
 export async function tagTransaction(formData: FormData) {

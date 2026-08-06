@@ -21,6 +21,13 @@ const billSchema = z.object({
   recurrence: z.enum(['NONE', 'MONTHLY', 'QUARTERLY', 'YEARLY']),
   expenseAccountId: z.string().min(1, 'Pick the expense head'),
   costCentreId: z.string().optional(),
+  gstType: z.string().optional(),
+  gstRate: z.string().optional(),
+  hsn: z.string().trim().optional(),
+  vendorGstin: z.string().trim().optional(),
+  tdsSection: z.string().optional(),
+  tdsRate: z.string().optional(),
+  vendorPan: z.string().trim().optional(),
 })
 
 export async function createBillAction(formData: FormData) {
@@ -38,6 +45,13 @@ export async function createBillAction(formData: FormData) {
     recurrence: formData.get('recurrence') ?? 'NONE',
     expenseAccountId: formData.get('expenseAccountId'),
     costCentreId: formData.get('costCentreId') ?? undefined,
+    gstType: formData.get('gstType') ?? undefined,
+    gstRate: formData.get('gstRate') ?? undefined,
+    hsn: formData.get('hsn') ?? undefined,
+    vendorGstin: formData.get('vendorGstin') ?? undefined,
+    tdsSection: formData.get('tdsSection') ?? undefined,
+    tdsRate: formData.get('tdsRate') ?? undefined,
+    vendorPan: formData.get('vendorPan') ?? undefined,
   })
   if (!parsed.success) throw new Error(parsed.error.issues[0].message)
 
@@ -48,6 +62,13 @@ export async function createBillAction(formData: FormData) {
       link: parsed.data.link || null,
       remarks: parsed.data.remarks || null,
       costCentreId: parsed.data.costCentreId || null,
+      gstType: parsed.data.gstType || null,
+      gstRate: parsed.data.gstRate || null,
+      hsn: parsed.data.hsn || null,
+      vendorGstin: parsed.data.vendorGstin || null,
+      tdsSection: parsed.data.tdsSection || null,
+      tdsRate: parsed.data.tdsRate || null,
+      vendorPan: parsed.data.vendorPan || null,
       actorId: admin.id,
     })
     await audit(tx, {
@@ -55,7 +76,9 @@ export async function createBillAction(formData: FormData) {
       action: 'bill.create',
       targetType: 'Bill',
       targetId: bill.id,
-      summary: `Bill ${bill.vendor} (${bill.billType}) ₹${bill.amount} — payable posted`,
+      summary: `Bill ${bill.vendor} (${bill.billType}) taxable ₹${bill.amount}${
+        Number(bill.gstAmount) ? ` + GST ₹${bill.gstAmount}` : ''
+      }${Number(bill.tdsAmount) ? ` − TDS ₹${bill.tdsAmount}` : ''} — payable posted`,
     })
   })
   revalidatePath('/bills')

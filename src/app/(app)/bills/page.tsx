@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { createBillAction, payBillAction } from './actions'
 
 // Bills & insurance (spec §6.3): entry posts the payable; payment clears it.
@@ -60,7 +61,7 @@ export default async function BillsPage() {
           <input type="hidden" name="entityId" value={entity.id} />
           <input name="vendor" required placeholder="Vendor" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <input name="billType" required placeholder="Type (Electricity, Insurance…)" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-          <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="amount" required inputMode="decimal" placeholder="Taxable ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">bill date</label>
           <input name="billDate" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">due</label>
@@ -90,6 +91,40 @@ export default async function BillsPage() {
           <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
             Add bill
           </button>
+
+          {/* GST / TDS (spec §7): GST adds Input Credit; TDS is withheld
+              from the vendor and lands in TDS Payable. */}
+          <details className="w-full">
+            <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
+              GST / TDS details (optional)
+            </summary>
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-2">
+              <span className="text-[10px] font-medium uppercase text-zinc-400">GST</span>
+              <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <option value="">type</option>
+                {GST_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <option value="">no GST</option>
+                {GST_RATES.map((r) => (
+                  <option key={r} value={r}>{r}%</option>
+                ))}
+              </select>
+              <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <input name="vendorGstin" placeholder="Vendor GSTIN" className="w-36 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <span className="ml-3 text-[10px] font-medium uppercase text-zinc-400">TDS</span>
+              <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <option value="">section</option>
+                {TDS_SECTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <input name="tdsRate" placeholder="rate %" inputMode="decimal" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <input name="vendorPan" placeholder="Vendor PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+            </div>
+          </details>
         </form>
       </div>
 
@@ -118,7 +153,30 @@ export default async function BillsPage() {
                 {bill.link && (
                   <a href={bill.link} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">bill</a>
                 )}
-                <span className="ml-auto font-semibold text-zinc-900">{displayINR(String(bill.amount))}</span>
+                {Number(bill.gstAmount) > 0 && (
+                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                    GST {String(bill.gstRate)}% · ITC {displayINR(String(bill.gstAmount))}
+                  </span>
+                )}
+                {Number(bill.tdsAmount) > 0 && (
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    TDS {bill.tdsSection} · {displayINR(String(bill.tdsAmount))} withheld
+                  </span>
+                )}
+                <span className="ml-auto text-right">
+                  <span className="block font-semibold text-zinc-900">
+                    {displayINR(
+                      String(
+                        Number(bill.amount) + Number(bill.gstAmount) - Number(bill.tdsAmount),
+                      ),
+                    )}
+                  </span>
+                  {(Number(bill.gstAmount) > 0 || Number(bill.tdsAmount) > 0) && (
+                    <span className="text-[10px] text-zinc-400">
+                      payable · taxable {displayINR(String(bill.amount))}
+                    </span>
+                  )}
+                </span>
               </div>
               <form action={payBillAction} className="mt-3 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="billId" value={bill.id} />

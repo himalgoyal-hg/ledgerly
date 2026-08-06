@@ -2,6 +2,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { COA } from '@/lib/ledger/coa'
 import { createJournalDocument, type LineInput } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
+import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
 import { getPartyAccount } from './party'
 import { OpsError } from './reimburse'
 
@@ -160,18 +161,36 @@ export async function approveRun(
     },
   })
 
-  // TDS deposit is due the 7th of the next month (spec §6.4/§7.2).
+  // TDS deposit is due the 7th of the next month (spec §6.4/§7.2) — the
+  // month's task accumulates salary, bill and statement deductions.
   if (totalTds > 0n) {
-    await tx.financeTask.create({
-      data: {
-        entityId: run.entityId,
-        title: `TDS deposit — salary run ${run.year}-${String(run.month).padStart(2, '0')}`,
-        kind: 'tds',
-        amount: formatPaise(totalTds),
-        dueDate: new Date(Date.UTC(run.year, run.month, 7)),
-        createdById: args.actorId,
-      },
+    await ensureTdsDepositTask(tx, {
+      entityId: run.entityId,
+      deductionDate: monthEnd,
+      amount: formatPaise(totalTds),
+      actorId: args.actorId,
     })
+    // TDS register rows (spec §7.2): one per person with a deduction. The
+    // consolidated posting is one doc, so per-person rows key on
+    // "<docId>:<lineId>" — register queries resolve the prefix to the doc.
+    for (const line of run.lines) {
+      const tds = parsePaise(String(line.tds))
+      if (tds === 0n) continue
+      const person = personById.get(line.personId)!
+      await writeTaxLine(tx, {
+        entityId: run.entityId,
+        docId: `${doc.id}:${line.id}`,
+        date: monthEnd,
+        direction: 'input',
+        party: person.name,
+        taxableValue: formatPaise(parsePaise(String(line.gross))),
+        tdsSection: person.tdsSection,
+        tdsRate: String(person.tdsRate),
+        tdsAmount: formatPaise(tds),
+        sourceType: 'salary_run',
+        sourceId: run.id,
+      })
+    }
   }
 
   return tx.salaryRun.update({

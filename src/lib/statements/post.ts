@@ -6,11 +6,42 @@ import {
   PostingError,
   type LineInput,
 } from '@/lib/ledger/posting'
-import { learnRule } from './rules'
+import { getSystemAccount, COA } from '@/lib/ledger/coa'
+import { parsePaise, formatPaise } from '@/lib/ledger/money'
+import { rateBp, splitGrossGst, grossFromNetTds, TDS_SECTIONS } from '@/lib/tax/calc'
+import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
+import { learnRule, partyToken } from './rules'
 import { isNature } from './natures'
 
-// Tagging + posting (spec §3 steps 5–6). Members tag; the engine posts the
-// balanced journal underneath — they never see Dr/Cr.
+// Tagging + posting (spec §3 steps 5–6, tax details §7). Members tag; the
+// engine posts the balanced journal underneath — they never see Dr/Cr.
+
+export interface TagTaxInput {
+  gstType?: string | null
+  gstRate?: string | null
+  hsn?: string | null
+  counterpartyGstin?: string | null
+  tdsSection?: string | null
+  tdsRate?: string | null
+  deducteePan?: string | null
+}
+
+function validateTax(tax: TagTaxInput, nature: string) {
+  const hasGst = Boolean(tax.gstRate)
+  const hasTds = Boolean(tax.tdsRate)
+  if (!hasGst && !hasTds) return
+  if (nature !== 'expense' && nature !== 'income') {
+    throw new TagError('Tax details apply only to expense / income rows')
+  }
+  if (hasGst && hasTds) throw new TagError('Use GST or TDS on a row, not both')
+  if (hasGst) rateBp(tax.gstRate!) // throws on junk
+  if (hasTds) {
+    rateBp(tax.tdsRate!)
+    if (!tax.tdsSection || !(TDS_SECTIONS as readonly string[]).includes(tax.tdsSection)) {
+      throw new TagError('Pick the TDS section')
+    }
+  }
+}
 
 export class TagError extends Error {}
 
@@ -51,6 +82,7 @@ export async function applyTag(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    tax?: TagTaxInput
     actorId: string
   },
 ) {
@@ -58,6 +90,10 @@ export async function applyTag(
   if (txn.status === 'POSTED') throw new TagError('Already posted — use retag instead')
   if (!isNature(args.nature)) throw new TagError('Unknown nature')
   await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
+  const tax = args.tax ?? {}
+  validateTax(tax, args.nature)
+  const hasGst = Boolean(tax.gstRate)
+  const hasTds = Boolean(tax.tdsRate)
 
   await tx.statementTransaction.update({
     where: { id: txn.id },
@@ -66,6 +102,13 @@ export async function applyTag(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId: args.costCentreId ?? null,
+      gstType: hasGst ? (tax.gstType ?? 'intra') : null,
+      gstRate: hasGst ? tax.gstRate : null,
+      hsn: hasGst ? tax.hsn ?? null : null,
+      counterpartyGstin: hasGst ? tax.counterpartyGstin ?? null : null,
+      tdsSection: hasTds ? tax.tdsSection : null,
+      tdsRate: hasTds ? tax.tdsRate : null,
+      deducteePan: hasTds ? tax.deducteePan ?? null : null,
       autoTagged: false,
       taggedById: args.actorId,
       taggedAt: new Date(),
@@ -91,6 +134,13 @@ export async function clearTag(tx: Prisma.TransactionClient, txnId: string) {
       headAccountId: null,
       nature: null,
       costCentreId: null,
+      gstType: null,
+      gstRate: null,
+      hsn: null,
+      counterpartyGstin: null,
+      tdsSection: null,
+      tdsRate: null,
+      deducteePan: null,
       autoTagged: false,
       taggedById: null,
       taggedAt: null,
@@ -98,24 +148,101 @@ export async function clearTag(tx: Prisma.TransactionClient, txnId: string) {
   })
 }
 
-/** The uniform posting rule (spec §3 step 6 table). Cost centre rides the head line. */
-function buildLines(
-  txn: Pick<StatementTransaction, 'debit' | 'credit' | 'costCentreId'>,
+interface BuiltPosting {
+  lines: LineInput[]
+  // Register row to write once the doc exists (spec §7). Null when untaxed.
+  tax: {
+    direction: 'output' | 'input'
+    taxableValue: string
+    gstAmount: string
+    tdsAmount: string
+    withholdsTds: boolean // we deducted → deposit task + TDS register
+  } | null
+}
+
+/**
+ * The posting rule (spec §3 step 6 table), tax-aware (§7):
+ * - GST expense (outflow): bank gross splits into Dr head (taxable) + Dr Input Credit
+ * - GST income (inflow): Cr head (taxable) + Cr Output Liability
+ * - TDS payment (outflow): bank outflow is NET; Dr head gross / Cr TDS Payable
+ * - TDS-hit income (inflow): client withheld; Dr TDS Receivable rides along
+ */
+async function buildLines(
+  tx: Prisma.TransactionClient,
+  txn: Pick<
+    StatementTransaction,
+    'entityId' | 'debit' | 'credit' | 'costCentreId' | 'gstRate' | 'tdsRate' | 'tdsSection'
+  >,
   headAccountId: string,
   bankLedgerAccountId: string,
-): LineInput[] {
+): Promise<BuiltPosting> {
   const outflow = Number(txn.debit) > 0
-  const amount = outflow ? String(txn.debit) : String(txn.credit)
+  const bankAmount = parsePaise(outflow ? String(txn.debit) : String(txn.credit))
   const cc = txn.costCentreId ?? undefined
-  return outflow
-    ? [
-        { accountId: headAccountId, debit: amount, costCentreId: cc },
-        { accountId: bankLedgerAccountId, credit: amount },
-      ]
-    : [
-        { accountId: bankLedgerAccountId, debit: amount },
-        { accountId: headAccountId, credit: amount, costCentreId: cc },
-      ]
+
+  if (txn.gstRate) {
+    const { taxable, gst } = splitGrossGst(bankAmount, rateBp(String(txn.gstRate)))
+    if (outflow) {
+      const inputCredit = await getSystemAccount(tx, txn.entityId, '1500')
+      return {
+        lines: [
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc },
+          { accountId: inputCredit.id, debit: formatPaise(gst) },
+          { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
+        ],
+        tax: { direction: 'input', taxableValue: formatPaise(taxable), gstAmount: formatPaise(gst), tdsAmount: '0', withholdsTds: false },
+      }
+    }
+    const output = await getSystemAccount(tx, txn.entityId, '2210')
+    return {
+      lines: [
+        { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc },
+        { accountId: output.id, credit: formatPaise(gst) },
+      ],
+      tax: { direction: 'output', taxableValue: formatPaise(taxable), gstAmount: formatPaise(gst), tdsAmount: '0', withholdsTds: false },
+    }
+  }
+
+  if (txn.tdsRate) {
+    const { gross, tds } = grossFromNetTds(bankAmount, rateBp(String(txn.tdsRate)))
+    if (outflow) {
+      // We paid net after withholding TDS — we owe the department.
+      const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
+      return {
+        lines: [
+          { accountId: headAccountId, debit: formatPaise(gross), costCentreId: cc },
+          { accountId: tdsPayable.id, credit: formatPaise(tds) },
+          { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
+        ],
+        tax: { direction: 'input', taxableValue: formatPaise(gross), gstAmount: '0', tdsAmount: formatPaise(tds), withholdsTds: true },
+      }
+    }
+    // The payer withheld TDS on our income — TDS Receivable rides along.
+    const tdsReceivable = await getSystemAccount(tx, txn.entityId, '1600')
+    return {
+      lines: [
+        { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
+        { accountId: tdsReceivable.id, debit: formatPaise(tds) },
+        { accountId: headAccountId, credit: formatPaise(gross), costCentreId: cc },
+      ],
+      tax: null, // their deduction, not our register
+    }
+  }
+
+  const amount = formatPaise(bankAmount)
+  return {
+    lines: outflow
+      ? [
+          { accountId: headAccountId, debit: amount, costCentreId: cc },
+          { accountId: bankLedgerAccountId, credit: amount },
+        ]
+      : [
+          { accountId: bankLedgerAccountId, debit: amount },
+          { accountId: headAccountId, credit: amount, costCentreId: cc },
+        ],
+    tax: null,
+  }
 }
 
 /**
@@ -177,6 +304,7 @@ export async function postStatementTransaction(
     return { docId: mirror.docId!, mirrored: true }
   }
 
+  const built = await buildLines(tx, txn, txn.headAccountId, bank.ledgerAccountId)
   const { doc } = await createJournalDocument(tx, {
     entityId: txn.entityId,
     sourceType: 'statement_txn',
@@ -186,9 +314,38 @@ export async function postStatementTransaction(
       date: txn.date,
       narration: txn.narration,
       reference: txn.reference,
-      lines: buildLines(txn, txn.headAccountId, bank.ledgerAccountId),
+      lines: built.lines,
     },
   })
+  if (built.tax) {
+    await writeTaxLine(tx, {
+      entityId: txn.entityId,
+      docId: doc.id,
+      date: txn.date,
+      direction: built.tax.direction,
+      party: partyToken(txn.narration) ?? txn.narration.slice(0, 40),
+      gstType: txn.gstType,
+      gstRate: txn.gstRate === null ? null : String(txn.gstRate),
+      hsn: txn.hsn,
+      counterpartyGstin: txn.counterpartyGstin,
+      taxableValue: built.tax.taxableValue,
+      gstAmount: built.tax.gstAmount,
+      tdsSection: txn.tdsSection,
+      tdsRate: txn.tdsRate === null ? null : String(txn.tdsRate),
+      deducteePan: txn.deducteePan,
+      tdsAmount: built.tax.tdsAmount,
+      sourceType: 'statement_txn',
+      sourceId: txn.id,
+    })
+    if (built.tax.withholdsTds) {
+      await ensureTdsDepositTask(tx, {
+        entityId: txn.entityId,
+        deductionDate: txn.date,
+        amount: built.tax.tdsAmount,
+        actorId: args.actorId,
+      })
+    }
+  }
   await tx.statementTransaction.update({
     where: { id: txn.id },
     data: { status: 'POSTED', docId: doc.id },
@@ -250,6 +407,14 @@ export async function retagPostedTransaction(
   const bank = await tx.bankAccount.findUniqueOrThrow({ where: { id: txn.bankAccountId } })
   if (!bank.ledgerAccountId) throw new TagError(`${bank.nickname} has no ledger account`)
 
+  // Rebuild with the stored tax details — retag changes head/nature/cost
+  // centre, never the tax split.
+  const built = await buildLines(
+    tx,
+    { ...txn, costCentreId: args.costCentreId ?? null },
+    args.headAccountId,
+    bank.ledgerAccountId,
+  )
   await editJournalDocument(tx, {
     docId: txn.docId,
     actorId: args.actorId,
@@ -257,11 +422,7 @@ export async function retagPostedTransaction(
       date: txn.date,
       narration: txn.narration,
       reference: txn.reference,
-      lines: buildLines(
-        { debit: txn.debit, credit: txn.credit, costCentreId: args.costCentreId ?? null },
-        args.headAccountId,
-        bank.ledgerAccountId,
-      ),
+      lines: built.lines,
     },
   })
   await tx.statementTransaction.update({

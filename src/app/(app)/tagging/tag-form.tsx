@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 
 // The 3-tier tag form (spec §3 step 5): head → nature (auto-suggested from
 // the head) → cost centre. Members never see Dr/Cr.
@@ -81,6 +82,39 @@ export function TagForm(props: {
       >
         {props.submitLabel}
       </button>
+
+      {/* Optional GST / TDS details (spec §3 step 5 / §7) */}
+      <details className="w-full">
+        <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
+          GST / TDS details (optional)
+        </summary>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-2">
+          <span className="text-[10px] font-medium uppercase text-zinc-400">GST</span>
+          <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+            <option value="">type</option>
+            {GST_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+            <option value="">rate %</option>
+            {GST_RATES.map((r) => (
+              <option key={r} value={r}>{r}%</option>
+            ))}
+          </select>
+          <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+          <input name="counterpartyGstin" placeholder="Party GSTIN" className="w-36 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+          <span className="ml-3 text-[10px] font-medium uppercase text-zinc-400">or TDS</span>
+          <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+            <option value="">section</option>
+            {TDS_SECTIONS.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <input name="tdsRate" placeholder="rate %" inputMode="decimal" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+          <input name="deducteePan" placeholder="Deductee PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+        </div>
+      </details>
     </form>
   )
 }

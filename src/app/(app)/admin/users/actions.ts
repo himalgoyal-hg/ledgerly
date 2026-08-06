@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
-import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { isPermissionFlag, PERMISSION_LABELS } from '@/lib/permissions'

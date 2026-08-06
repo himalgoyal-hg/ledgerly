@@ -1,4 +1,4 @@
-// Ledgerly — Phases 1–4 schema
+// Ledgerly — Phases 1–5 schema
 // Phase 1: users & single-admin model, permission matrix, entities, bank
 //          accounts, cash locations, audit log, soft-delete/archive framework.
 // Phase 2: accounting engine — Chart of Accounts, double-entry journal,
@@ -7,6 +7,8 @@
 //          queue, rules + learning engine, cost centres.
 // Phase 4: operations — reimbursements, cash entries, bills, salary register,
 //          finance tasks, invoices. Thin records over posting rules.
+// Phase 5: taxation — GST/TDS fields with split-posting, TaxLine register
+//          rows feeding GSTR-1 / GSTR-3B / TDS registers.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -349,6 +351,16 @@ model StatementTransaction {
   taggedById    String?
   taggedAt      DateTime?
 
+  // Optional tax details on the tag (spec §3 step 5 / §7) — drive the
+  // split-posting at post time. GST and TDS are mutually exclusive per row.
+  gstType           String? // intra | inter
+  gstRate           Decimal? @db.Decimal(5, 2)
+  hsn               String?
+  counterpartyGstin String?
+  tdsSection        String? // 194C | 194J | 194I | 194H | 192
+  tdsRate           Decimal? @db.Decimal(5, 2)
+  deducteePan       String?
+
   // Once posted: the journal document underneath (sourceType "statement_txn"),
   // OR the mirror transaction whose document already carries this transfer
   // (own-account transfers post once and auto-match the mirror row, spec §3.6).
@@ -495,6 +507,19 @@ model Bill {
   recurrence       Recurrence @default(NONE)
   expenseAccountId String
   costCentreId     String?
+
+  // Tax (spec §7): amount above is the TAXABLE value. GST adds Input Credit;
+  // TDS withholds from the vendor. Payable = amount + gstAmount − tdsAmount.
+  gstType     String? // intra | inter
+  gstRate     Decimal? @db.Decimal(5, 2)
+  hsn         String?
+  vendorGstin String?
+  gstAmount   Decimal  @default(0) @db.Decimal(14, 2)
+  tdsSection  String?
+  tdsRate     Decimal? @db.Decimal(5, 2)
+  vendorPan   String?
+  tdsAmount   Decimal  @default(0) @db.Decimal(14, 2)
+
   status           BillStatus @default(PENDING)
   entryDocId       String?    @unique // Dr Expense / Cr Vendor payable
   paymentDocId     String?    @unique // Dr Vendor payable / Cr Bank-Cash
@@ -610,11 +635,18 @@ model Invoice {
   customer        String
   date            DateTime      @db.Date
   dueDate         DateTime      @db.Date
-  amount          Decimal       @db.Decimal(14, 2)
+  amount          Decimal       @db.Decimal(14, 2) // invoice TOTAL (incl. GST)
   narration       String?
   incomeAccountId String
   costCentreId    String?
   debtorAccountId String // per-customer account under Sundry Debtors (1300)
+
+  // GST (spec §7.1): amount = taxable + gstAmount; Cr Output Liability.
+  gstType       String? // intra | inter
+  gstRate       Decimal? @db.Decimal(5, 2)
+  hsn           String?
+  customerGstin String?
+  gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
   status          InvoiceStatus @default(OPEN)
   docId           String?       @unique // Dr Debtor / Cr Income
   createdById     String
@@ -635,6 +667,42 @@ model InvoicePayment {
   docId       String?  @unique // Dr Bank-Cash / Cr Debtor
   createdById String
   createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — Taxation (spec §7). One register row per tax-bearing posting,
+// keyed by its JournalDoc: the ledger carries the money (2210 Output /
+// 1500 Input Credit / 2230 TDS Payable); TaxLine carries the register
+// metadata (GSTIN, HSN, rate, section, deductee) for GSTR-1/3B and the TDS
+// register. Register queries exclude deleted docs.
+// ---------------------------------------------------------------------------
+
+model TaxLine {
+  id       String   @id @default(cuid())
+  entityId String
+  docId    String   @unique
+  date     DateTime @db.Date
+  // "output": outward supply (GSTR-1). "input": purchases / expenses (ITC, TDS).
+  direction String
+  party     String?
+
+  gstType           String?
+  gstRate           Decimal? @db.Decimal(5, 2)
+  hsn               String?
+  counterpartyGstin String?
+  taxableValue      Decimal  @db.Decimal(14, 2)
+  gstAmount         Decimal  @default(0) @db.Decimal(14, 2)
+
+  tdsSection  String?
+  tdsRate     Decimal? @db.Decimal(5, 2)
+  deducteePan String?
+  tdsAmount   Decimal  @default(0) @db.Decimal(14, 2)
+
+  sourceType String // invoice | bill | statement_txn | salary_run
+  sourceId   String
+  createdAt  DateTime @default(now())
+
+  @@index([entityId, date])
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

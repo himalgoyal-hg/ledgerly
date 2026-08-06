@@ -1,12 +1,15 @@
 import type { Prisma, Bill } from '@/generated/prisma/client'
-import { COA } from '@/lib/ledger/coa'
-import { createJournalDocument } from '@/lib/ledger/posting'
+import { COA, getSystemAccount } from '@/lib/ledger/coa'
+import { createJournalDocument, type LineInput } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
+import { rateBp, gstOnNet, tdsOnGross } from '@/lib/tax/calc'
+import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
 import { getPartyAccount } from './party'
 import { OpsError } from './reimburse'
 
-// Bills & insurance (spec §6.3): entry posts Dr Expense / Cr Vendor payable;
-// payment posts Dr Vendor payable / Cr Bank-Cash. Paying a recurring bill
+// Bills & insurance (spec §6.3 + §7): entry posts Dr Expense (taxable)
+// [+ Dr GST Input Credit] / [Cr TDS Payable] / Cr Vendor payable; payment
+// clears the vendor payable (taxable + GST − TDS). Paying a recurring bill
 // spawns the next PENDING instance one period ahead.
 
 function addPeriod(date: Date, recurrence: string): Date {
@@ -36,14 +39,27 @@ export async function createBill(
     recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
     expenseAccountId: string
     costCentreId?: string | null
+    gstType?: string | null
+    gstRate?: string | null
+    hsn?: string | null
+    vendorGstin?: string | null
+    tdsSection?: string | null
+    tdsRate?: string | null
+    vendorPan?: string | null
     actorId: string
     seriesId?: string | null
   },
 ) {
-  if (parsePaise(args.amount) <= 0n) throw new OpsError('Amount must be positive')
+  const taxable = parsePaise(args.amount)
+  if (taxable <= 0n) throw new OpsError('Amount must be positive')
   const vendor = args.vendor.trim()
   if (!vendor) throw new OpsError('Vendor is required')
-  const amount = formatPaise(parsePaise(args.amount))
+  // GST rides on the taxable value; TDS is withheld on the taxable value too
+  // (never on the GST component).
+  const gst = args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
+  const tds = args.tdsRate ? tdsOnGross(taxable, rateBp(args.tdsRate)) : 0n
+  if (tds > 0n && !args.tdsSection) throw new OpsError('Pick the TDS section')
+  const payableAmount = taxable + gst - tds
   const payable = await getPartyAccount(tx, args.entityId, COA.CREDITORS_GROUP, vendor)
 
   const bill = await tx.bill.create({
@@ -51,7 +67,7 @@ export async function createBill(
       entityId: args.entityId,
       vendor,
       billType: args.billType,
-      amount,
+      amount: formatPaise(taxable),
       billDate: args.billDate,
       dueDate: args.dueDate,
       renewalDate: args.renewalDate ?? null,
@@ -60,6 +76,15 @@ export async function createBill(
       recurrence: args.recurrence ?? 'NONE',
       expenseAccountId: args.expenseAccountId,
       costCentreId: args.costCentreId ?? null,
+      gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
+      gstRate: gst > 0n ? args.gstRate : null,
+      hsn: args.hsn ?? null,
+      vendorGstin: args.vendorGstin ?? null,
+      gstAmount: formatPaise(gst),
+      tdsSection: tds > 0n ? args.tdsSection : null,
+      tdsRate: tds > 0n ? args.tdsRate : null,
+      vendorPan: args.vendorPan ?? null,
+      tdsAmount: formatPaise(tds),
       seriesId: args.seriesId,
       periodKey: args.seriesId ? periodKeyOf(args.dueDate) : null,
       createdById: args.actorId,
@@ -73,6 +98,19 @@ export async function createBill(
     })
   }
 
+  const lines: LineInput[] = [
+    { accountId: args.expenseAccountId, debit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
+  ]
+  if (gst > 0n) {
+    const inputCredit = await getSystemAccount(tx, args.entityId, '1500')
+    lines.push({ accountId: inputCredit.id, debit: formatPaise(gst) })
+  }
+  if (tds > 0n) {
+    const tdsPayable = await getSystemAccount(tx, args.entityId, COA.TDS_PAYABLE)
+    lines.push({ accountId: tdsPayable.id, credit: formatPaise(tds) })
+  }
+  lines.push({ accountId: payable.id, credit: formatPaise(payableAmount) })
+
   const { doc } = await createJournalDocument(tx, {
     entityId: args.entityId,
     sourceType: 'bill',
@@ -81,12 +119,38 @@ export async function createBill(
     content: {
       date: args.billDate,
       narration: `Bill — ${vendor}: ${args.billType}`,
-      lines: [
-        { accountId: args.expenseAccountId, debit: amount, costCentreId: args.costCentreId ?? undefined },
-        { accountId: payable.id, credit: amount },
-      ],
+      lines,
     },
   })
+  if (gst > 0n || tds > 0n) {
+    await writeTaxLine(tx, {
+      entityId: args.entityId,
+      docId: doc.id,
+      date: args.billDate,
+      direction: 'input',
+      party: vendor,
+      gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
+      gstRate: gst > 0n ? args.gstRate : null,
+      hsn: args.hsn,
+      counterpartyGstin: args.vendorGstin,
+      taxableValue: formatPaise(taxable),
+      gstAmount: formatPaise(gst),
+      tdsSection: tds > 0n ? args.tdsSection : null,
+      tdsRate: tds > 0n ? args.tdsRate : null,
+      deducteePan: args.vendorPan,
+      tdsAmount: formatPaise(tds),
+      sourceType: 'bill',
+      sourceId: bill.id,
+    })
+  }
+  if (tds > 0n) {
+    await ensureTdsDepositTask(tx, {
+      entityId: args.entityId,
+      deductionDate: args.billDate,
+      amount: formatPaise(tds),
+      actorId: args.actorId,
+    })
+  }
   return tx.bill.update({ where: { id: bill.id }, data: { entryDocId: doc.id } })
 }
 
@@ -98,7 +162,10 @@ export async function payBill(
   const bill = await tx.bill.findUniqueOrThrow({ where: { id: args.billId } })
   if (bill.status !== 'PENDING') throw new OpsError('Bill is already paid')
   const payable = await getPartyAccount(tx, bill.entityId, COA.CREDITORS_GROUP, bill.vendor)
-  const amount = formatPaise(parsePaise(String(bill.amount)))
+  // Vendor gets taxable + GST − TDS withheld.
+  const amount = formatPaise(
+    parsePaise(String(bill.amount)) + parsePaise(String(bill.gstAmount)) - parsePaise(String(bill.tdsAmount)),
+  )
 
   const { doc } = await createJournalDocument(tx, {
     entityId: bill.entityId,
@@ -139,6 +206,13 @@ export async function payBill(
         recurrence: bill.recurrence,
         expenseAccountId: bill.expenseAccountId,
         costCentreId: bill.costCentreId,
+        gstType: bill.gstType,
+        gstRate: bill.gstRate === null ? null : String(bill.gstRate),
+        hsn: bill.hsn,
+        vendorGstin: bill.vendorGstin,
+        tdsSection: bill.tdsSection,
+        tdsRate: bill.tdsRate === null ? null : String(bill.tdsRate),
+        vendorPan: bill.vendorPan,
         actorId: args.actorId,
         seriesId: bill.seriesId,
       })

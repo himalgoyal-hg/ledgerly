@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { agingBucket, outstandingOf } from '@/lib/ops/invoices'
+import { GST_RATES, GST_TYPES } from '@/lib/tax/calc'
 import { createInvoiceAction, recordPaymentAction } from './actions'
 
 // Invoices & receivables (spec §6.6): auto numbering, due-date tracking,
@@ -60,7 +61,7 @@ export default async function InvoicesPage() {
         <form action={createInvoiceAction} className="mt-3 flex flex-wrap items-center gap-2">
           <input type="hidden" name="entityId" value={entity.id} />
           <input name="customer" required placeholder="Customer" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-          <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="amount" required inputMode="decimal" placeholder="Taxable ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">date</label>
           <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">due</label>
@@ -78,6 +79,21 @@ export default async function InvoicesPage() {
             ))}
           </select>
           <input name="narration" placeholder="Description" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          {/* GST (spec §7.1): tax adds on top of the taxable value */}
+          <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <option value="">GST type</option>
+            {GST_TYPES.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <option value="">no GST</option>
+            {GST_RATES.map((r) => (
+              <option key={r} value={r}>{r}%</option>
+            ))}
+          </select>
+          <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="customerGstin" placeholder="Customer GSTIN" className="w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
             Raise invoice
           </button>

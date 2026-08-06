@@ -17,6 +17,10 @@ const invoiceSchema = z.object({
   narration: z.string().trim().optional(),
   incomeAccountId: z.string().min(1, 'Pick the income head'),
   costCentreId: z.string().optional(),
+  gstType: z.string().optional(),
+  gstRate: z.string().optional(),
+  hsn: z.string().trim().optional(),
+  customerGstin: z.string().trim().optional(),
 })
 
 export async function createInvoiceAction(formData: FormData) {
@@ -30,6 +34,10 @@ export async function createInvoiceAction(formData: FormData) {
     narration: formData.get('narration') ?? undefined,
     incomeAccountId: formData.get('incomeAccountId'),
     costCentreId: formData.get('costCentreId') ?? undefined,
+    gstType: formData.get('gstType') ?? undefined,
+    gstRate: formData.get('gstRate') ?? undefined,
+    hsn: formData.get('hsn') ?? undefined,
+    customerGstin: formData.get('customerGstin') ?? undefined,
   })
   if (!parsed.success) throw new Error(parsed.error.issues[0].message)
 
@@ -38,6 +46,10 @@ export async function createInvoiceAction(formData: FormData) {
       ...parsed.data,
       narration: parsed.data.narration || null,
       costCentreId: parsed.data.costCentreId || null,
+      gstType: parsed.data.gstType || null,
+      gstRate: parsed.data.gstRate || null,
+      hsn: parsed.data.hsn || null,
+      customerGstin: parsed.data.customerGstin || null,
       actorId: admin.id,
     })
     await audit(tx, {
