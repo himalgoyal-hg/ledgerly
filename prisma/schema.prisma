@@ -13,6 +13,9 @@
 //          budget targets are stored (nothing else is derived data).
 // Phase 7: automation — payment-source preferences, recurring generation,
 //          reminders and the weekly summary, all driven by one cron entry.
+// Phase 8: AI layer — PDF/scanned statement extraction and tagging
+//          suggestions. Every AI output is a suggestion a human confirms;
+//          nothing posts to the ledger on the model's say-so alone.
 //
 // Invariants enforced in DB (see migrations):
 //   - At most one ADMIN user (partial unique index)
@@ -323,6 +326,8 @@ model StatementImport {
   closingBalance Decimal? @db.Decimal(14, 2)
   rowsTotal      Int      @default(0)
   rowsDuplicate  Int      @default(0)
+  // "heuristic" (column detection) | "ai" (PDF / scanned, Phase 8)
+  parsedVia      String   @default("heuristic")
   uploadedById   String
   createdAt      DateTime @default(now())
 
@@ -354,6 +359,16 @@ model StatementTransaction {
   autoTagged    Boolean   @default(false) // "Verified by System"
   taggedById    String?
   taggedAt      DateTime?
+  tagSource     String? // rule | ai | manual — what produced the applied tag
+
+  // AI suggestion (Phase 8). Advisory only: a member accepts it (which tags
+  // the row and teaches the rule engine) or ignores it. Never auto-posts.
+  aiHeadAccountId String?
+  aiNature        String?
+  aiCostCentreId  String?
+  aiConfidence    Decimal?  @db.Decimal(4, 3) // 0.000–1.000
+  aiReason        String?
+  aiSuggestedAt   DateTime?
 
   // Optional tax details on the tag (spec §3 step 5 / §7) — drive the
   // split-posting at post time. GST and TDS are mutually exclusive per row.
@@ -774,6 +789,27 @@ model NotificationOutbox {
   createdAt DateTime     @default(now())
 
   @@index([entityId, kind, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Phase 8 — AI layer (spec §12.8)
+// ---------------------------------------------------------------------------
+
+// Every model call is logged with its token usage, so AI spend is visible
+// rather than a mystery line on the Anthropic bill.
+model AiCall {
+  id           String   @id @default(cuid())
+  entityId     String?
+  kind         String // statement_pdf | tag_suggestion
+  model        String
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  ok           Boolean  @default(true)
+  error        String?
+  createdAt    DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityId, kind])
 }
 
 // Append-only audit trail: who, when, what, before → after (spec §1.1, §5).

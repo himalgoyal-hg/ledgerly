@@ -14,8 +14,8 @@ v3 consolidated spec.
 | 5. Tax | GST/TDS fields, split-posting, GSTR-1/3B + ITC, TDS register, deposit reminders | ✅ done |
 | 6. Reports & dashboard | P&L, Balance Sheet, Cash Flow, budget, cost centres, parties, salary + Overview tiles | ✅ done |
 | 7. Smart suggestions & automation | Payment-source engine, reminders, recurring generators, weekly email | ✅ done |
-| 8. AI layer | PDF parsing, OCR, smarter auto-tagging | ⏳ next |
-| 9. Hardening | Verification plan §11, backups, restore drill, performance | – |
+| 8. AI layer | PDF/scanned statement reading, tagging suggestions | ✅ done |
+| 9. Hardening | Verification plan §11, backups, restore drill, performance | ⏳ next |
 
 ## Stack
 
@@ -72,7 +72,8 @@ npm run verify:4                   # 34 operations checks
 npm run verify:5                   # 25 taxation checks
 npm run verify:6                   # 34 reporting checks
 npm run verify:7                   # 28 automation checks
-npm run verify                     # phases 2–7 in sequence
+npm run verify:8                   # 27 AI-layer checks (live calls need a key)
+npm run verify                     # phases 2–8 in sequence
 ```
 
 The scripts run through the real service layer with `tsx --conditions=react-server`
@@ -132,6 +133,39 @@ account (and beyond it, not reserving); ad-hoc spend being steered away from
 reserved money with a warning rather than a silent allow; recurring
 generation being idempotent; and the whole job being a no-op on a second run
 in the same period.
+
+Phase 8 suite (spec §12.8) tests the guard rails rather than the model: rows
+with no amount, both amounts, an unreadable date or an empty narration are
+dropped rather than guessed; a suggested account code that doesn't exist for
+the entity (or belongs to another entity) is dropped rather than created; an
+unknown nature, a reply for a row we never asked about, and duplicate replies
+are all rejected; confidence is clamped; accepting a suggestion tags the row
+and teaches the rule engine; and without an API key PDF uploads are refused
+with an actionable message. Live model calls run only when a key is present.
+
+## AI layer
+
+Two features call Claude, and **both produce proposals a person confirms** —
+nothing the model outputs reaches the ledger on its own:
+
+- **PDF and scanned statements** — Claude transcribes the rows, which then land
+  as an ordinary DETECTED import you confirm. The closing-balance check catches
+  a misread exactly as it would catch a bad CSV.
+- **Tagging suggestions** — for queue rows no rule matches. Accepting one tags
+  the row *and* teaches the rule engine, so that party is matched without AI
+  next time. Suggestions resolve against the entity's own chart of accounts;
+  an account code the model invents is dropped, never created.
+
+```bash
+# .env — optional; without it PDFs are refused with a clear message
+# and the tagging queue works on rules alone.
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Model: `claude-opus-5`, with a server-side fallback to `claude-opus-4-8` so an
+occasional safety-classifier false positive on a bank statement isn't a dead
+end. Every call is logged with its token usage — Admin → Automation shows the
+30-day totals, so AI spend is visible rather than a surprise on the bill.
 
 ## Automation
 

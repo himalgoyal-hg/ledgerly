@@ -3,6 +3,7 @@ import { requirePermission, isAdmin, visibleEntityFilter } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { importBalanceCheck } from '@/lib/statements/import'
+import { aiConfigured } from '@/lib/ai/client'
 import { uploadStatements, confirmImport, discardImport } from './actions'
 
 // Statements — upload → detect → confirm → import (spec §3 steps 1–3).
@@ -57,6 +58,7 @@ export default async function StatementsPage() {
   })
   const countFor = (importId: string, status: string) =>
     txnCounts.find((c) => c.importId === importId && c.status === status)?._count ?? 0
+  const aiReady = aiConfigured()
 
   const balanceChecks = new Map(
     await Promise.all(
@@ -83,7 +85,7 @@ export default async function StatementsPage() {
             name="files"
             multiple
             required
-            accept=".csv,.tsv,.txt,.xlsx,.xls"
+            accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf"
             className="text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-700"
           />
           <button
@@ -93,8 +95,10 @@ export default async function StatementsPage() {
             Upload
           </button>
           <span className="text-xs text-zinc-400">
-            CSV · XLSX · XLS · TSV · TXT — multiple files allowed. PDF needs the
-            AI layer (phase 8).
+            CSV · XLSX · XLS · TSV · TXT · PDF — multiple files allowed.
+            {aiReady
+              ? ' PDFs (including scans) are read by AI, then confirmed by you like any other import.'
+              : ' PDFs need ANTHROPIC_API_KEY in .env; without it, export CSV from netbanking.'}
           </span>
         </form>
       </div>
@@ -192,6 +196,11 @@ export default async function StatementsPage() {
                   {imp.createdAt.toISOString().slice(0, 10)} · via{' '}
                   {VIA_LABEL[imp.detectedVia] ?? imp.detectedVia}
                 </span>
+                {imp.parsedVia === 'ai' && (
+                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                    read by AI
+                  </span>
+                )}
                 {balance &&
                   (balance.matched ? (
                     <span className="ml-auto rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">

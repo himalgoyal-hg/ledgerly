@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { transportConfigured } from '@/lib/automation/notify'
+import { aiConfigured, aiUsageSummary, AI_MODEL } from '@/lib/ai/client'
 import { LEAD_DAYS } from '@/lib/automation/recurring'
 import { COMMITMENT_WINDOW_DAYS } from '@/lib/automation/suggest'
 import { TASK_KINDS } from '@/lib/ops/tasks'
@@ -42,6 +43,7 @@ export default async function AutomationPage() {
       orderBy: { createdAt: 'desc' },
     }),
   ])
+  const aiUsage = await aiUsageSummary(30)
 
   const sources = [
     ...banks.map((b) => ({ id: b.ledgerAccountId!, label: b.nickname })),
@@ -108,6 +110,65 @@ export default async function AutomationPage() {
             )}
           </p>
         </div>
+      </div>
+
+      {/* AI layer (spec §12.8) */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-medium text-zinc-900">AI layer</h2>
+          <span className="text-xs text-zinc-500">
+            {aiConfigured() ? `${AI_MODEL} · configured` : 'not configured'}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          Reads PDF and scanned statements, and suggests tags for queue rows no
+          rule matches. Both are proposals a person confirms — nothing the model
+          produces reaches the ledger on its own.
+        </p>
+        {aiConfigured() ? (
+          <div className="mt-3">
+            {aiUsage.byKind.length > 0 ? (
+              <table className="w-full text-left text-sm">
+                <thead className="text-xs uppercase text-zinc-400">
+                  <tr>
+                    <th className="py-1 font-medium">Last {aiUsage.days} days</th>
+                    <th className="py-1 text-right font-medium">Calls</th>
+                    <th className="py-1 text-right font-medium">Input tokens</th>
+                    <th className="py-1 text-right font-medium">Output tokens</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-50">
+                  {aiUsage.byKind.map((k) => (
+                    <tr key={k.kind}>
+                      <td className="py-1 text-zinc-700">
+                        {k.kind === 'statement_pdf' ? 'PDF statement reading' : 'Tag suggestions'}
+                      </td>
+                      <td className="py-1 text-right text-zinc-600">{k.calls}</td>
+                      <td className="py-1 text-right text-zinc-600">
+                        {k.inputTokens.toLocaleString('en-IN')}
+                      </td>
+                      <td className="py-1 text-right text-zinc-600">
+                        {k.outputTokens.toLocaleString('en-IN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <p className="text-sm text-zinc-400">No AI calls in the last {aiUsage.days} days.</p>
+            )}
+            {aiUsage.failures > 0 && (
+              <p className="mt-2 text-xs text-amber-700">
+                {aiUsage.failures} call(s) failed in this window — see the audit log.
+              </p>
+            )}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-amber-700">
+            Set ANTHROPIC_API_KEY in .env to enable. Until then, PDF uploads are
+            refused with a clear message and the tagging queue works on rules alone.
+          </p>
+        )}
       </div>
 
       {/* Payment mapping (spec §8.1) */}

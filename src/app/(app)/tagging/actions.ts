@@ -42,6 +42,10 @@ export async function tagTransaction(formData: FormData) {
 
   await auditedTransaction(async (tx) => {
     await applyTag(tx, { txnId, ...fields, actorId: user.id })
+    await tx.statementTransaction.update({
+      where: { id: txnId },
+      data: { tagSource: 'manual' },
+    })
     await audit(tx, {
       actorId: user.id,
       action: 'statement_txn.tag',
@@ -51,6 +55,85 @@ export async function tagTransaction(formData: FormData) {
       after: fields,
     })
   })
+  revalidatePath('/tagging')
+}
+
+/** Ask Claude to suggest tags for pending rows the rule engine couldn't match. */
+export async function requestAiSuggestions(formData: FormData) {
+  const user = await requirePermission('transactionTagging')
+  const entityId = String(formData.get('entityId') ?? '')
+
+  const { aiConfigured, AI_UNCONFIGURED_MESSAGE, AiError } = await import('@/lib/ai/client')
+  if (!aiConfigured()) throw new Error(AI_UNCONFIGURED_MESSAGE)
+  const { suggestForPending } = await import('@/lib/ai/tag')
+
+  let result: { considered: number; suggested: number }
+  try {
+    result = await suggestForPending(entityId)
+  } catch (e) {
+    throw new Error(e instanceof AiError ? e.message : 'AI suggestions failed')
+  }
+  await auditedTransaction((tx) =>
+    audit(tx, {
+      actorId: user.id,
+      action: 'ai.suggest_tags',
+      targetType: 'Entity',
+      targetId: entityId,
+      summary: `AI reviewed ${result.considered} pending row(s), suggested ${result.suggested}`,
+    }),
+  )
+  revalidatePath('/tagging')
+}
+
+/**
+ * Accept an AI suggestion: it becomes a real tag, and the rule engine learns
+ * it — so the same party is matched by rule next time, not by the model.
+ */
+export async function acceptAiSuggestion(formData: FormData) {
+  const user = await requirePermission('transactionTagging')
+  const txnId = String(formData.get('txnId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
+    if (!txn.aiHeadAccountId || !txn.aiNature) throw new Error('No suggestion on this row')
+    await applyTag(tx, {
+      txnId,
+      headAccountId: txn.aiHeadAccountId,
+      nature: txn.aiNature,
+      costCentreId: txn.aiCostCentreId,
+      actorId: user.id,
+    })
+    await tx.statementTransaction.update({
+      where: { id: txnId },
+      data: { tagSource: 'ai' },
+    })
+    await audit(tx, {
+      actorId: user.id,
+      action: 'statement_txn.accept_ai',
+      targetType: 'StatementTransaction',
+      targetId: txnId,
+      summary: `Accepted AI suggestion (confidence ${txn.aiConfidence ?? '—'}): ${txn.aiReason ?? ''}`,
+    })
+  })
+  revalidatePath('/tagging')
+}
+
+/** Clear a suggestion the member disagrees with; the row stays pending. */
+export async function dismissAiSuggestion(formData: FormData) {
+  await requirePermission('transactionTagging')
+  const txnId = String(formData.get('txnId') ?? '')
+  await auditedTransaction((tx) =>
+    tx.statementTransaction.update({
+      where: { id: txnId },
+      data: {
+        aiHeadAccountId: null,
+        aiNature: null,
+        aiCostCentreId: null,
+        aiConfidence: null,
+        aiReason: 'Dismissed by reviewer',
+      },
+    }),
+  )
   revalidatePath('/tagging')
 }
 

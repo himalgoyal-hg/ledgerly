@@ -3,6 +3,7 @@ import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES } from '@/lib/statements/natures'
+import { aiConfigured } from '@/lib/ai/client'
 import { TagForm } from './tag-form'
 import {
   tagTransaction,
@@ -11,6 +12,9 @@ import {
   retagPosted,
   deletePosted,
   undoPosted,
+  requestAiSuggestions,
+  acceptAiSuggestion,
+  dismissAiSuggestion,
 } from './actions'
 
 // The tagging queue (spec §3 steps 4–6): pending rows get their 3-tier tag,
@@ -66,6 +70,8 @@ export default async function TaggingPage() {
   const userName = (id: string | null) => users.find((u) => u.id === id)?.name ?? 'System'
   const natureLabel = (v: string | null) => NATURES.find((n) => n.value === v)?.label ?? v ?? '—'
   const ccName = (id: string | null) => costCentres.find((c) => c.id === id)?.name
+  const aiReady = aiConfigured()
+  const awaitingSuggestion = pending.filter((t) => t.aiSuggestedAt === null).length
 
   const rowHeader = (txn: (typeof pending)[number]) => {
     const outflow = Number(txn.debit) > 0
@@ -100,37 +106,120 @@ export default async function TaggingPage() {
             underneath. Every manual tag teaches the auto-verifier.
           </p>
         </div>
-        {tagged.length > 0 && (
-          <form action={postAll} className="ml-auto">
-            <input type="hidden" name="entityId" value={entity.id} />
-            <button
-              type="submit"
-              className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-            >
-              Post All Confirmed ({tagged.length})
-            </button>
-          </form>
-        )}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {aiReady && awaitingSuggestion > 0 && (
+            <form action={requestAiSuggestions}>
+              <input type="hidden" name="entityId" value={entity.id} />
+              <button
+                type="submit"
+                className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
+              >
+                Suggest tags with AI ({Math.min(awaitingSuggestion, 25)})
+              </button>
+            </form>
+          )}
+          {tagged.length > 0 && (
+            <form action={postAll}>
+              <input type="hidden" name="entityId" value={entity.id} />
+              <button
+                type="submit"
+                className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
+              >
+                Post All Confirmed ({tagged.length})
+              </button>
+            </form>
+          )}
+        </div>
       </div>
 
       {/* Pending queue */}
       <div className="space-y-2">
         <h2 className="font-medium text-zinc-900">Pending ({pending.length})</h2>
-        {pending.map((txn) => (
-          <div key={txn.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-            {rowHeader(txn)}
-            <div className="mt-3">
-              <TagForm
-                txnId={txn.id}
-                isOutflow={Number(txn.debit) > 0}
-                heads={heads}
-                costCentres={costCentres}
-                action={tagTransaction}
-                submitLabel="Tag"
-              />
+        {pending.map((txn) => {
+          const confidence = txn.aiConfidence === null ? null : Number(txn.aiConfidence)
+          const hasSuggestion = Boolean(txn.aiHeadAccountId && txn.aiNature)
+          return (
+            <div key={txn.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+              {rowHeader(txn)}
+
+              {/* AI suggestion — advisory: accept it or ignore it (spec §12.8) */}
+              {hasSuggestion && (
+                <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
+                  <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-800">
+                      AI suggests
+                    </span>
+                    <span className="font-medium text-zinc-800">
+                      {headName(txn.aiHeadAccountId)}
+                    </span>
+                    <span className="text-zinc-400">·</span>
+                    <span className="text-zinc-700">{natureLabel(txn.aiNature)}</span>
+                    {ccName(txn.aiCostCentreId) && (
+                      <>
+                        <span className="text-zinc-400">·</span>
+                        <span className="text-zinc-700">{ccName(txn.aiCostCentreId)}</span>
+                      </>
+                    )}
+                    {confidence !== null && (
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                          confidence >= 0.8
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : confidence >= 0.5
+                              ? 'bg-amber-100 text-amber-700'
+                              : 'bg-zinc-200 text-zinc-600'
+                        }`}
+                      >
+                        {Math.round(confidence * 100)}% confident
+                      </span>
+                    )}
+                  </div>
+                  {txn.aiReason && (
+                    <p className="mt-1 text-xs text-zinc-600">{txn.aiReason}</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <form action={acceptAiSuggestion}>
+                      <input type="hidden" name="txnId" value={txn.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-600"
+                      >
+                        Accept & teach the rule
+                      </button>
+                    </form>
+                    <form action={dismissAiSuggestion}>
+                      <input type="hidden" name="txnId" value={txn.id} />
+                      <button
+                        type="submit"
+                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100"
+                      >
+                        Dismiss
+                      </button>
+                    </form>
+                    <span className="text-[10px] text-zinc-500">
+                      Accepting tags the row and teaches the rule engine, so this party
+                      is matched without AI next time.
+                    </span>
+                  </div>
+                </div>
+              )}
+              {!hasSuggestion && txn.aiSuggestedAt !== null && txn.aiReason && (
+                <p className="mt-2 text-xs text-zinc-400">AI: {txn.aiReason}</p>
+              )}
+
+              <div className="mt-3">
+                <TagForm
+                  txnId={txn.id}
+                  isOutflow={Number(txn.debit) > 0}
+                  heads={heads}
+                  costCentres={costCentres}
+                  action={tagTransaction}
+                  submitLabel="Tag"
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
         {pending.length === 0 && (
           <p className="text-sm text-zinc-400">Queue is clear — nothing waiting.</p>
         )}
@@ -156,6 +245,10 @@ export default async function TaggingPage() {
                 {txn.autoTagged ? (
                   <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
                     Verified by System
+                  </span>
+                ) : txn.tagSource === 'ai' ? (
+                  <span className="text-zinc-400">
+                    AI suggestion accepted by {userName(txn.taggedById)}
                   </span>
                 ) : (
                   <span className="text-zinc-400">tagged by {userName(txn.taggedById)}</span>

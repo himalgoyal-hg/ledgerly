@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requirePermission, isAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import {
-  parseUpload,
+  parseAnyUpload,
   createStatementImport,
   confirmStatementImport,
   ImportError,
@@ -20,17 +20,19 @@ export async function uploadStatements(formData: FormData) {
 
   const failures: string[] = []
   for (const file of files) {
-    let parsed
+    let upload
     try {
-      parsed = parseUpload(file.name, Buffer.from(await file.arrayBuffer()))
+      upload = await parseAnyUpload(file.name, Buffer.from(await file.arrayBuffer()))
     } catch (e) {
       failures.push(e instanceof ImportError ? e.message : `${file.name}: could not parse`)
       continue
     }
+    const { parsed, via } = upload
     await auditedTransaction(async (tx) => {
       const { record, detection } = await createStatementImport(tx, {
         fileName: file.name,
         parsed,
+        parsedVia: via,
         actorId: user.id,
       })
       await audit(tx, {
@@ -38,7 +40,9 @@ export async function uploadStatements(formData: FormData) {
         action: 'statement.upload',
         targetType: 'StatementImport',
         targetId: record.id,
-        summary: `Uploaded ${file.name} (${parsed.rows.length} rows, detected via ${detection.via})`,
+        summary: `Uploaded ${file.name} (${parsed.rows.length} rows, read by ${
+          via === 'ai' ? 'AI' : 'column detection'
+        }, detected via ${detection.via})`,
       })
     })
   }

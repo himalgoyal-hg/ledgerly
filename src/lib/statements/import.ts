@@ -64,10 +64,40 @@ export function parseUpload(fileName: string, buffer: Buffer): ParsedStatement {
   return parsed
 }
 
+export interface UploadParse {
+  parsed: ParsedStatement
+  via: 'heuristic' | 'ai'
+}
+
+/**
+ * Parse any supported upload. Spreadsheet formats go through the column
+ * detector; PDFs (text or scanned) go to the AI layer (Phase 8), which
+ * returns the same normalized rows.
+ */
+export async function parseAnyUpload(fileName: string, buffer: Buffer): Promise<UploadParse> {
+  if (!/\.pdf$/i.test(fileName)) {
+    return { parsed: parseUpload(fileName, buffer), via: 'heuristic' }
+  }
+  const { aiConfigured, AI_UNCONFIGURED_MESSAGE, AiError } = await import('@/lib/ai/client')
+  if (!aiConfigured()) throw new ImportError(`${fileName}: ${AI_UNCONFIGURED_MESSAGE}`)
+  const { extractStatementFromPdf } = await import('@/lib/ai/extract')
+  try {
+    return { parsed: await extractStatementFromPdf(fileName, buffer), via: 'ai' }
+  } catch (e) {
+    if (e instanceof AiError) throw new ImportError(`${fileName}: ${e.message}`)
+    throw e
+  }
+}
+
 /** Step 2: store the parsed file as a DETECTED import — never silent. */
 export async function createStatementImport(
   tx: Prisma.TransactionClient,
-  args: { fileName: string; parsed: ParsedStatement; actorId: string },
+  args: {
+    fileName: string
+    parsed: ParsedStatement
+    actorId: string
+    parsedVia?: 'heuristic' | 'ai'
+  },
 ) {
   const detection = await detectAccountForStatement(tx, args.parsed)
   const record = await tx.statementImport.create({
@@ -81,6 +111,7 @@ export async function createStatementImport(
       headerSignature: args.parsed.headerSignature,
       closingBalance: args.parsed.closingBalance,
       rowsTotal: args.parsed.rows.length,
+      parsedVia: args.parsedVia ?? 'heuristic',
       uploadedById: args.actorId,
     },
   })
