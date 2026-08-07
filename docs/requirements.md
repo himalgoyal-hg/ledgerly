@@ -1,5 +1,16 @@
 # Ledgerly — combined requirements (as told by Himal, to date)
 
+> **SPEC SOURCE OF TRUTH (7 Aug 2026):** the "Ledgerly v2" standalone HTML
+> prototype Himal shared. Its features — exactly those, nothing more — are the
+> target. Sidebar now mirrors it (Overview · Books · Statements · Operations ·
+> Setup & masters). GST/TDS, journal, trial balance, ledgers, periods,
+> automation, AI and audit screens are HIDDEN from nav (still URL-reachable;
+> GST kept because ACPL is GST-registered, audit because approvals must stay
+> recorded). Remaining build order: B) Loans & advances + all-entities view,
+> C) report tabs (month-matrix, weekly, usage, net capital, ITR, capital
+> gains), D) USD invoices + FIRC, reimbursement member tabs, consultants,
+> E) frequency budgets + insurance fields on bills.
+
 Single consolidated list of everything asked for across the prompt log, the
 26-27 spreadsheet, the access-control message, the implementation plan, and
 in-session requests. ✅ built & verified · 🔶 partly done · ⬜ pending.

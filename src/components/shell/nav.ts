@@ -1,11 +1,15 @@
 import 'server-only'
 import { hasPermission, isAdmin, type CurrentUser } from '@/lib/auth'
 
-// The navigation registry, grouped the way the work is grouped. Filtering
-// happens HERE, server-side, before anything crosses to the client — a hidden
-// item must never appear in the HTML or the RSC payload (verify-phase1 greps
-// for exactly that). The filter is still cosmetic: every page and action
-// re-checks permissions server-side.
+// Navigation mirrors the Ledgerly v2 HTML prototype (docs/requirements.md —
+// the prototype is the feature spec): Overview · Books · Statements ·
+// Operations · Setup & masters. Screens the prototype doesn't have (GST/TDS,
+// journal, trial balance, ledgers, periods, automation, audit) stay built and
+// URL-reachable but are hidden from the sidebar per Himal's instruction.
+// Filtering happens HERE, server-side, before anything crosses to the client —
+// a hidden item must never appear in the HTML or the RSC payload
+// (verify-phase1 greps for exactly that). The filter is still cosmetic: every
+// page and action re-checks permissions server-side.
 
 export interface NavItem {
   href: string
@@ -26,44 +30,41 @@ export function buildNav(user: CurrentUser): NavGroup[] {
       items: [{ href: '/', label: 'Overview', icon: 'dashboard', show: true }],
     },
     {
-      title: 'Banking',
+      title: 'Books',
       items: [
-        { href: '/statements', label: 'Statements', icon: 'statements', show: hasPermission(user, 'statementUpload') },
-        { href: '/tagging', label: 'Tagging queue', icon: 'tagging', show: hasPermission(user, 'transactionTagging') },
+        { href: '/tagging', label: 'Tag entries', icon: 'tagging', show: hasPermission(user, 'transactionTagging') },
+        { href: '/statements', label: 'Import statement', icon: 'statements', show: hasPermission(user, 'statementUpload') },
         { href: '/cash', label: 'Cash', icon: 'cash', show: hasPermission(user, 'cashEntries') || hasPermission(user, 'viewCashReports') },
+      ],
+    },
+    {
+      title: 'Statements',
+      items: [
+        { href: '/reports', label: 'Profit & loss', icon: 'reports', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/reports/balance-sheet', label: 'Balance sheet', icon: 'trialBalance', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/reports/cash-flow', label: 'Cash flow', icon: 'banking', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/reports/parties', label: 'Loans & advances', icon: 'ledgers', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/reports/budget', label: 'Reports', icon: 'journal', show: hasPermission(user, 'viewFinancialReports') },
+      ],
+    },
+    {
+      title: 'Operations',
+      items: [
+        { href: '/invoices', label: 'Invoices & receivables', icon: 'invoices', show: admin },
         { href: '/reimbursements', label: 'Reimbursements', icon: 'reimbursements', show: hasPermission(user, 'reimbursementSubmit') || admin },
+        { href: '/tasks', label: 'Finance tasks', icon: 'tasks', show: admin },
+        { href: '/bills', label: 'Bills & insurance', icon: 'bills', show: admin },
+        { href: '/salary', label: 'Salary register', icon: 'salary', show: admin },
       ],
     },
     {
-      title: 'Accounting',
-      items: [
-        { href: '/journal', label: 'Journal', icon: 'journal', show: admin },
-        { href: '/bills', label: 'Bills', icon: 'bills', show: admin },
-        { href: '/invoices', label: 'Invoices', icon: 'invoices', show: admin },
-        { href: '/salary', label: 'Salary', icon: 'salary', show: admin },
-        { href: '/tasks', label: 'Tasks', icon: 'tasks', show: admin },
-      ],
-    },
-    {
-      title: 'Insights',
-      items: [
-        { href: '/reports', label: 'Reports', icon: 'reports', show: hasPermission(user, 'viewFinancialReports') },
-        { href: '/tax', label: 'GST / TDS', icon: 'tax', show: hasPermission(user, 'viewTaxRegisters') },
-        { href: '/admin/trial-balance', label: 'Trial balance', icon: 'trialBalance', show: admin },
-        { href: '/admin/ledgers', label: 'Ledgers', icon: 'ledgers', show: admin },
-      ],
-    },
-    {
-      title: 'Organisation',
+      title: 'Setup & masters',
       items: [
         { href: '/admin/coa', label: 'Accounts', icon: 'accounts', show: admin },
         { href: '/admin/cost-centres', label: 'Cost centres', icon: 'costCentres', show: admin },
-        { href: '/admin/periods', label: 'Periods', icon: 'periods', show: admin },
+        { href: '/admin/banking', label: 'Banks & cash locations', icon: 'entities', show: admin },
         { href: '/admin/entities', label: 'Entities', icon: 'entities', show: admin },
-        { href: '/admin/banking', label: 'Banking & cash', icon: 'banking', show: admin },
         { href: '/admin/users', label: 'Users & permissions', icon: 'users', show: admin },
-        { href: '/admin/automation', label: 'Automation', icon: 'automation', show: admin },
-        { href: '/admin/audit', label: 'Audit log', icon: 'audit', show: admin },
       ],
     },
   ]

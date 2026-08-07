@@ -30,7 +30,6 @@ import {
 import {
   monthlyFlows,
   expenseCategories,
-  gstMonthly,
   statTrends,
   pendingBills,
 } from '@/lib/reports/series'
@@ -86,7 +85,7 @@ export default async function OverviewPage() {
   }
 
   // Fetch only what this viewer is allowed to see.
-  const [balances, queues, receivables, alerts, activity, trends, flows, categories, gst, bills, tasks] =
+  const [balances, queues, receivables, alerts, activity, trends, flows, categories, bills, tasks] =
     await Promise.all([
       can.financials || can.cash ? balanceTiles(entity.id) : null,
       can.tagging || can.upload || can.claims ? queueTiles(entity.id) : null,
@@ -96,7 +95,6 @@ export default async function OverviewPage() {
       admin || can.financials ? statTrends(entity.id) : null,
       admin || can.financials ? monthlyFlows(entity.id, 12) : null,
       admin || can.financials ? expenseCategories(entity.id, 12, 6) : null,
-      can.tax ? gstMonthly(entity.id, 6) : null,
       admin ? pendingBills(entity.id) : null,
       admin
         ? prisma.financeTask.findMany({
@@ -319,31 +317,8 @@ export default async function OverviewPage() {
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  {can.tax && gst && (
-                    <Card className="lg:col-span-2">
-                      <CardHeader
-                        title="GST summary"
-                        hint="output liability vs input credit, last 6 months"
-                        action={{ label: 'GST / TDS registers', href: '/tax' }}
-                      />
-                      <div className="px-5 pb-5 sm:px-6">
-                        {gst.some((m) => m.output || m.input) ? (
-                          <PairedBars
-                            points={gst.map((m) => ({ label: m.label, a: m.output, b: m.input }))}
-                            seriesA="Output GST"
-                            seriesB="Input credit"
-                            colorA="var(--chart-1)"
-                            colorB="var(--chart-2)"
-                            height={190}
-                          />
-                        ) : (
-                          <EmptyState icon={BarChart3} title="No GST activity yet" className="py-6" />
-                        )}
-                      </div>
-                    </Card>
-                  )}
                   {admin && tasks && (
-                    <Card className={can.tax && gst ? '' : 'lg:col-span-3'}>
+                    <Card className="lg:col-span-3">
                       <CardHeader title="Pending tasks" action={{ label: 'All tasks', href: '/tasks' }} />
                       <div className="px-3 pb-3">
                         {tasks.length === 0 ? (
@@ -398,7 +373,6 @@ export default async function OverviewPage() {
           {can.upload && <QuickAction href="/statements" icon={FileSpreadsheet} label="Upload statement" />}
           {admin && <QuickAction href="/invoices" icon={ClipboardList} label="Create invoice" />}
           {admin && <QuickAction href="/bills" icon={FileText} label="Add expense" />}
-          {admin && <QuickAction href="/journal" icon={BookOpen} label="Create journal" />}
           {admin && <QuickAction href="/admin/banking" icon={Landmark} label="Add bank account" />}
           {can.financials && <QuickAction href="/reports" icon={BarChart3} label="Generate report" />}
           {can.tagging && !admin && <QuickAction href="/tagging" icon={Tags} label="Work the queue" />}
