@@ -10,6 +10,7 @@ import {
   retagPostedTransaction,
 } from '@/lib/statements/post'
 import { deleteJournalDocument, undoJournalDocument } from '@/lib/ledger/posting'
+import { partyToken } from '@/lib/statements/rules'
 
 // Tagging queue actions (spec §3 steps 5–6). Queue work needs the
 // "Transaction tagging" flag; touching posted rows needs
@@ -41,17 +42,41 @@ export async function tagTransaction(formData: FormData) {
   const fields = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
+    const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
     await applyTag(tx, { txnId, ...fields, actorId: user.id })
     await tx.statementTransaction.update({
       where: { id: txnId },
       data: { tagSource: 'manual' },
     })
+
+    // One tag clears the whole party: the rule just learned from this row is
+    // applied to every same-party row still pending in these books, so 8
+    // DigitalOcean rows need one decision, not eight.
+    const token = partyToken(txn.narration)
+    let spread = 0
+    if (token) {
+      const pending = await tx.statementTransaction.findMany({
+        where: { entityId: txn.entityId, status: 'PENDING', id: { not: txnId } },
+      })
+      for (const sibling of pending) {
+        if (partyToken(sibling.narration) !== token) continue
+        await applyTag(tx, { txnId: sibling.id, ...fields, actorId: user.id })
+        await tx.statementTransaction.update({
+          where: { id: sibling.id },
+          data: { tagSource: 'rule' },
+        })
+        spread++
+      }
+    }
+
     await audit(tx, {
       actorId: user.id,
       action: 'statement_txn.tag',
       targetType: 'StatementTransaction',
       targetId: txnId,
-      summary: 'Tagged statement transaction',
+      summary:
+        'Tagged statement transaction' +
+        (spread > 0 ? ` — rule applied to ${spread} more ${token} row(s) in the queue` : ''),
       after: fields,
     })
   })
