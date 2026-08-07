@@ -44,3 +44,6 @@ next-env.d.ts
 /src/generated/
 
 backups/
+
+# uploaded documents (bills, receipts, policies) — local storage, backed up separately
+uploads/

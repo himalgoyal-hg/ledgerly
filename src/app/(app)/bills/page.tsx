@@ -97,7 +97,11 @@ export default async function BillsPage() {
             <option value="HALF_YEARLY">Half-yearly</option>
             <option value="YEARLY">Yearly</option>
           </select>
-          <input name="link" placeholder="Drive link" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-zinc-300 px-2 py-1.5 text-xs text-zinc-500 hover:border-zinc-400">
+            📎 attach bill
+            <input type="file" name="file" accept="application/pdf,image/*" className="w-40 text-xs" />
+          </label>
+          <input name="link" placeholder="…or Drive link" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <input name="remarks" placeholder="Remarks" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
             Add bill

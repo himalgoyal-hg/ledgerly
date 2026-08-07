@@ -55,6 +55,7 @@ export const TABLES = [
   'PaymentPreference',
   'NotificationOutbox',
   'AiCall',
+  'StoredFile',
   'AuditLog',
 ] as const
 

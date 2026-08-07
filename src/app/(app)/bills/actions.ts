@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createBill, payBill } from '@/lib/ops/bills'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
+import { saveUpload } from '@/lib/files'
 
 // Bills & insurance (spec §6.3) — Admin-only.
 
@@ -62,6 +63,14 @@ export async function createBillAction(formData: FormData) {
   })
   if (!parsed.success) throw new Error(parsed.error.issues[0].message)
 
+  // An attached file beats a pasted link — it lands in uploads/ and the
+  // bill's link points at /files/<id>.
+  const upload = formData.get('file')
+  const link =
+    upload instanceof File && upload.size > 0
+      ? await saveUpload(upload, admin.id)
+      : parsed.data.link || null
+
   await auditedTransaction(async (tx) => {
     const bill = await createBill(tx, {
       ...parsed.data,
@@ -69,7 +78,7 @@ export async function createBillAction(formData: FormData) {
       policyNumber: parsed.data.policyNumber || null,
       insuredValue: parsed.data.insuredValue || null,
       insuredFor: parsed.data.insuredFor || null,
-      link: parsed.data.link || null,
+      link,
       remarks: parsed.data.remarks || null,
       costCentreId: parsed.data.costCentreId || null,
       gstType: parsed.data.gstType || null,

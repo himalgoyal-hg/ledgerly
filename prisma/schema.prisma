@@ -413,6 +413,19 @@ model TagRule {
 
 // Cost centres (spec §3 step 5 tier 3): Hyrox Project, Office Operations,
 // Personal, Consultant… Admin-managed masters, per entity.
+// Uploaded documents (bill PDFs, claim receipts, policy copies): the bytes
+// live at uploads/<id> on disk; this row is the metadata. Served with an
+// auth check at /files/<id> — the id itself goes into Bill.link /
+// Reimbursement.link as "/files/<id>", so Drive links keep working alongside.
+model StoredFile {
+  id           String   @id @default(cuid())
+  fileName     String
+  mime         String
+  size         Int
+  uploadedById String
+  createdAt    DateTime @default(now())
+}
+
 model CostCentre {
   id         String    @id @default(cuid())
   entityId   String

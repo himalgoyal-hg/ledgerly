@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { submitClaim, approveClaim, rejectClaim, settleMember } from '@/lib/ops/reimburse'
+import { saveUpload } from '@/lib/files'
 
 // Reimbursements (spec §6.1): members submit their own; Approve / Reject /
 // Settle are Admin-only — enforced here, never in the UI.
@@ -30,10 +31,18 @@ export async function submitClaimAction(formData: FormData) {
   })
   if (!parsed.success) throw new Error(parsed.error.issues[0].message)
 
+  // Attached receipt beats a pasted link — stored in uploads/, served at
+  // /files/<id> behind auth.
+  const upload = formData.get('file')
+  const link =
+    upload instanceof File && upload.size > 0
+      ? await saveUpload(upload, user.id)
+      : parsed.data.link || null
+
   await auditedTransaction(async (tx) => {
     const claim = await submitClaim(tx, {
       ...parsed.data,
-      link: parsed.data.link || null,
+      link,
       remarks: parsed.data.remarks || null,
       memberId: user.id, // own claims only
     })

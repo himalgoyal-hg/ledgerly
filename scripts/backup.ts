@@ -7,7 +7,7 @@
 // backup into a scratch database and re-checks the ledger invariants there.
 // A backup nobody has restored is a hope, not a backup.
 import 'dotenv/config'
-import { mkdirSync, statSync } from 'fs'
+import { cpSync, existsSync, mkdirSync, statSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { backupTo } from '../src/lib/backup/dump'
 
@@ -31,6 +31,15 @@ async function main() {
     `\n${stats.total.toLocaleString('en-IN')} rows across ${nonEmpty.length} table(s), ` +
       `${(bytes / 1024).toFixed(1)} KB compressed`,
   )
+
+  // Uploaded documents live outside the database — snapshot uploads/ next to
+  // the dump so a restore can put the bytes back too.
+  const uploadsDir = resolve('./uploads')
+  if (existsSync(uploadsDir)) {
+    const dest = file.replace(/\.ndjson\.gz$/, '-uploads')
+    cpSync(uploadsDir, dest, { recursive: true })
+    console.log(`Documents: uploads/ copied to ${dest}`)
+  }
   console.log('Verify it restores:  npm run restore-drill')
 }
 

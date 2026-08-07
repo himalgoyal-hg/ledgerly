@@ -117,7 +117,11 @@ export default async function ReimbursementsPage(props: {
             <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
             <input name="category" required placeholder="Category (Travel, Food…)" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
             <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="link" placeholder="Bill link (Drive)" className="w-48 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+            <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-zinc-300 px-2 py-1.5 text-xs text-zinc-500 hover:border-zinc-400">
+              📎 receipt
+              <input type="file" name="file" accept="application/pdf,image/*" className="w-40 text-xs" />
+            </label>
+            <input name="link" placeholder="…or Drive link" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
             <input name="remarks" placeholder="Remarks" className="flex-1 min-w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
             <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
               Submit
