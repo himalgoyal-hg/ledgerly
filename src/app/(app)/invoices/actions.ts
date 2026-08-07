@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createInvoice, recordInvoicePayment } from '@/lib/ops/invoices'
+import { deleteJournalDocument } from '@/lib/ledger/posting'
 
 // Invoices & receivables (spec §6.6) — Admin-only.
 
@@ -85,4 +86,36 @@ export async function recordPaymentAction(formData: FormData) {
     })
   })
   revalidatePath('/invoices')
+}
+
+/**
+ * Delete an invoice and its payments: reverse every payment posting, then
+ * the invoice posting, then remove the records (payments cascade). The
+ * reversals keep the ledger balanced; a locked month refuses.
+ */
+export async function deleteInvoiceAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const invoiceId = String(formData.get('invoiceId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const invoice = await tx.invoice.findUniqueOrThrow({
+      where: { id: invoiceId },
+      include: { payments: true },
+    })
+    for (const payment of invoice.payments) {
+      if (payment.docId) await deleteJournalDocument(tx, { docId: payment.docId, actorId: admin.id })
+    }
+    if (invoice.docId) await deleteJournalDocument(tx, { docId: invoice.docId, actorId: admin.id })
+    await tx.invoice.delete({ where: { id: invoiceId } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'invoice.delete',
+      targetType: 'Invoice',
+      targetId: invoiceId,
+      summary: `Deleted invoice ${invoice.number} (${invoice.customer}) — ${invoice.payments.length} payment(s) and the invoice posting reversed`,
+      before: { number: invoice.number, customer: invoice.customer, amount: String(invoice.amount), status: invoice.status },
+    })
+  })
+  revalidatePath('/invoices')
+  revalidatePath('/')
 }

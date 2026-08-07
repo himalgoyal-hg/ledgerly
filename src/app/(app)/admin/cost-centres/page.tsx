@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
-import { createCostCentre, archiveCostCentre, restoreCostCentre } from './actions'
+import { createCostCentre, archiveCostCentre, restoreCostCentre, renameCostCentre } from './actions'
 
 // Cost centre masters (Admin): Hyrox Project, Office Operations, Personal,
 // Consultant… — tier 3 of the tag, summing into cost centre reports.
@@ -57,7 +57,18 @@ export default async function CostCentresPage() {
             key={cc.id}
             className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm"
           >
-            <span className="font-medium text-zinc-800">{cc.name}</span>
+            <form action={renameCostCentre} className="flex items-center gap-2">
+              <input type="hidden" name="id" value={cc.id} />
+              <input
+                name="name"
+                defaultValue={cc.name}
+                required
+                className="w-56 rounded-md border border-transparent px-2 py-1 text-sm font-medium text-zinc-800 hover:border-zinc-300 focus:border-zinc-300 focus:outline-none"
+              />
+              <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
+                Rename
+              </button>
+            </form>
             <span className="text-xs text-zinc-400">{cc._count.lines} journal lines</span>
             <form action={archiveCostCentre} className="ml-auto">
               <input type="hidden" name="id" value={cc.id} />

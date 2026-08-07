@@ -3,7 +3,8 @@ import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { TASK_KINDS } from '@/lib/ops/tasks'
-import { createTaskAction, completeTaskAction } from './actions'
+import { createTaskAction, completeTaskAction, editTaskAction, deleteTaskAction } from './actions'
+import { ConfirmButton } from '@/components/confirm-button'
 
 // Finance tasks & reminders (spec §6.5): EMI, subscriptions, payroll,
 // GST/TDS payments, renewals — due dates + recurrence. A recurring task
@@ -86,6 +87,27 @@ export default async function TasksPage() {
                   Done
                 </button>
               </form>
+              <form action={deleteTaskAction}>
+                <input type="hidden" name="taskId" value={task.id} />
+                <ConfirmButton
+                  message={`Delete task "${task.title}"?`}
+                  className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                >
+                  Delete
+                </ConfirmButton>
+              </form>
+              <details className="w-full">
+                <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-600">Edit</summary>
+                <form action={editTaskAction} className="mt-2 flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="taskId" value={task.id} />
+                  <input name="title" defaultValue={task.title} required className="w-56 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                  <input name="dueDate" type="date" defaultValue={task.dueDate.toISOString().slice(0, 10)} required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                  <input name="amount" type="number" step="0.01" min="0" defaultValue={task.amount === null ? '' : String(task.amount)} placeholder="Amount (optional)" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                  <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                    Save
+                  </button>
+                </form>
+              </details>
             </div>
           )
         })}

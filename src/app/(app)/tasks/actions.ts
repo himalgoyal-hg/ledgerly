@@ -51,3 +51,55 @@ export async function completeTaskAction(formData: FormData) {
   })
   revalidatePath('/tasks')
 }
+
+/** Edit an open task's title, due date or amount. */
+export async function editTaskAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const taskId = String(formData.get('taskId') ?? '')
+  const title = String(formData.get('title') ?? '').trim()
+  const dueDate = new Date(String(formData.get('dueDate') ?? ''))
+  const amountRaw = String(formData.get('amount') ?? '').trim()
+  if (!title) throw new Error('Title is required')
+  if (isNaN(dueDate.getTime())) throw new Error('Pick a due date')
+
+  await auditedTransaction(async (tx) => {
+    const task = await tx.financeTask.findUniqueOrThrow({ where: { id: taskId } })
+    if (task.status !== 'OPEN') throw new Error('Only open tasks can be edited')
+    await tx.financeTask.update({
+      where: { id: taskId },
+      data: { title, dueDate, amount: amountRaw ? amountRaw : null },
+    })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'task.edit',
+      targetType: 'FinanceTask',
+      targetId: taskId,
+      summary: `Edited task "${task.title}"`,
+      before: { title: task.title, dueDate: task.dueDate, amount: task.amount ? String(task.amount) : null },
+      after: { title, dueDate, amount: amountRaw || null },
+    })
+  })
+  revalidatePath('/tasks')
+  revalidatePath('/')
+}
+
+/** Delete a task. Tasks never post to the ledger, so this is a plain removal. */
+export async function deleteTaskAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const taskId = String(formData.get('taskId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const task = await tx.financeTask.findUniqueOrThrow({ where: { id: taskId } })
+    await tx.financeTask.delete({ where: { id: taskId } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'task.delete',
+      targetType: 'FinanceTask',
+      targetId: taskId,
+      summary: `Deleted task "${task.title}"`,
+      before: { title: task.title, kind: task.kind, dueDate: task.dueDate, status: task.status },
+    })
+  })
+  revalidatePath('/tasks')
+  revalidatePath('/')
+}

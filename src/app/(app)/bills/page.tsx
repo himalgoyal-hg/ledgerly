@@ -5,7 +5,8 @@ import { displayINR } from '@/lib/ledger/money'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
 import { SourceSelect } from '../source-select'
-import { createBillAction, payBillAction } from './actions'
+import { createBillAction, payBillAction, deleteBillAction } from './actions'
+import { ConfirmButton } from '@/components/confirm-button'
 
 // Bills & insurance (spec §6.3): entry posts the payable; payment clears it.
 // Recurring bills spawn their next instance on payment.
@@ -138,6 +139,15 @@ export default async function BillsPage() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="font-medium text-zinc-800">{bill.vendor}</span>
                 <span className="text-zinc-500">{bill.billType}</span>
+                <form action={deleteBillAction} className="order-last ml-auto">
+                  <input type="hidden" name="billId" value={bill.id} />
+                  <ConfirmButton
+                    message={`Delete this ${bill.vendor} bill? Its ledger postings are reversed (restorable from Journal).`}
+                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </ConfirmButton>
+                </form>
                 <span className="text-xs text-zinc-400">{headName(bill.expenseAccountId)}</span>
                 <span className={`text-xs ${overdue ? 'font-medium text-red-600' : 'text-zinc-400'}`}>
                   due {bill.dueDate.toISOString().slice(0, 10)}{overdue ? ' — OVERDUE' : ''}

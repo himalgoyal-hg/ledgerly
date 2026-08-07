@@ -91,3 +91,26 @@ export async function restoreAccount(formData: FormData) {
   })
   revalidatePath('/admin/coa')
 }
+
+/** Rename a ledger account — code, kind and history stay put. */
+export async function renameAccount(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '')
+  const name = String(formData.get('name') ?? '').trim()
+  if (!name) throw new Error('Name is required')
+
+  await auditedTransaction(async (tx) => {
+    const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id } })
+    await tx.ledgerAccount.update({ where: { id }, data: { name } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'account.rename',
+      targetType: 'LedgerAccount',
+      targetId: id,
+      summary: `Renamed account ${account.code} "${account.name}" → "${name}"`,
+      before: { name: account.name },
+      after: { name },
+    })
+  })
+  revalidatePath('/admin/coa')
+}

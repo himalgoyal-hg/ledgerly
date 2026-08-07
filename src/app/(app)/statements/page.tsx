@@ -4,7 +4,8 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { importBalanceCheck } from '@/lib/statements/import'
 import { aiConfigured } from '@/lib/ai/client'
-import { uploadStatements, confirmImport, discardImport } from './actions'
+import { uploadStatements, confirmImport, discardImport, deleteImport } from './actions'
+import { ConfirmButton } from '@/components/confirm-button'
 
 // Statements — upload → detect → confirm → import (spec §3 steps 1–3).
 // The detection banner is never silent; unrecognized layouts wait for Admin.
@@ -212,16 +213,31 @@ export default async function StatementsPage() {
                     </span>
                   ))}
               </div>
-              <p className="mt-1 text-xs text-zinc-500">
-                {imp.rowsTotal} rows · {imp.rowsDuplicate} previously imported ·{' '}
-                {pendingCount} pending tagging · {tagged} tagged · {posted} posted
-                {balance && !balance.matched && (
-                  <>
-                    {' '}· statement {displayINR(balance.expected)} vs ledger{' '}
-                    {displayINR(balance.actual)} — resolves as rows are tagged and posted
-                  </>
-                )}
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <p className="text-xs text-zinc-500">
+                  {imp.rowsTotal} rows · {imp.rowsDuplicate} previously imported ·{' '}
+                  {pendingCount} pending tagging · {tagged} tagged · {posted} posted
+                  {balance && !balance.matched && (
+                    <>
+                      {' '}· statement {displayINR(balance.expected)} vs ledger{' '}
+                      {displayINR(balance.actual)} — resolves as rows are tagged and posted
+                    </>
+                  )}
+                </p>
+                <form action={deleteImport} className="ml-auto">
+                  <input type="hidden" name="importId" value={imp.id} />
+                  <ConfirmButton
+                    message={
+                      `Delete ${imp.fileName}? All ${imp.rowsTotal} rows are removed` +
+                      (posted > 0 ? `; ${posted} posted row(s) will be reversed in the ledger` : '') +
+                      '. Re-uploading the file later starts fresh.'
+                    }
+                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Delete import
+                  </ConfirmButton>
+                </form>
+              </div>
             </div>
           )
         })}

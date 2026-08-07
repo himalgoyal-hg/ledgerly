@@ -1,8 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePermission, isAdmin } from '@/lib/auth'
+import { requirePermission, hasPermission, isAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
+import { deleteJournalDocument } from '@/lib/ledger/posting'
 import {
   parseAnyUpload,
   createStatementImport,
@@ -104,4 +105,56 @@ export async function discardImport(formData: FormData) {
     })
   })
   revalidatePath('/statements')
+}
+
+/**
+ * Delete a CONFIRMED import and everything it brought in. Unposted rows
+ * (pending/tagged/duplicate) vanish outright; posted rows are deleted the
+ * only way the ledger allows — a reversal, restorable from the recently
+ * deleted bin. Removing the rows also forgets their dedupe hashes, so
+ * re-uploading the same file starts clean.
+ */
+export async function deleteImport(formData: FormData) {
+  const user = await requirePermission('statementUpload')
+  const importId = String(formData.get('importId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const imp = await tx.statementImport.findUniqueOrThrow({ where: { id: importId } })
+    if (imp.status !== 'CONFIRMED') throw new Error('Use Discard for unconfirmed uploads')
+    if (!isAdmin(user) && imp.uploadedById !== user.id) {
+      throw new Error('Only the uploader or Admin can delete this import')
+    }
+
+    const txns = await tx.statementTransaction.findMany({ where: { importId } })
+    const posted = txns.filter((t) => t.status === 'POSTED' && t.docId)
+    if (posted.length > 0 && !isAdmin(user) && !hasPermission(user, 'transactionEditDelete')) {
+      throw new Error(
+        `${posted.length} row(s) are already posted to the ledger — deleting them needs the edit/delete permission`,
+      )
+    }
+
+    // Posted rows first: each reversal keeps Dr = Cr and stays undoable.
+    // A period lock on any month will refuse here and roll the whole
+    // delete back — that is the lock doing its job.
+    for (const txn of posted) {
+      await deleteJournalDocument(tx, { docId: txn.docId!, actorId: user.id })
+    }
+
+    await tx.statementTransaction.deleteMany({ where: { importId } })
+    await tx.statementImport.delete({ where: { id: importId } })
+
+    await audit(tx, {
+      actorId: user.id,
+      action: 'statement.delete',
+      targetType: 'StatementImport',
+      targetId: importId,
+      summary:
+        `Deleted import ${imp.fileName}: ${txns.length} row(s) removed` +
+        (posted.length ? `, ${posted.length} posted row(s) reversed` : ''),
+      before: { fileName: imp.fileName, rowsTotal: imp.rowsTotal, posted: posted.length },
+    })
+  })
+  revalidatePath('/statements')
+  revalidatePath('/tagging')
+  revalidatePath('/')
 }

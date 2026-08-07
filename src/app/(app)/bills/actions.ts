@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createBill, payBill } from '@/lib/ops/bills'
+import { deleteJournalDocument } from '@/lib/ledger/posting'
 
 // Bills & insurance (spec §6.3) — Admin-only.
 
@@ -103,4 +104,31 @@ export async function payBillAction(formData: FormData) {
     })
   })
   revalidatePath('/bills')
+}
+
+/**
+ * Delete a bill outright: reverse its payment posting (if paid) and its
+ * accrual posting, then remove the record. Reversals keep the ledger
+ * balanced and land in the recently-deleted bin; a locked month refuses.
+ */
+export async function deleteBillAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const billId = String(formData.get('billId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const bill = await tx.bill.findUniqueOrThrow({ where: { id: billId } })
+    if (bill.paymentDocId) await deleteJournalDocument(tx, { docId: bill.paymentDocId, actorId: admin.id })
+    if (bill.entryDocId) await deleteJournalDocument(tx, { docId: bill.entryDocId, actorId: admin.id })
+    await tx.bill.delete({ where: { id: billId } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'bill.delete',
+      targetType: 'Bill',
+      targetId: billId,
+      summary: `Deleted bill ${bill.vendor} — ${bill.billType} (postings reversed)`,
+      before: { vendor: bill.vendor, billType: bill.billType, amount: String(bill.amount), status: bill.status },
+    })
+  })
+  revalidatePath('/bills')
+  revalidatePath('/')
 }

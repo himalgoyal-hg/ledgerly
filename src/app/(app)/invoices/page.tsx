@@ -4,7 +4,8 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { agingBucket, outstandingOf } from '@/lib/ops/invoices'
 import { GST_RATES, GST_TYPES } from '@/lib/tax/calc'
-import { createInvoiceAction, recordPaymentAction } from './actions'
+import { createInvoiceAction, recordPaymentAction, deleteInvoiceAction } from './actions'
+import { ConfirmButton } from '@/components/confirm-button'
 
 // Invoices & receivables (spec §6.6): auto numbering, due-date tracking,
 // partial payments, aging buckets, settled archive.
@@ -111,6 +112,15 @@ export default async function InvoicesPage() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="font-mono text-xs text-zinc-500">{invoice.number}</span>
                 <span className="font-medium text-zinc-800">{invoice.customer}</span>
+                <form action={deleteInvoiceAction} className="order-last ml-auto">
+                  <input type="hidden" name="invoiceId" value={invoice.id} />
+                  <ConfirmButton
+                    message={`Delete invoice ${invoice.number}? The invoice and any payment postings are reversed (restorable from Journal).`}
+                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                  >
+                    Delete
+                  </ConfirmButton>
+                </form>
                 <span className="text-xs text-zinc-400">
                   due {invoice.dueDate.toISOString().slice(0, 10)}
                 </span>
