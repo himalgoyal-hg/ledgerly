@@ -8,6 +8,7 @@ import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagForm } from './tag-form'
 import { SelectAll } from './select-all'
+import { HeadCombobox } from '@/components/head-combobox'
 import {
   tagTransaction,
   untagTransaction,
@@ -307,16 +308,7 @@ export default async function TaggingPage(props: {
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
-            <select
-              name="headAccountId"
-              required
-              className="min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            >
-              <option value="">— bulk head —</option>
-              {heads.map((h) => (
-                <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
-              ))}
-            </select>
+            <HeadCombobox heads={heads} required placeholder="Bulk head — type to search" />
             <select name="nature" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
               <option value="">nature — auto by direction</option>
               {NATURES.map((n) => (

@@ -3,17 +3,13 @@
 import { useState } from 'react'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
+import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
 
 // The 3-tier tag form (spec §3 step 5): head → nature (auto-suggested from
-// the head) → cost centre. Members never see Dr/Cr.
+// the head) → cost centre. Members never see Dr/Cr. The head is a type-ahead
+// (v2 prototype): first letters filter, picking fills nature + cost centre.
 
-export interface HeadOption {
-  id: string
-  code: string
-  name: string
-  kind: string
-  defaultCostCentreId?: string | null
-}
+export type HeadOption = HeadOpt
 
 export interface CostCentreOption {
   id: string
@@ -35,27 +31,18 @@ export function TagForm(props: {
   return (
     <form action={props.action} className="flex flex-wrap items-center gap-2">
       <input type="hidden" name="txnId" value={props.txnId} />
-      <select
-        name="headAccountId"
+      <HeadCombobox
+        heads={props.heads}
+        defaultHeadId={props.defaults?.headAccountId}
         required
-        defaultValue={props.defaults?.headAccountId ?? ''}
-        onChange={(e) => {
-          const head = props.heads.find((h) => h.id === e.target.value)
+        onPick={(head) => {
           if (head) {
             setNature(suggestNature(head, props.isOutflow))
             // v2 prototype: picking a head fills its default cost centre.
             if (head.defaultCostCentreId) setCostCentreId(head.defaultCostCentreId)
           }
         }}
-        className="min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-      >
-        <option value="">— head —</option>
-        {props.heads.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.code} · {h.name}
-          </option>
-        ))}
-      </select>
+      />
       <select
         name="nature"
         required
