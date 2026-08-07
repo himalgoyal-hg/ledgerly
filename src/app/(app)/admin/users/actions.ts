@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
-import { isPermissionFlag, PERMISSION_LABELS } from '@/lib/permissions'
+import { isPermissionFlag, PERMISSION_FLAGS, PERMISSION_LABELS, ROLE_PRESETS } from '@/lib/permissions'
 
 // Every action here is Admin-only (spec §1.1: user & permission management
 // is never grantable). requireAdmin() is the server-side check — the UI is
@@ -176,6 +176,36 @@ export async function setEntityScope(formData: FormData) {
       targetId: userId,
       summary: `${grant ? 'Granted' : 'Revoked'} entity ${entity.code} for ${target.name}`,
       after: { entityId, entityCode: entity.code, granted: grant },
+    })
+  })
+  revalidatePath('/', 'layout')
+}
+
+export async function applyRolePreset(formData: FormData) {
+  const admin = await requireAdmin()
+  const userId = String(formData.get('userId') ?? '')
+  const preset = String(formData.get('preset') ?? '') as keyof typeof ROLE_PRESETS
+  const def = ROLE_PRESETS[preset]
+  if (!userId || !def) throw new Error('Invalid preset')
+
+  await auditedTransaction(async (tx) => {
+    const target = await tx.user.findUniqueOrThrow({ where: { id: userId } })
+    if (target.role === 'ADMIN') throw new Error('Admin permissions are not editable')
+    const row = Object.fromEntries(
+      PERMISSION_FLAGS.map((f) => [f, (def.flags as readonly string[]).includes(f)]),
+    )
+    await tx.memberPermission.upsert({
+      where: { userId },
+      create: { userId, ...row },
+      update: row,
+    })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'permission.preset',
+      targetType: 'User',
+      targetId: userId,
+      summary: `Applied role preset "${def.label}" to ${target.name}`,
+      after: row,
     })
   })
   revalidatePath('/', 'layout')

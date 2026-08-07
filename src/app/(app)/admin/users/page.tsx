@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
-import { PERMISSION_FLAGS, PERMISSION_LABELS } from '@/lib/permissions'
+import { PERMISSION_FLAGS, PERMISSION_LABELS, ROLE_PRESETS } from '@/lib/permissions'
 import {
   createMember,
   setPermission,
@@ -8,6 +8,7 @@ import {
   resetMemberPassword,
   setEntityScoped,
   setEntityScope,
+  applyRolePreset,
 } from './actions'
 
 export default async function UsersPage() {
@@ -54,6 +55,25 @@ export default async function UsersPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
+            <tr className="bg-zinc-50/60">
+              <td className="px-4 py-2 text-xs font-medium uppercase text-zinc-400">Role preset</td>
+              {members.map((m) => (
+                <td key={m.id} className="px-4 py-2 text-center">
+                  <form action={applyRolePreset} className="inline-flex items-center gap-1">
+                    <input type="hidden" name="userId" value={m.id} />
+                    <select name="preset" className="rounded-md border border-zinc-300 bg-white px-1.5 py-1 text-xs" defaultValue="">
+                      <option value="" disabled>Apply…</option>
+                      {Object.entries(ROLE_PRESETS).map(([key, p]) => (
+                        <option key={key} value={key}>{p.label}</option>
+                      ))}
+                    </select>
+                    <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
+                      Set
+                    </button>
+                  </form>
+                </td>
+              ))}
+            </tr>
             {PERMISSION_FLAGS.map((flag) => (
               <tr key={flag}>
                 <td className="px-4 py-2 text-zinc-700">{PERMISSION_LABELS[flag]}</td>

@@ -31,3 +31,18 @@ export const PERMISSION_LABELS: Record<PermissionFlag, string> = {
 export function isPermissionFlag(value: string): value is PermissionFlag {
   return (PERMISSION_FLAGS as readonly string[]).includes(value)
 }
+
+// Role presets (requirements §C3): the four working roles as flag bundles.
+export const ROLE_PRESETS = {
+  accounting: {
+    label: 'Accounting',
+    flags: ['statementUpload', 'transactionTagging', 'viewFinancialReports'],
+  },
+  finops: {
+    label: 'Finance & Ops',
+    flags: ['viewFinancialReports', 'viewCashReports', 'reimbursementSubmit'],
+  },
+  reimbursement: { label: 'Reimbursement entry', flags: ['reimbursementSubmit'] },
+  none: { label: 'No access', flags: [] },
+} as const
+export type RolePreset = keyof typeof ROLE_PRESETS
