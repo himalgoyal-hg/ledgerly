@@ -11,7 +11,7 @@ const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }),
 })
 
-const ADMIN = { name: 'Himal', email: 'himal.goyal@accurest.co' }
+const ADMIN = { name: 'Himal', email: 'cahimalgoyal@gmail.com' }
 const MEMBERS = [
   { name: 'Greeshma', email: 'greeshma@accurest.co' },
   { name: 'Prakash', email: 'prakash@accurest.co' },
