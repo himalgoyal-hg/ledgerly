@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
@@ -6,6 +7,7 @@ import { NATURES } from '@/lib/statements/natures'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagForm } from './tag-form'
+import { SelectAll } from './select-all'
 import {
   tagTransaction,
   untagTransaction,
@@ -16,13 +18,21 @@ import {
   requestAiSuggestions,
   acceptAiSuggestion,
   dismissAiSuggestion,
+  bulkTag,
+  acceptAllSuggestions,
 } from './actions'
 
 // The tagging queue (spec §3 steps 4–6): pending rows get their 3-tier tag,
 // tagged rows wait for "Post All Confirmed", posted rows carry a balanced
 // journal underneath (with member edit/delete/undo when granted).
+// Search, bank/month/status filters, KPIs, bulk tagging and pagination come
+// from the v2 prototype's Tagging screen.
 
-export default async function TaggingPage() {
+const PER_PAGE = 60
+
+export default async function TaggingPage(props: {
+  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string; page?: string }>
+}) {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
   const entity = await getCurrentEntity(user)
@@ -30,33 +40,72 @@ export default async function TaggingPage() {
     return <p className="text-sm text-zinc-500">No books to work on yet.</p>
   }
 
-  const [pending, tagged, posted, heads, costCentres, banks, users] = await Promise.all([
-    prisma.statementTransaction.findMany({
-      where: { entityId: entity.id, status: 'PENDING' },
-      orderBy: [{ date: 'asc' }, { id: 'asc' }],
-    }),
-    prisma.statementTransaction.findMany({
-      where: { entityId: entity.id, status: 'TAGGED' },
-      orderBy: [{ date: 'asc' }, { id: 'asc' }],
-    }),
-    prisma.statementTransaction.findMany({
-      where: { entityId: entity.id, status: 'POSTED' },
-      orderBy: [{ taggedAt: 'desc' }, { date: 'desc' }],
-      take: 50,
-    }),
-    prisma.ledgerAccount.findMany({
-      where: { entityId: entity.id, isGroup: false, archivedAt: null },
-      orderBy: { code: 'asc' },
-      select: { id: true, code: true, name: true, kind: true },
-    }),
-    prisma.costCentre.findMany({
-      where: { entityId: entity.id, archivedAt: null },
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
-    }),
-    prisma.bankAccount.findMany({ select: { id: true, nickname: true } }),
-    prisma.user.findMany({ select: { id: true, name: true } }),
-  ])
+  const sp = await props.searchParams
+  const q = (sp.q ?? '').trim()
+  const bank = sp.bank ?? ''
+  const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
+  const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
+  const pageNo = Math.max(1, Number(sp.page) || 1)
+
+  const monthFrom = month ? new Date(`${month}-01T00:00:00Z`) : null
+  const monthTo = monthFrom
+    ? new Date(Date.UTC(monthFrom.getUTCFullYear(), monthFrom.getUTCMonth() + 1, 1))
+    : null
+  // One filter, three status lists — mirrors the prototype's single filtered
+  // table split into our Pending / Tagged / Posted sections.
+  const filter = {
+    entityId: entity.id,
+    ...(bank ? { bankAccountId: bank } : {}),
+    ...(q
+      ? {
+          OR: [
+            { narration: { contains: q, mode: 'insensitive' as const } },
+            { reference: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : {}),
+    ...(monthFrom && monthTo ? { date: { gte: monthFrom, lt: monthTo } } : {}),
+  }
+
+  const [pending, tagged, posted, heads, costCentres, banks, users, totalEntries, sums, monthRows] =
+    await Promise.all([
+      prisma.statementTransaction.findMany({
+        where: { ...filter, status: 'PENDING' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.statementTransaction.findMany({
+        where: { ...filter, status: 'TAGGED' },
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
+      }),
+      prisma.statementTransaction.findMany({
+        where: { ...filter, status: 'POSTED' },
+        orderBy: [{ taggedAt: 'desc' }, { date: 'desc' }],
+        take: 50,
+      }),
+      prisma.ledgerAccount.findMany({
+        where: { entityId: entity.id, isGroup: false, archivedAt: null },
+        orderBy: { code: 'asc' },
+        select: { id: true, code: true, name: true, kind: true },
+      }),
+      prisma.costCentre.findMany({
+        where: { entityId: entity.id, archivedAt: null },
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true },
+      }),
+      prisma.bankAccount.findMany({ select: { id: true, nickname: true, entityId: true } }),
+      prisma.user.findMany({ select: { id: true, name: true } }),
+      prisma.statementTransaction.count({
+        where: { entityId: entity.id, status: { not: 'DUPLICATE' } },
+      }),
+      prisma.statementTransaction.aggregate({
+        where: { ...filter, status: { not: 'DUPLICATE' } },
+        _sum: { debit: true, credit: true },
+      }),
+      prisma.$queryRaw<{ m: string }[]>`
+        SELECT DISTINCT to_char(date, 'YYYY-MM') AS m
+        FROM "StatementTransaction" WHERE "entityId" = ${entity.id} ORDER BY 1 DESC
+      `,
+    ])
 
   const docs = await prisma.journalDoc.findMany({
     where: { id: { in: posted.map((t) => t.docId).filter((d): d is string => d !== null) } },
@@ -74,10 +123,59 @@ export default async function TaggingPage() {
   const aiReady = aiConfigured()
   const awaitingSuggestion = pending.filter((t) => t.aiSuggestedAt === null).length
 
-  const rowHeader = (txn: (typeof pending)[number]) => {
+  // v2-prototype chrome: KPIs, filter summary, pagination.
+  const entityBanks = banks.filter((b) => b.entityId === entity.id)
+  const suggestionCount = pending.filter((t) => t.aiHeadAccountId && t.aiNature).length
+  const inView = pending.length + tagged.length + posted.length
+  const net = Number(sums._sum.debit ?? 0) - Number(sums._sum.credit ?? 0)
+  const pages = Math.max(1, Math.ceil(pending.length / PER_PAGE))
+  const page = Math.min(pageNo, pages)
+  const pendingSlice = pending.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  const hrefFor = (p: number) => {
+    const s = new URLSearchParams()
+    if (q) s.set('q', q)
+    if (bank) s.set('bank', bank)
+    if (month) s.set('month', month)
+    if (view !== 'all') s.set('view', view)
+    if (p > 1) s.set('page', String(p))
+    const str = s.toString()
+    return str ? `/tagging?${str}` : '/tagging'
+  }
+  const monthLabel = (m: string) => {
+    const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
+  }
+  const showPending = view === 'all' || view === 'pending'
+  const showTagged = view === 'all' || view === 'tagged'
+  const showPosted = view === 'all' || view === 'posted'
+  const filtered = Boolean(q || bank || month)
+
+  const kpiTiles: [string, string, string, string][] = [
+    ['Entries in view', String(inView), bank ? (bankName(bank) ?? '') : 'all accounts', 'border-zinc-800'],
+    ['Untagged', String(pending.length), `${suggestionCount} have a suggestion`, 'border-blue-600'],
+    [
+      'Net movement',
+      displayINR(Math.abs(net).toFixed(2)),
+      net > 0 ? 'net outflow' : 'net inflow',
+      'border-zinc-400',
+    ],
+    ['Awaiting post', String(tagged.length), 'tagged, not yet posted', 'border-teal-600'],
+  ]
+
+  const rowHeader = (txn: (typeof pending)[number], selectable = false) => {
     const outflow = Number(txn.debit) > 0
     return (
       <div className="flex flex-wrap items-center gap-3 text-sm">
+        {selectable && (
+          <input
+            type="checkbox"
+            name="ids"
+            value={txn.id}
+            form="bulk-tag"
+            className="accent-zinc-900"
+            aria-label="Select for bulk tagging"
+          />
+        )}
         <span className="text-xs text-zinc-400">{txn.date.toISOString().slice(0, 10)}</span>
         <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
           {bankName(txn.bankAccountId)}
@@ -148,15 +246,124 @@ export default async function TaggingPage() {
         </div>
       </div>
 
+      {/* KPIs (v2 prototype) */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {kpiTiles.map(([label, value, sub, accent]) => (
+          <div
+            key={label}
+            className={`rounded-xl border border-zinc-200 border-t-[3px] bg-white p-4 shadow-sm ${accent}`}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{label}</p>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums text-zinc-900">{value}</p>
+            <p className="mt-0.5 text-xs text-zinc-400">{sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Search & filters (v2 prototype) */}
+      <form className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+        <input
+          name="q"
+          defaultValue={q}
+          placeholder="Search narration…"
+          className="w-60 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+        />
+        <select name="bank" defaultValue={bank} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+          <option value="">All accounts</option>
+          {entityBanks.map((b) => (
+            <option key={b.id} value={b.id}>{b.nickname}</option>
+          ))}
+        </select>
+        <select name="month" defaultValue={month} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+          <option value="">All months</option>
+          {monthRows.map((r) => (
+            <option key={r.m} value={r.m}>{monthLabel(r.m)}</option>
+          ))}
+        </select>
+        <select name="view" defaultValue={view} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+          <option value="all">All entries</option>
+          <option value="pending">Untagged only</option>
+          <option value="tagged">Tagged only</option>
+          <option value="posted">Posted only</option>
+        </select>
+        <button
+          type="submit"
+          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+        >
+          Apply
+        </button>
+        {filtered && (
+          <Link href="/tagging" className="text-xs text-zinc-400 hover:text-zinc-700">
+            reset
+          </Link>
+        )}
+        <span className="ml-auto text-xs text-zinc-500">
+          {inView} of {totalEntries} entries · {pending.length} untagged
+        </span>
+      </form>
+
+      {/* Bulk tagging (v2 prototype): tick rows below, apply one tag to all */}
+      {showPending && pendingSlice.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+          <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
+            <SelectAll />
+            <select
+              name="headAccountId"
+              required
+              className="min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">— bulk head —</option>
+              {heads.map((h) => (
+                <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
+              ))}
+            </select>
+            <select name="nature" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <option value="">nature — auto by direction</option>
+              {NATURES.map((n) => (
+                <option key={n.value} value={n.value}>{n.label}</option>
+              ))}
+            </select>
+            <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <option value="">— cost centre —</option>
+              {costCentres.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+            >
+              Apply to selected
+            </button>
+          </form>
+          {suggestionCount > 0 && (
+            <form action={acceptAllSuggestions}>
+              <input type="hidden" name="entityId" value={entity.id} />
+              <button
+                type="submit"
+                className="rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100"
+              >
+                Accept {suggestionCount} suggestions
+              </button>
+            </form>
+          )}
+        </div>
+      )}
+
       {/* Pending queue */}
+      {showPending && (
       <div className="space-y-2">
-        <h2 className="font-medium text-zinc-900">Pending ({pending.length})</h2>
-        {pending.map((txn) => {
+        <h2 className="font-medium text-zinc-900">
+          Pending ({pending.length}){pages > 1 && (
+            <span className="ml-2 text-xs font-normal text-zinc-400">Page {page} of {pages}</span>
+          )}
+        </h2>
+        {pendingSlice.map((txn) => {
           const confidence = txn.aiConfidence === null ? null : Number(txn.aiConfidence)
           const hasSuggestion = Boolean(txn.aiHeadAccountId && txn.aiNature)
           return (
             <div key={txn.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-              {rowHeader(txn)}
+              {rowHeader(txn, true)}
 
               {/* AI suggestion — advisory: accept it or ignore it (spec §12.8) */}
               {hasSuggestion && (
@@ -237,12 +444,30 @@ export default async function TaggingPage() {
           )
         })}
         {pending.length === 0 && (
-          <p className="text-sm text-zinc-400">Queue is clear — nothing waiting.</p>
+          <p className="text-sm text-zinc-400">
+            {filtered ? 'No pending entries match these filters.' : 'Queue is clear — nothing waiting.'}
+          </p>
+        )}
+        {pages > 1 && (
+          <div className="flex items-center gap-3 pt-1 text-sm">
+            {page > 1 && (
+              <Link href={hrefFor(page - 1)} className="rounded-md border border-zinc-300 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100">
+                ← Previous
+              </Link>
+            )}
+            <span className="text-xs text-zinc-400">Page {page} of {pages}</span>
+            {page < pages && (
+              <Link href={hrefFor(page + 1)} className="rounded-md border border-zinc-300 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100">
+                Next →
+              </Link>
+            )}
+          </div>
         )}
       </div>
+      )}
 
       {/* Tagged, awaiting post */}
-      {tagged.length > 0 && (
+      {showTagged && tagged.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-medium text-zinc-900">Tagged — awaiting post ({tagged.length})</h2>
           {tagged.map((txn) => (
@@ -301,6 +526,7 @@ export default async function TaggingPage() {
       )}
 
       {/* Posted */}
+      {showPosted && (
       <div className="space-y-2">
         <h2 className="font-medium text-zinc-900">Recently posted</h2>
         {posted.map((txn) => {
@@ -388,9 +614,12 @@ export default async function TaggingPage() {
           )
         })}
         {posted.length === 0 && (
-          <p className="text-sm text-zinc-400">Nothing posted yet for these books.</p>
+          <p className="text-sm text-zinc-400">
+            {filtered ? 'No posted entries match these filters.' : 'Nothing posted yet for these books.'}
+          </p>
         )}
       </div>
+      )}
     </div>
   )
 }

@@ -11,6 +11,7 @@ import {
 } from '@/lib/statements/post'
 import { deleteJournalDocument, undoJournalDocument } from '@/lib/ledger/posting'
 import { partyToken } from '@/lib/statements/rules'
+import { suggestNature } from '@/lib/statements/natures'
 
 // Tagging queue actions (spec §3 steps 5–6). Queue work needs the
 // "Transaction tagging" flag; touching posted rows needs
@@ -78,6 +79,89 @@ export async function tagTransaction(formData: FormData) {
         'Tagged statement transaction' +
         (spread > 0 ? ` — rule applied to ${spread} more ${token} row(s) in the queue` : ''),
       after: fields,
+    })
+  })
+  revalidatePath('/tagging')
+}
+
+/**
+ * Bulk tag (v2 prototype): the checked pending rows all get the same head and
+ * cost centre in one go. Nature left blank auto-derives per row from the
+ * head and the money direction, exactly like the single-row form would.
+ * No party spreading here — bulk means "exactly these rows".
+ */
+export async function bulkTag(formData: FormData) {
+  const user = await requirePermission('transactionTagging')
+  const ids = formData.getAll('ids').map(String).filter(Boolean)
+  if (ids.length === 0) throw new Error('Tick at least one row first')
+  const headAccountId = String(formData.get('headAccountId') ?? '')
+  if (!headAccountId) throw new Error('Pick a head')
+  const natureRaw = String(formData.get('nature') ?? '')
+  const costCentreId = String(formData.get('costCentreId') ?? '') || null
+
+  await auditedTransaction(async (tx) => {
+    const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
+    let tagged = 0
+    for (const id of ids) {
+      const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
+      if (txn.status !== 'PENDING' || txn.entityId !== head.entityId) continue
+      const nature = natureRaw || suggestNature(head, Number(txn.debit) > 0)
+      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, actorId: user.id })
+      await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
+      tagged++
+    }
+    if (tagged === 0) throw new Error('None of the selected rows are still pending')
+    await audit(tx, {
+      actorId: user.id,
+      action: 'statement_txn.bulk_tag',
+      targetType: 'LedgerAccount',
+      targetId: headAccountId,
+      summary: `Bulk-tagged ${tagged} row(s) to ${head.name}`,
+    })
+  })
+  revalidatePath('/tagging')
+}
+
+/**
+ * Accept every pending AI suggestion in one click (v2 prototype's
+ * "Accept N suggestions"). Each acceptance also teaches the rule engine,
+ * same as accepting one by one.
+ */
+export async function acceptAllSuggestions(formData: FormData) {
+  const user = await requirePermission('transactionTagging')
+  const entityId = String(formData.get('entityId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const rows = await tx.statementTransaction.findMany({
+      where: {
+        entityId,
+        status: 'PENDING',
+        aiHeadAccountId: { not: null },
+        aiNature: { not: null },
+      },
+      orderBy: [{ date: 'asc' }, { id: 'asc' }],
+    })
+    if (rows.length === 0) throw new Error('No suggestions waiting')
+    for (const txn of rows) {
+      // A suggestion accepted earlier in this loop may have spread a learned
+      // rule onto this row already — re-check before tagging.
+      const fresh = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txn.id } })
+      if (fresh.status !== 'PENDING') continue
+      await applyTag(tx, {
+        txnId: txn.id,
+        headAccountId: txn.aiHeadAccountId!,
+        nature: txn.aiNature!,
+        costCentreId: txn.aiCostCentreId,
+        actorId: user.id,
+      })
+      await tx.statementTransaction.update({ where: { id: txn.id }, data: { tagSource: 'ai' } })
+    }
+    await audit(tx, {
+      actorId: user.id,
+      action: 'statement_txn.accept_ai_all',
+      targetType: 'Entity',
+      targetId: entityId,
+      summary: `Accepted ${rows.length} AI suggestion(s) in bulk`,
     })
   })
   revalidatePath('/tagging')
