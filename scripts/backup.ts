@@ -1,0 +1,40 @@
+// Take a backup (spec §12.9).
+//
+//   npm run backup            → ./backups/ledgerly-<timestamp>.ndjson.gz
+//   npm run backup -- /path/to/file.ndjson.gz
+//
+// Restores are proven by `npm run restore-drill`, which loads the newest
+// backup into a scratch database and re-checks the ledger invariants there.
+// A backup nobody has restored is a hope, not a backup.
+import 'dotenv/config'
+import { mkdirSync, statSync } from 'fs'
+import { dirname, resolve } from 'path'
+import { backupTo } from '../src/lib/backup/dump'
+
+async function main() {
+  const url = process.env.DATABASE_URL
+  if (!url) throw new Error('DATABASE_URL is not set')
+
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const file = resolve(process.argv[2] ?? `./backups/ledgerly-${stamp}.ndjson.gz`)
+  mkdirSync(dirname(file), { recursive: true })
+
+  console.log(`Backing up to ${file}`)
+  const stats = await backupTo(url, file)
+
+  const nonEmpty = Object.entries(stats.rows).filter(([, n]) => n > 0)
+  for (const [table, n] of nonEmpty) {
+    console.log(`  ${table.padEnd(24)}${n.toLocaleString('en-IN')}`)
+  }
+  const bytes = statSync(file).size
+  console.log(
+    `\n${stats.total.toLocaleString('en-IN')} rows across ${nonEmpty.length} table(s), ` +
+      `${(bytes / 1024).toFixed(1)} KB compressed`,
+  )
+  console.log('Verify it restores:  npm run restore-drill')
+}
+
+main().catch((e) => {
+  console.error(e)
+  process.exitCode = 1
+})

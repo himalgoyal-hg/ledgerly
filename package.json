@@ -14,7 +14,10 @@
     "verify:5": "tsx --conditions=react-server scripts/verify-phase5.ts",
     "verify:6": "tsx --conditions=react-server scripts/verify-phase6.ts",
     "verify:7": "tsx --conditions=react-server scripts/verify-phase7.ts",
-    "verify:8": "tsx --conditions=react-server scripts/verify-phase8.ts"
+    "verify:8": "tsx --conditions=react-server scripts/verify-phase8.ts",
+    "backup": "tsx --conditions=react-server scripts/backup.ts",
+    "restore-drill": "tsx --conditions=react-server scripts/restore-drill.ts",
+    "perf": "tsx --conditions=react-server scripts/perf-bench.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

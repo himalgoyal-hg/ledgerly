@@ -15,7 +15,7 @@ v3 consolidated spec.
 | 6. Reports & dashboard | P&L, Balance Sheet, Cash Flow, budget, cost centres, parties, salary + Overview tiles | ✅ done |
 | 7. Smart suggestions & automation | Payment-source engine, reminders, recurring generators, weekly email | ✅ done |
 | 8. AI layer | PDF/scanned statement reading, tagging suggestions | ✅ done |
-| 9. Hardening | Verification plan §11, backups, restore drill, performance | ⏳ next |
+| 9. Hardening | Verification plan §11, backups, restore drill, performance | ✅ done |
 
 ## Stack
 
@@ -74,6 +74,9 @@ npm run verify:6                   # 34 reporting checks
 npm run verify:7                   # 28 automation checks
 npm run verify:8                   # 27 AI-layer checks (live calls need a key)
 npm run verify                     # phases 2–8 in sequence
+npm run backup                     # gzipped NDJSON dump → ./backups/
+npm run restore-drill              # prove the newest backup restores cleanly
+npm run perf                       # seed ~50k entries, time every user-facing query
 ```
 
 The scripts run through the real service layer with `tsx --conditions=react-server`
@@ -142,6 +145,18 @@ unknown nature, a reply for a row we never asked about, and duplicate replies
 are all rejected; confidence is clamped; accepting a suggestion tags the row
 and teaches the rule engine; and without an API key PDF uploads are refused
 with an actionable message. Live model calls run only when a key is present.
+
+Phase 9 hardening (spec §12.9): `npm run backup` streams every table to a
+gzipped NDJSON file (keyset-paginated, so memory stays flat at any ledger
+size). `npm run restore-drill` loads the newest backup into a scratch
+database built from the migrations and proves it: row counts match
+row-for-row, every entity still tallies Dr = Cr, the append-only triggers
+are live again, and a raw UPDATE on a restored journal line is still
+refused. `npm run perf` seeds a ~50k-entry multi-year ledger and times
+every report, dashboard tile, and tax register a user actually waits on
+(all 17 currently run well under the 400 ms budget), then cleans up after
+itself. A backup nobody has restored is a hope, not a backup — the drill
+is the test.
 
 ## AI layer
 
