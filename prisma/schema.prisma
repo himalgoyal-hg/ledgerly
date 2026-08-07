@@ -506,6 +506,7 @@ enum Recurrence {
   NONE
   MONTHLY
   QUARTERLY
+  HALF_YEARLY
   YEARLY
 }
 
@@ -521,6 +522,10 @@ model Bill {
   billDate         DateTime   @db.Date
   dueDate          DateTime   @db.Date
   renewalDate      DateTime?  @db.Date // insurance
+  // Insurance (v2 prototype): policy metadata; lapse alerts key off renewalDate.
+  policyNumber String?
+  insuredValue Decimal? @db.Decimal(14, 2)
+  insuredFor   String? // who the policy covers
   link             String? // Drive link
   remarks          String?
   recurrence       Recurrence @default(NONE)
@@ -747,6 +752,10 @@ model Budget {
   year      Int
   month     Int // 1–12
   amount    Decimal  @db.Decimal(14, 2)
+  // How the target was entered (sheet's Finance setup): WEEKLY | MONTHLY |
+  // QUARTERLY | HALF_YEARLY | ANNUAL. Rows always stay monthly — the entered
+  // figure is annualised and pro-rated across months at write time.
+  frequency String   @default("MONTHLY")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

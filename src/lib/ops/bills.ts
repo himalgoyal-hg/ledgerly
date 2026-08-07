@@ -16,6 +16,7 @@ function addPeriod(date: Date, recurrence: string): Date {
   const next = new Date(date)
   if (recurrence === 'MONTHLY') next.setUTCMonth(next.getUTCMonth() + 1)
   else if (recurrence === 'QUARTERLY') next.setUTCMonth(next.getUTCMonth() + 3)
+  else if (recurrence === 'HALF_YEARLY') next.setUTCMonth(next.getUTCMonth() + 6)
   else next.setUTCFullYear(next.getUTCFullYear() + 1)
   return next
 }
@@ -34,9 +35,12 @@ export async function createBill(
     billDate: Date
     dueDate: Date
     renewalDate?: Date | null
+    policyNumber?: string | null
+    insuredValue?: string | null
+    insuredFor?: string | null
     link?: string | null
     remarks?: string | null
-    recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+    recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
     expenseAccountId: string
     costCentreId?: string | null
     gstType?: string | null
@@ -71,6 +75,9 @@ export async function createBill(
       billDate: args.billDate,
       dueDate: args.dueDate,
       renewalDate: args.renewalDate ?? null,
+      policyNumber: args.policyNumber ?? null,
+      insuredValue: args.insuredValue ?? null,
+      insuredFor: args.insuredFor ?? null,
       link: args.link ?? null,
       remarks: args.remarks ?? null,
       recurrence: args.recurrence ?? 'NONE',
@@ -201,6 +208,9 @@ export async function payBill(
         billDate: addPeriod(bill.billDate, bill.recurrence),
         dueDate: nextDue,
         renewalDate: bill.renewalDate ? addPeriod(bill.renewalDate, bill.recurrence) : null,
+        policyNumber: bill.policyNumber,
+        insuredValue: bill.insuredValue === null ? null : String(bill.insuredValue),
+        insuredFor: bill.insuredFor,
         link: bill.link,
         remarks: bill.remarks,
         recurrence: bill.recurrence,

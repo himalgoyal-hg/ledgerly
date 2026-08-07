@@ -17,7 +17,7 @@ export default async function BillsPage() {
   if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
   const today = new Date().toISOString().slice(0, 10)
-  const [pending, paid, heads, costCentres] = await Promise.all([
+  const [pending, paid, heads, costCentres, policyBills] = await Promise.all([
     prisma.bill.findMany({
       where: { entityId: entity.id, status: 'PENDING' },
       orderBy: { dueDate: 'asc' },
@@ -35,7 +35,22 @@ export default async function BillsPage() {
       where: { entityId: entity.id, archivedAt: null },
       orderBy: { name: 'asc' },
     }),
+    prisma.bill.findMany({
+      where: { entityId: entity.id, policyNumber: { not: null } },
+      orderBy: { billDate: 'desc' },
+    }),
   ])
+  // Latest bill per policy number — that instance carries the live renewal
+  // date, so it decides active / renews-soon / lapsed.
+  const policies = [...new Map(policyBills.map((b) => [b.policyNumber!, b])).values()]
+  const soon = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10)
+  const policyStatus = (renewal: Date | null) => {
+    if (!renewal) return { label: 'no renewal date', cls: 'bg-zinc-100 text-zinc-500' }
+    const d = renewal.toISOString().slice(0, 10)
+    if (d < today) return { label: `LAPSED — renewal was ${d}`, cls: 'bg-red-100 text-red-700' }
+    if (d <= soon) return { label: `renews soon — ${d}`, cls: 'bg-amber-100 text-amber-700' }
+    return { label: `active till ${d}`, cls: 'bg-emerald-100 text-emerald-700' }
+  }
   // Balances and commitment reservations once; ranked per bill below.
   const baseSuggestion = await suggestPaymentSource({ entityId: entity.id, module: 'bill' })
   const headName = (id: string) => {
@@ -79,6 +94,7 @@ export default async function BillsPage() {
             <option value="NONE">One-time</option>
             <option value="MONTHLY">Monthly</option>
             <option value="QUARTERLY">Quarterly</option>
+            <option value="HALF_YEARLY">Half-yearly</option>
             <option value="YEARLY">Yearly</option>
           </select>
           <input name="link" placeholder="Drive link" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
@@ -120,6 +136,22 @@ export default async function BillsPage() {
               <input name="vendorPan" placeholder="Vendor PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
             </div>
           </details>
+
+          {/* Insurance (v2 prototype): policy metadata; renewal date above
+              drives the lapse alert. Periodicity = the recurrence picker. */}
+          <details className="w-full">
+            <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
+              Insurance details (optional)
+            </summary>
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-2">
+              <input name="policyNumber" placeholder="Policy number" className="w-36 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <input name="insuredValue" inputMode="decimal" placeholder="Insured value ₹" className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <input name="insuredFor" placeholder="For whom (e.g. Himal)" className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <span className="text-[10px] text-zinc-400">
+                set the renewal date above — a passed renewal shows a lapse alert
+              </span>
+            </div>
+          </details>
         </form>
       </div>
 
@@ -153,11 +185,22 @@ export default async function BillsPage() {
                   due {bill.dueDate.toISOString().slice(0, 10)}{overdue ? ' — OVERDUE' : ''}
                 </span>
                 {bill.renewalDate && (
-                  <span className="text-xs text-zinc-400">renews {bill.renewalDate.toISOString().slice(0, 10)}</span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${policyStatus(bill.renewalDate).cls}`}
+                  >
+                    {policyStatus(bill.renewalDate).label}
+                  </span>
+                )}
+                {(bill.policyNumber || bill.insuredValue) && (
+                  <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+                    {bill.policyNumber && `Policy ${bill.policyNumber}`}
+                    {bill.insuredValue && ` · covers ${displayINR(String(bill.insuredValue))}`}
+                    {bill.insuredFor && ` · for ${bill.insuredFor}`}
+                  </span>
                 )}
                 {bill.recurrence !== 'NONE' && (
                   <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
-                    {bill.recurrence.toLowerCase()}
+                    {bill.recurrence.toLowerCase().replace('_', '-')}
                   </span>
                 )}
                 {bill.link && (
@@ -201,6 +244,34 @@ export default async function BillsPage() {
         })}
         {pending.length === 0 && <p className="text-sm text-zinc-400">Nothing pending.</p>}
       </div>
+
+      {/* Insurance policies — one card per policy number; the latest bill in
+          the series decides the renewal status (lapse alert). */}
+      {policies.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="font-medium text-zinc-900">Insurance policies ({policies.length})</h2>
+          {policies.map((p) => {
+            const status = policyStatus(p.renewalDate)
+            return (
+              <div key={p.policyNumber} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 text-sm shadow-sm">
+                <span className="font-medium text-zinc-800">{p.vendor}</span>
+                <span className="font-mono text-xs text-zinc-500">{p.policyNumber}</span>
+                {p.insuredFor && <span className="text-xs text-zinc-400">for {p.insuredFor}</span>}
+                {p.insuredValue && (
+                  <span className="text-xs text-zinc-500">insured {displayINR(String(p.insuredValue))}</span>
+                )}
+                <span className="text-xs text-zinc-400">
+                  premium {displayINR(String(p.amount))}
+                  {p.recurrence !== 'NONE' ? ` · ${p.recurrence.toLowerCase().replace('_', '-')}` : ''}
+                </span>
+                <span className={`ml-auto rounded px-1.5 py-0.5 text-[10px] font-medium ${status.cls}`}>
+                  {status.label}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       {/* Paid archive */}
       {paid.length > 0 && (

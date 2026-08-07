@@ -50,6 +50,7 @@ export default async function TasksPage() {
             <option value="NONE">One-time</option>
             <option value="MONTHLY">Monthly</option>
             <option value="QUARTERLY">Quarterly</option>
+            <option value="HALF_YEARLY">Half-yearly</option>
             <option value="YEARLY">Yearly</option>
           </select>
           <input name="notes" placeholder="Notes" className="w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
@@ -74,7 +75,7 @@ export default async function TasksPage() {
               </span>
               {task.recurrence !== 'NONE' && (
                 <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
-                  {task.recurrence.toLowerCase()}
+                  {task.recurrence.toLowerCase().replace('_', '-')}
                 </span>
               )}
               {task.notes && <span className="text-xs text-zinc-400">{task.notes}</span>}

@@ -17,9 +17,12 @@ const billSchema = z.object({
   billDate: z.coerce.date(),
   dueDate: z.coerce.date(),
   renewalDate: z.coerce.date().optional(),
+  policyNumber: z.string().trim().optional(),
+  insuredValue: z.string().trim().optional(),
+  insuredFor: z.string().trim().optional(),
   link: z.string().trim().optional(),
   remarks: z.string().trim().optional(),
-  recurrence: z.enum(['NONE', 'MONTHLY', 'QUARTERLY', 'YEARLY']),
+  recurrence: z.enum(['NONE', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']),
   expenseAccountId: z.string().min(1, 'Pick the expense head'),
   costCentreId: z.string().optional(),
   gstType: z.string().optional(),
@@ -41,6 +44,9 @@ export async function createBillAction(formData: FormData) {
     billDate: formData.get('billDate'),
     dueDate: formData.get('dueDate'),
     renewalDate: formData.get('renewalDate') || undefined,
+    policyNumber: formData.get('policyNumber') ?? undefined,
+    insuredValue: formData.get('insuredValue') ?? undefined,
+    insuredFor: formData.get('insuredFor') ?? undefined,
     link: formData.get('link') ?? undefined,
     remarks: formData.get('remarks') ?? undefined,
     recurrence: formData.get('recurrence') ?? 'NONE',
@@ -60,6 +66,9 @@ export async function createBillAction(formData: FormData) {
     const bill = await createBill(tx, {
       ...parsed.data,
       renewalDate: parsed.data.renewalDate ?? null,
+      policyNumber: parsed.data.policyNumber || null,
+      insuredValue: parsed.data.insuredValue || null,
+      insuredFor: parsed.data.insuredFor || null,
       link: parsed.data.link || null,
       remarks: parsed.data.remarks || null,
       costCentreId: parsed.data.costCentreId || null,
@@ -100,7 +109,7 @@ export async function payBillAction(formData: FormData) {
       action: 'bill.pay',
       targetType: 'Bill',
       targetId: bill.id,
-      summary: `Paid ${bill.vendor} ₹${bill.amount}${nextBill ? ` — next ${nextBill.recurrence.toLowerCase()} instance created` : ''}`,
+      summary: `Paid ${bill.vendor} ₹${bill.amount}${nextBill ? ` — next ${nextBill.recurrence.toLowerCase().replace('_', '-')} instance created` : ''}`,
     })
   })
   revalidatePath('/bills')

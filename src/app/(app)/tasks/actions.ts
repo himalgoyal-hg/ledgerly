@@ -20,7 +20,7 @@ export async function createTaskAction(formData: FormData) {
       amount: String(formData.get('amount') ?? '') || null,
       dueDate,
       recurrence: String(formData.get('recurrence') ?? 'NONE') as
-        | 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY',
+        | 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY',
       notes: String(formData.get('notes') ?? '') || null,
       actorId: admin.id,
     })

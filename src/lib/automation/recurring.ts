@@ -15,6 +15,7 @@ function addPeriod(date: Date, recurrence: string): Date {
   const next = new Date(date)
   if (recurrence === 'MONTHLY') next.setUTCMonth(next.getUTCMonth() + 1)
   else if (recurrence === 'QUARTERLY') next.setUTCMonth(next.getUTCMonth() + 3)
+  else if (recurrence === 'HALF_YEARLY') next.setUTCMonth(next.getUTCMonth() + 6)
   else next.setUTCFullYear(next.getUTCFullYear() + 1)
   return next
 }
@@ -67,6 +68,9 @@ export async function generateRecurring(
           billDate: addPeriod(cursor.billDate, cursor.recurrence),
           dueDate: nextDue,
           renewalDate: cursor.renewalDate ? addPeriod(cursor.renewalDate, cursor.recurrence) : null,
+          policyNumber: cursor.policyNumber,
+          insuredValue: cursor.insuredValue === null ? null : String(cursor.insuredValue),
+          insuredFor: cursor.insuredFor,
           link: cursor.link,
           remarks: cursor.remarks,
           recurrence: cursor.recurrence,

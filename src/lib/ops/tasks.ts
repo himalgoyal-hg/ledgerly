@@ -11,6 +11,7 @@ function addPeriod(date: Date, recurrence: string): Date {
   const next = new Date(date)
   if (recurrence === 'MONTHLY') next.setUTCMonth(next.getUTCMonth() + 1)
   else if (recurrence === 'QUARTERLY') next.setUTCMonth(next.getUTCMonth() + 3)
+  else if (recurrence === 'HALF_YEARLY') next.setUTCMonth(next.getUTCMonth() + 6)
   else next.setUTCFullYear(next.getUTCFullYear() + 1)
   return next
 }
@@ -25,7 +26,7 @@ export async function createTask(
     kind: string
     amount?: string | null
     dueDate: Date
-    recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'YEARLY'
+    recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
     notes?: string | null
     actorId: string
     seriesId?: string | null

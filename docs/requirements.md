@@ -6,10 +6,12 @@
 > Setup & masters). GST/TDS, journal, trial balance, ledgers, periods,
 > automation, AI and audit screens are HIDDEN from nav (still URL-reachable;
 > GST kept because ACPL is GST-registered, audit because approvals must stay
-> recorded). Remaining build order: B) Loans & advances + all-entities view,
+> recorded). Build order — ALL DONE: B) Loans & advances + all-entities view,
 > C) report tabs (month-matrix, weekly, usage, net capital, ITR, capital
 > gains), D) USD invoices + FIRC, reimbursement member tabs, consultants,
-> E) frequency budgets + insurance fields on bills.
+> E) frequency budgets (weekly/monthly/quarterly/half-yearly/annual,
+> annualised) + insurance fields on bills (policy no, insured value, for
+> whom, half-yearly recurrence, lapse alerts off the renewal date).
 
 Single consolidated list of everything asked for across the prompt log, the
 26-27 spreadsheet, the access-control message, the implementation plan, and

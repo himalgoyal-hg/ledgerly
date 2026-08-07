@@ -28,7 +28,7 @@ export default async function BudgetPage(props: {
   const monthFilter = Number(params.month) || 0 // 0 = whole year
   const months = monthFilter ? [monthFilter] : Array.from({ length: 12 }, (_, i) => i + 1)
 
-  const [report, accounts] = await Promise.all([
+  const [report, accounts, freqRows] = await Promise.all([
     budgetVsActual(entity.id, year, months),
     prisma.ledgerAccount.findMany({
       where: {
@@ -39,7 +39,21 @@ export default async function BudgetPage(props: {
       },
       orderBy: { code: 'asc' },
     }),
+    prisma.budget.findMany({
+      where: { entityId: entity.id, year },
+      select: { accountId: true, frequency: true },
+      distinct: ['accountId'],
+    }),
   ])
+  // "set weekly" / "set quarterly" chip — how each target was entered.
+  const freqOf = new Map(freqRows.map((f) => [f.accountId, f.frequency]))
+  const freqLabel: Record<string, string> = {
+    WEEKLY: 'weekly',
+    MONTHLY: 'monthly',
+    QUARTERLY: 'quarterly',
+    HALF_YEARLY: 'half-yearly',
+    ANNUAL: 'annual',
+  }
   const query = new URLSearchParams({
     year: String(year),
     ...(monthFilter ? { month: String(monthFilter) } : {}),
@@ -99,6 +113,11 @@ export default async function BudgetPage(props: {
                 <tr key={row.accountId}>
                   <td className="px-4 py-2">
                     <span className="font-mono text-xs text-zinc-400">{row.code}</span> {row.name}
+                    {freqOf.get(row.accountId) && (
+                      <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                        set {freqLabel[freqOf.get(row.accountId)!] ?? freqOf.get(row.accountId)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right text-zinc-500">{displayINR(row.budget)}</td>
                   <td className="px-4 py-2 text-right text-zinc-800">{displayINR(row.actual)}</td>
@@ -169,7 +188,7 @@ export default async function BudgetPage(props: {
               ))}
             </select>
             <select name="month" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="">Whole year (spread evenly)</option>
+              <option value="">Whole year</option>
               {MONTHS.map((m, i) => (
                 <option key={m} value={i + 1}>{m} {year}</option>
               ))}
@@ -180,6 +199,13 @@ export default async function BudgetPage(props: {
               placeholder="Amount ₹ (blank clears)"
               className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
             />
+            <select name="frequency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <option value="ANNUAL">per year</option>
+              <option value="MONTHLY">per month</option>
+              <option value="WEEKLY">per week</option>
+              <option value="QUARTERLY">per quarter</option>
+              <option value="HALF_YEARLY">per half-year</option>
+            </select>
             <button
               type="submit"
               className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
@@ -187,6 +213,10 @@ export default async function BudgetPage(props: {
               Save target
             </button>
           </form>
+          <p className="mt-2 text-xs text-zinc-400">
+            Whole-year targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and
+            spread over the twelve months. Picking a specific month takes the amount as-is.
+          </p>
         </div>
       )}
     </div>
