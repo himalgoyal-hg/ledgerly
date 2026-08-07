@@ -17,7 +17,8 @@
     "verify:8": "tsx --conditions=react-server scripts/verify-phase8.ts",
     "backup": "tsx --conditions=react-server scripts/backup.ts",
     "restore-drill": "tsx --conditions=react-server scripts/restore-drill.ts",
-    "perf": "tsx --conditions=react-server scripts/perf-bench.ts"
+    "perf": "tsx --conditions=react-server scripts/perf-bench.ts",
+    "demo": "tsx --conditions=react-server scripts/demo-data.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
@@ -27,6 +28,7 @@
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.4.2",
     "iron-session": "^8.0.4",
+    "lucide-react": "^1.29.0",
     "next": "16.3.0",
     "nodemailer": "^9.0.4",
     "pg": "^8.22.0",
