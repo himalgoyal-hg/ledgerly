@@ -96,3 +96,30 @@ export async function learnRule(
     },
   })
 }
+
+/**
+ * Human title for a raw bank narration: the transaction kind and the party.
+ * "POS 419188XXXXXX1038 618207585956 01JUL26 DIGITALOCEAN.COM"
+ *   → { kind: 'Card', title: 'Digitalocean' }
+ * Display-only — matching keeps using partyToken/normalizedNarration.
+ */
+const KIND_PATTERNS: [RegExp, string][] = [
+  [/\bUPI\b/i, 'UPI'],
+  [/\bPOS\b|\bECOM\b|\bDC INTL\b/i, 'Card'],
+  [/\bNEFT\b/i, 'NEFT'],
+  [/\bIMPS\b/i, 'IMPS'],
+  [/\bRTGS\b/i, 'RTGS'],
+  [/\bTPT\b|\bFT\b/i, 'Transfer'],
+  [/\bACH\b|\bNACH\b/i, 'ACH'],
+  [/\bATW\b|\bATM\b|\bNWD\b/i, 'ATM'],
+  [/\bCHQ\b|CHEQUE/i, 'Cheque'],
+  [/MARKUP|CHRG|CHARGES?\b|\bAMC\b/i, 'Charges'],
+  [/INTEREST|\bINT PAID\b/i, 'Interest'],
+]
+
+export function describeNarration(narration: string): { kind: string | null; title: string } {
+  const kind = KIND_PATTERNS.find(([re]) => re.test(narration))?.[1] ?? null
+  const token = partyToken(narration)
+  const title = token ? token.charAt(0) + token.slice(1).toLowerCase() : narration
+  return { kind, title }
+}

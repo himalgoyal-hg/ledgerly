@@ -3,6 +3,7 @@ import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES } from '@/lib/statements/natures'
+import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagForm } from './tag-form'
 import {
@@ -81,9 +82,24 @@ export default async function TaggingPage() {
         <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
           {bankName(txn.bankAccountId)}
         </span>
-        <span className="max-w-md truncate text-zinc-800" title={txn.narration}>
-          {txn.narration}
-        </span>
+        {(() => {
+          const desc = describeNarration(txn.narration)
+          return (
+            <span className="flex min-w-0 max-w-md flex-col">
+              <span className="flex items-center gap-2">
+                <span className="truncate font-medium text-zinc-800">{desc.title}</span>
+                {desc.kind && (
+                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                    {desc.kind}
+                  </span>
+                )}
+              </span>
+              <span className="truncate text-xs text-zinc-400" title={txn.narration}>
+                {txn.narration}
+              </span>
+            </span>
+          )
+        })()}
         {txn.reference && <span className="text-xs text-zinc-400">ref {txn.reference}</span>}
         <span
           className={`ml-auto font-semibold ${outflow ? 'text-red-600' : 'text-emerald-600'}`}
