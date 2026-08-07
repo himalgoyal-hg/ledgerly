@@ -11,13 +11,19 @@ export default async function ReportsLayout({ children }: { children: React.Reac
     throw new Error('Forbidden: missing permission "viewFinancialReports"')
   }
 
+  // Tab set mirrors the v2 prototype's Reports section.
   const tabs = [
     { href: '/reports', label: 'P&L' },
     { href: '/reports/balance-sheet', label: 'Balance Sheet' },
     { href: '/reports/cash-flow', label: 'Cash Flow' },
-    { href: '/reports/cost-centres', label: 'Cost centres' },
-    { href: '/reports/parties', label: 'Parties' },
     { href: '/reports/budget', label: 'Budget vs Actual' },
+    { href: '/reports/monthly', label: 'Month by month' },
+    { href: '/reports/weekly', label: 'Weekly' },
+    { href: '/reports/usage', label: 'Cash vs bank' },
+    { href: '/reports/banks', label: 'Bank balances' },
+    { href: '/reports/itr', label: 'ITR summary' },
+    { href: '/reports/investments', label: 'Investments' },
+    { href: '/reports/parties', label: 'Parties' },
     { href: '/reports/salary', label: 'Salary' },
   ]
 
