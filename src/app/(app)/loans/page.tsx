@@ -1,0 +1,215 @@
+import Link from 'next/link'
+import { prisma } from '@/lib/db'
+import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
+import { getCurrentEntity } from '@/lib/entity-context'
+import { displayINR } from '@/lib/ledger/money'
+import { accountBalances, accountLedger } from '@/lib/ledger/queries'
+import { createLoanPartyAction, recordLoanMovementAction } from './actions'
+
+// Loans & advances — parties, movements and running-balance ledgers, per
+// the v2 prototype. Parties are ledger accounts under 1400 / 2300.
+
+export default async function LoansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ party?: string }>
+}) {
+  const user = await requireUser()
+  const admin = isAdmin(user)
+  if (!admin && !hasPermission(user, 'viewFinancialReports')) {
+    return <p className="text-sm text-zinc-500">You don&apos;t have access to this screen.</p>
+  }
+  const entity = await getCurrentEntity(user)
+  if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
+
+  const groups = await prisma.ledgerAccount.findMany({
+    where: { entityId: entity.id, code: { in: ['1400', '2300'] }, isGroup: true },
+  })
+  const givenGroup = groups.find((g) => g.code === '1400')
+  const takenGroup = groups.find((g) => g.code === '2300')
+  const parties = await prisma.ledgerAccount.findMany({
+    where: {
+      entityId: entity.id,
+      parentId: { in: groups.map((g) => g.id) },
+      archivedAt: null,
+    },
+    orderBy: { name: 'asc' },
+  })
+  const balances = await accountBalances(parties.map((p) => p.id))
+  const rows = parties.map((p) => {
+    const bal = Number(balances.get(p.id) ?? '0') // Dr-positive
+    const given = p.parentId === givenGroup?.id
+    return { id: p.id, name: p.name, given, balance: given ? bal : -bal }
+  })
+  const recoverable = rows.filter((r) => r.given).reduce((s, r) => s + r.balance, 0)
+  const payable = rows.filter((r) => !r.given).reduce((s, r) => s + r.balance, 0)
+
+  // Pay-from options: bank accounts + cash locations with ledger accounts.
+  const [banks, cashLocs] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
+    }),
+    prisma.cashLocation.findMany({
+      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
+    }),
+  ])
+  const sources = [
+    ...banks.map((b) => ({ id: b.ledgerAccountId!, label: b.nickname })),
+    ...cashLocs.map((c) => ({ id: c.ledgerAccountId!, label: `Cash — ${c.name}` })),
+  ]
+
+  const { party: partyId } = await searchParams
+  const selected = rows.find((r) => r.id === partyId) ?? null
+  const ledger = selected ? await accountLedger(selected.id, {}) : null
+
+  const today = new Date().toISOString().slice(0, 10)
+  const input = 'rounded-md border border-zinc-300 px-2 py-1.5 text-sm'
+  const tile = (label: string, value: string, hint: string) => (
+    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <p className="text-sm text-zinc-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold text-zinc-900">{value}</p>
+      <p className="mt-1 text-xs text-zinc-400">{hint}</p>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-xl font-semibold text-zinc-900">
+        Loans &amp; advances — {entity.name} ({entity.code})
+      </h1>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {tile('Recoverable', displayINR(recoverable.toFixed(2)), 'advances & loans given out')}
+        {tile('Payable', displayINR(payable.toFixed(2)), 'loans taken')}
+        {tile(
+          'Net position',
+          displayINR(Math.abs(recoverable - payable).toFixed(2)),
+          recoverable - payable >= 0 ? 'owed to you' : 'owed by you',
+        )}
+      </div>
+
+      {/* Party balances */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <h2 className="font-medium text-zinc-900">Parties</h2>
+        <div className="mt-3 divide-y divide-zinc-100">
+          {rows.map((r) => (
+            <div key={r.id} className="flex items-center gap-3 py-2 text-sm">
+              <Link href={`/loans?party=${r.id}`} className="font-medium text-zinc-800 hover:underline">
+                {r.name}
+              </Link>
+              <span className="text-xs text-zinc-400">{r.given ? 'owes me' : 'I owe'}</span>
+              <span
+                className={`ml-auto font-semibold tabular-nums ${r.balance < 0 ? 'text-red-600' : 'text-zinc-900'}`}
+              >
+                {displayINR(Math.abs(r.balance).toFixed(2))}
+              </span>
+            </div>
+          ))}
+          {rows.length === 0 && <p className="py-2 text-sm text-zinc-400">No parties yet — add one below.</p>}
+        </div>
+      </div>
+
+      {admin && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <h2 className="font-medium text-zinc-900">Add a person or party</h2>
+            <form action={createLoanPartyAction} className="mt-3 flex flex-wrap items-end gap-2">
+              <input type="hidden" name="entityId" value={entity.id} />
+              <input name="name" required placeholder="e.g. Harshal Pahade" className={`${input} w-52`} />
+              <select name="kind" className={`${input} bg-white`}>
+                <option value="given">They owe me (advance given)</option>
+                <option value="taken">I owe them (loan taken)</option>
+              </select>
+              <input name="opening" type="number" step="0.01" min="0" placeholder="Opening balance" className={`${input} w-36`} />
+              <input name="date" type="date" defaultValue={today} className={input} />
+              <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+                Add party
+              </button>
+            </form>
+          </div>
+
+          <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <h2 className="font-medium text-zinc-900">Record a movement</h2>
+            <form action={recordLoanMovementAction} className="mt-3 flex flex-wrap items-end gap-2">
+              <select name="accountId" required className={`${input} w-44 bg-white`}>
+                <option value="">— party —</option>
+                {rows.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              <select name="direction" className={`${input} bg-white`}>
+                <option value="out">Money out (given / repaid by me)</option>
+                <option value="in">Money in (repayment / loan received)</option>
+              </select>
+              <input name="date" type="date" defaultValue={today} className={input} />
+              <input name="amount" type="number" step="0.01" min="0.01" required placeholder="Amount" className={`${input} w-32`} />
+              <select name="sourceAccountId" required className={`${input} bg-white`}>
+                <option value="">— pay from —</option>
+                {sources.map((s) => (
+                  <option key={s.id} value={s.id}>{s.label}</option>
+                ))}
+              </select>
+              <select name="payMode" className={`${input} bg-white`}>
+                {['Bank transfer', 'UPI', 'Cheque', 'Cash', 'Card'].map((m) => (
+                  <option key={m}>{m}</option>
+                ))}
+              </select>
+              <input name="narration" placeholder="Narration (optional)" className={`${input} w-56`} />
+              <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+                Post movement
+              </button>
+            </form>
+            <p className="mt-2 text-xs text-zinc-400">
+              Posts a balanced journal against the account you pick — cash movements hit the cash location&apos;s ledger.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Party ledger with running balance */}
+      {selected && ledger && (
+        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="flex items-baseline gap-3">
+            <h2 className="font-medium text-zinc-900">Ledger — {selected.name}</h2>
+            <span className="text-xs text-zinc-400">
+              opening {displayINR(ledger.opening)} · closing {displayINR(ledger.closing)}
+            </span>
+          </div>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[640px] text-sm">
+              <thead className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Narration</th>
+                  <th className="px-2 py-2 text-right">Debit</th>
+                  <th className="px-2 py-2 text-right">Credit</th>
+                  <th className="px-2 py-2 text-right">Running balance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {ledger.lines.map((l, i) => (
+                  <tr key={i}>
+                    <td className="whitespace-nowrap px-2 py-2 text-zinc-500">
+                      {l.date.toISOString().slice(0, 10)}
+                    </td>
+                    <td className="px-2 py-2 text-zinc-700">{l.narration}</td>
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      {Number(l.debit) ? displayINR(l.debit) : '—'}
+                    </td>
+                    <td className="px-2 py-2 text-right tabular-nums">
+                      {Number(l.credit) ? displayINR(l.credit) : '—'}
+                    </td>
+                    <td className="px-2 py-2 text-right font-medium tabular-nums">{displayINR(l.running)}</td>
+                  </tr>
+                ))}
+                {ledger.lines.length === 0 && (
+                  <tr><td colSpan={5} className="px-2 py-4 text-center text-zinc-400">No movements yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

@@ -43,8 +43,9 @@ export function buildNav(user: CurrentUser): NavGroup[] {
         { href: '/reports', label: 'Profit & loss', icon: 'reports', show: hasPermission(user, 'viewFinancialReports') },
         { href: '/reports/balance-sheet', label: 'Balance sheet', icon: 'trialBalance', show: hasPermission(user, 'viewFinancialReports') },
         { href: '/reports/cash-flow', label: 'Cash flow', icon: 'banking', show: hasPermission(user, 'viewFinancialReports') },
-        { href: '/reports/parties', label: 'Loans & advances', icon: 'ledgers', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/loans', label: 'Loans & advances', icon: 'ledgers', show: admin || hasPermission(user, 'viewFinancialReports') },
         { href: '/reports/budget', label: 'Reports', icon: 'journal', show: hasPermission(user, 'viewFinancialReports') },
+        { href: '/family', label: 'Family view', icon: 'entities', show: admin },
       ],
     },
     {
