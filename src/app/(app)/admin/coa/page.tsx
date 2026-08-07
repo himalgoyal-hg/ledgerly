@@ -2,18 +2,30 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
-import { createAccount, archiveAccount, restoreAccount, renameAccount } from './actions'
+import {
+  createAccount,
+  archiveAccount,
+  restoreAccount,
+  renameAccount,
+  setDefaultCostCentre,
+} from './actions'
 
 export default async function CoaPage() {
   const user = await requireAdmin()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
 
-  const accounts = await prisma.ledgerAccount.findMany({
-    where: { entityId: entity.id },
-    include: { _count: { select: { lines: true } } },
-    orderBy: { code: 'asc' },
-  })
+  const [accounts, costCentres] = await Promise.all([
+    prisma.ledgerAccount.findMany({
+      where: { entityId: entity.id },
+      include: { _count: { select: { lines: true } } },
+      orderBy: { code: 'asc' },
+    }),
+    prisma.costCentre.findMany({
+      where: { entityId: entity.id, archivedAt: null },
+      orderBy: { name: 'asc' },
+    }),
+  ])
   const groups = accounts.filter((a) => a.isGroup)
   const depth = (code: string) => (code.endsWith('000') ? 0 : code.endsWith('00') ? 1 : code.endsWith('0') ? 2 : 2)
 
@@ -36,6 +48,7 @@ export default async function CoaPage() {
               <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Account</th>
               <th className="px-4 py-3">Kind</th>
+              <th className="px-4 py-3">Default cost centre</th>
               <th className="px-4 py-3 text-right">Postings</th>
               <th className="px-4 py-3" />
             </tr>
@@ -58,6 +71,29 @@ export default async function CoaPage() {
                   </span>
                 </td>
                 <td className="px-4 py-1.5 text-xs text-zinc-500">{a.kind}</td>
+                <td className="px-4 py-1.5">
+                  {/* v2 prototype: this default auto-fills tagging & cash forms */}
+                  {!a.isGroup && costCentres.length > 0 ? (
+                    <form action={setDefaultCostCentre} className="flex items-center gap-1">
+                      <input type="hidden" name="id" value={a.id} />
+                      <select
+                        name="costCentreId"
+                        defaultValue={a.defaultCostCentreId ?? ''}
+                        className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-xs text-zinc-600"
+                      >
+                        <option value="">—</option>
+                        {costCentres.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <button type="submit" className="text-[10px] text-zinc-400 hover:text-zinc-700">
+                        set
+                      </button>
+                    </form>
+                  ) : (
+                    <span className="text-xs text-zinc-300">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-1.5 text-right text-xs text-zinc-500">
                   {a.isGroup ? '—' : a._count.lines}
                 </td>

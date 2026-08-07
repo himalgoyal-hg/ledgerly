@@ -89,7 +89,14 @@ export async function applyTag(
   const txn = await loadTaggable(tx, args.txnId)
   if (txn.status === 'POSTED') throw new TagError('Already posted — use retag instead')
   if (!isNature(args.nature)) throw new TagError('Unknown nature')
-  await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
+  const head = await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
+  // v2 prototype: a blank cost centre falls back to the head's default (a
+  // stale default — archived or wrong entity — is silently skipped).
+  let costCentreId = args.costCentreId ?? null
+  if (!costCentreId && head.defaultCostCentreId) {
+    const cc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
+    if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
+  }
   const tax = args.tax ?? {}
   validateTax(tax, args.nature)
   const hasGst = Boolean(tax.gstRate)
@@ -101,7 +108,7 @@ export async function applyTag(
       status: 'TAGGED',
       headAccountId: args.headAccountId,
       nature: args.nature,
-      costCentreId: args.costCentreId ?? null,
+      costCentreId,
       gstType: hasGst ? (tax.gstType ?? 'intra') : null,
       gstRate: hasGst ? tax.gstRate : null,
       hsn: hasGst ? tax.hsn ?? null : null,
@@ -119,7 +126,7 @@ export async function applyTag(
     narration: txn.narration,
     headAccountId: args.headAccountId,
     nature: args.nature,
-    costCentreId: args.costCentreId ?? null,
+    costCentreId,
   })
 }
 

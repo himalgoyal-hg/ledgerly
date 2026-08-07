@@ -92,6 +92,39 @@ export async function restoreAccount(formData: FormData) {
   revalidatePath('/admin/coa')
 }
 
+/**
+ * Set (or clear) the account's default cost centre (v2 prototype): tagging
+ * and cash entries fill it in whenever the cost centre is left blank.
+ */
+export async function setDefaultCostCentre(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '')
+  const costCentreId = String(formData.get('costCentreId') ?? '') || null
+
+  await auditedTransaction(async (tx) => {
+    const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id } })
+    if (account.isGroup) throw new Error('Defaults go on leaf accounts, not groups')
+    let ccName = '— none —'
+    if (costCentreId) {
+      const cc = await tx.costCentre.findUniqueOrThrow({ where: { id: costCentreId } })
+      if (cc.entityId !== account.entityId || cc.archivedAt) throw new Error('Invalid cost centre')
+      ccName = cc.name
+    }
+    await tx.ledgerAccount.update({ where: { id }, data: { defaultCostCentreId: costCentreId } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'account.default_cost_centre',
+      targetType: 'LedgerAccount',
+      targetId: id,
+      summary: `Default cost centre for ${account.code} · ${account.name}: ${ccName}`,
+      before: { defaultCostCentreId: account.defaultCostCentreId },
+      after: { defaultCostCentreId: costCentreId },
+    })
+  })
+  revalidatePath('/admin/coa')
+  revalidatePath('/tagging')
+}
+
 /** Rename a ledger account — code, kind and history stay put. */
 export async function renameAccount(formData: FormData) {
   const admin = await requireAdmin()

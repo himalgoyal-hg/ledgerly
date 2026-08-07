@@ -12,6 +12,7 @@ export interface HeadOption {
   code: string
   name: string
   kind: string
+  defaultCostCentreId?: string | null
 }
 
 export interface CostCentreOption {
@@ -29,6 +30,7 @@ export function TagForm(props: {
   defaults?: { headAccountId?: string | null; nature?: string | null; costCentreId?: string | null }
 }) {
   const [nature, setNature] = useState(props.defaults?.nature ?? '')
+  const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
 
   return (
     <form action={props.action} className="flex flex-wrap items-center gap-2">
@@ -39,7 +41,11 @@ export function TagForm(props: {
         defaultValue={props.defaults?.headAccountId ?? ''}
         onChange={(e) => {
           const head = props.heads.find((h) => h.id === e.target.value)
-          if (head) setNature(suggestNature(head, props.isOutflow))
+          if (head) {
+            setNature(suggestNature(head, props.isOutflow))
+            // v2 prototype: picking a head fills its default cost centre.
+            if (head.defaultCostCentreId) setCostCentreId(head.defaultCostCentreId)
+          }
         }}
         className="min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       >
@@ -66,7 +72,8 @@ export function TagForm(props: {
       </select>
       <select
         name="costCentreId"
-        defaultValue={props.defaults?.costCentreId ?? ''}
+        value={costCentreId}
+        onChange={(e) => setCostCentreId(e.target.value)}
         className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       >
         <option value="">— cost centre —</option>

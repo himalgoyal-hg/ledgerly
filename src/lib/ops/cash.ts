@@ -31,7 +31,16 @@ export async function createCashEntry(
   if (location.entityId !== args.entityId || location.archivedAt || !location.ledgerAccountId) {
     throw new OpsError('Invalid cash location')
   }
-  const cc = args.costCentreId ?? undefined
+  // v2 prototype: a blank cost centre falls back to the head's default.
+  let ccId = args.costCentreId ?? null
+  if (!ccId && args.headAccountId) {
+    const head = await tx.ledgerAccount.findUnique({ where: { id: args.headAccountId } })
+    if (head?.defaultCostCentreId) {
+      const dc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
+      if (dc && dc.entityId === args.entityId && !dc.archivedAt) ccId = dc.id
+    }
+  }
+  const cc = ccId ?? undefined
 
   let lines: LineInput[]
   let summary: string

@@ -85,7 +85,7 @@ export default async function TaggingPage(props: {
       prisma.ledgerAccount.findMany({
         where: { entityId: entity.id, isGroup: false, archivedAt: null },
         orderBy: { code: 'asc' },
-        select: { id: true, code: true, name: true, kind: true },
+        select: { id: true, code: true, name: true, kind: true, defaultCostCentreId: true },
       }),
       prisma.costCentre.findMany({
         where: { entityId: entity.id, archivedAt: null },

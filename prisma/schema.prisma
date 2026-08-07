@@ -184,6 +184,9 @@ model LedgerAccount {
   isGroup  Boolean         @default(false)
   system   Boolean         @default(false)
   archivedAt DateTime?
+  // v2 prototype: each account can carry a default cost centre — tagging and
+  // cash entries fill it in when the user leaves the cost centre blank.
+  defaultCostCentreId String?
 
   lines JournalLine[]
 
