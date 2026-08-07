@@ -666,6 +666,15 @@ model Invoice {
   hsn           String?
   customerGstin String?
   gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
+
+  // Foreign-currency metadata (v2 prototype): the posting stays in INR;
+  // these record what was billed and realised in the client's currency.
+  currency    String   @default("INR") // INR | USD
+  amountFx    Decimal? @db.Decimal(14, 2)
+  fxRate      Decimal? @db.Decimal(9, 4)
+  bankCharges Decimal  @default(0) @db.Decimal(14, 2)
+  firc        String? // Awaited | Partial | Received
+
   status          InvoiceStatus @default(OPEN)
   docId           String?       @unique // Dr Debtor / Cr Income
   createdById     String

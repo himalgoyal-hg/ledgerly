@@ -43,6 +43,14 @@ export async function createInvoiceAction(formData: FormData) {
   if (!parsed.success) throw new Error(parsed.error.issues[0].message)
 
   await auditedTransaction(async (tx) => {
+    // FX metadata (v2 prototype) — display-only; the posting stays INR.
+    const fx = {
+      currency: String(formData.get('currency') || 'INR'),
+      amountFx: formData.get('amountFx') ? String(formData.get('amountFx')) : null,
+      fxRate: formData.get('fxRate') ? String(formData.get('fxRate')) : null,
+      bankCharges: String(formData.get('bankCharges') || '0'),
+      firc: formData.get('firc') ? String(formData.get('firc')) : null,
+    }
     const invoice = await createInvoice(tx, {
       ...parsed.data,
       narration: parsed.data.narration || null,
@@ -53,6 +61,7 @@ export async function createInvoiceAction(formData: FormData) {
       customerGstin: parsed.data.customerGstin || null,
       actorId: admin.id,
     })
+    await tx.invoice.update({ where: { id: invoice.id }, data: fx })
     await audit(tx, {
       actorId: admin.id,
       action: 'invoice.create',

@@ -80,6 +80,20 @@ export default async function InvoicesPage() {
             ))}
           </select>
           <input name="narration" placeholder="Description" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          {/* FX (v2 prototype): billed in USD, realised in INR */}
+          <select name="currency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <option value="INR">INR</option>
+            <option value="USD">USD</option>
+          </select>
+          <input name="amountFx" type="number" step="0.01" min="0" placeholder="$ amount" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="fxRate" type="number" step="0.0001" min="0" placeholder="Rate (₹/$)" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="bankCharges" type="number" step="0.01" min="0" placeholder="Bank charges" className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <select name="firc" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <option value="">FIRC —</option>
+            <option>Awaited</option>
+            <option>Partial</option>
+            <option>Received</option>
+          </select>
           {/* GST (spec §7.1): tax adds on top of the taxable value */}
           <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
             <option value="">GST type</option>
@@ -112,6 +126,13 @@ export default async function InvoicesPage() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="font-mono text-xs text-zinc-500">{invoice.number}</span>
                 <span className="font-medium text-zinc-800">{invoice.customer}</span>
+                {invoice.currency === 'USD' && invoice.amountFx && (
+                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                    ${Number(invoice.amountFx).toLocaleString('en-US')}
+                    {invoice.fxRate ? ` @ ${Number(invoice.fxRate).toFixed(2)}` : ''}
+                    {invoice.firc ? ` · FIRC ${invoice.firc}` : ''}
+                  </span>
+                )}
                 <form action={deleteInvoiceAction} className="order-last ml-auto">
                   <input type="hidden" name="invoiceId" value={invoice.id} />
                   <ConfirmButton
