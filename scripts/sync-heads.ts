@@ -41,7 +41,9 @@ const LEDGER_GROUP: Record<string, string> = {
   'Marketing & Advertising': '5000',
   'Professional Fees Paid': '5000',
   Drawings: '5000',
-  'Capital Introduced': '3100',
+  // 3100 Capital is itself a leaf the books post to — hang capital heads off
+  // the Equity group instead of nesting them under another leaf.
+  'Capital Introduced': '3000',
   'Consulting Revenue': '4000',
   'Professional Fee Income': '4000',
   'Salary Income': '4000',
