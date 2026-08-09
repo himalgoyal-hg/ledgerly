@@ -68,8 +68,13 @@ const SKIP_NAMES = new Set(['Cash'])
 // Cost centres I named differently when seeding them earlier.
 const CC_ALIAS: Record<string, Record<string, string>> = {
   HG: { 'Family & Personal': 'Personal' },
-  // A company has no household bucket — its heads land on the ops centre.
-  ACPL: { 'ACPL Business': 'Office Operations', 'Family & Personal': 'Office Operations' },
+  // A company has no household or portfolio bucket — its heads land on the
+  // ops centre (revenue and refunds included).
+  ACPL: {
+    'ACPL Business': 'Office Operations',
+    'Family & Personal': 'Office Operations',
+    Investments: 'Office Operations',
+  },
 }
 
 const dry = process.argv.includes('--dry')

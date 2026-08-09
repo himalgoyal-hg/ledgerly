@@ -24,6 +24,9 @@ export function isNature(value: string): value is Nature {
 /** Auto-suggest the nature from the chosen head (spec: "auto-suggested from head"). */
 export function suggestNature(head: { kind: string; code: string }, isOutflow: boolean): Nature {
   if (head.code.startsWith('11')) return 'transfer_own' // bank accounts group
+  if (head.code.startsWith('12')) return 'transfer_own' // cash locations
+  if (head.code.startsWith('18')) return 'transfer_own' // transfers in transit (contra)
+  if (head.code.startsWith('25')) return 'transfer_own' // credit-card settlement
   if (head.code.startsWith('14')) return 'loan_given' // loans & advances given
   if (head.code.startsWith('23')) return 'loan_received' // loans taken
   if (head.code.startsWith('31')) return 'capital'

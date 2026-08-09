@@ -11,6 +11,14 @@ const NOISE_TOKENS = new Set([
   'FROM', 'TO', 'BY', 'THE', 'AND', 'FOR', 'LTD', 'PVT', 'PRIVATE', 'LIMITED',
   'BANK', 'INDIA', 'OKAXIS', 'OKICICI', 'OKHDFCBANK', 'OKSBI', 'YBL', 'IBL',
   'AXL', 'PAYTMQR', 'BHARATPE', 'RAZORPAY', 'RAZP', 'PAYU', 'BILLDESK', 'CCA',
+  'NETBANK', 'MUM', 'INTL', 'TXN', 'PRIVA',
+  // Words that belong to dozens of different company names — as the longest
+  // word in a line they hijack the token and lump unrelated payees together
+  // ("KHOOBI CONSULTING" and "ACCUREST CONSULTING" are not the same party).
+  'CONSULTING', 'CONSULTANCY', 'ADVISORY', 'ASSOCIATES', 'SOLUTIONS', 'VENTURES',
+  'TECHNOLOGIES', 'TECHNOLOGY', 'ENTERPRISES', 'SERVICES', 'INDUSTRIES',
+  'TRADERS', 'COMPANY', 'CORPORATION', 'HOLDINGS', 'GLOBAL', 'GROUP',
+  'FOREIGN', 'INWARD', 'PACB', 'REMITTANCE', 'INTERNAL',
 ])
 
 /**
@@ -21,6 +29,10 @@ const NOISE_TOKENS = new Set([
 export function partyToken(narration: string): string | null {
   const tokens = narration
     .toUpperCase()
+    // Statements occasionally carry control bytes; Postgres rejects a NUL in
+    // text, and they are never part of a payee's name.
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001F\u007F]/g, ' ')
     .split(/[/\\|:;,.\-_@ ]+/)
     .map((t) => t.trim())
     .filter(
@@ -28,11 +40,23 @@ export function partyToken(narration: string): string | null {
         t.length >= 3 &&
         !/^\d+$/.test(t) && // pure numbers (refs, dates)
         !/^\d/.test(t) && // leading digit → ref-ish
+        // An IFSC (HDFC0000007, YESB0YBLUPI) names a branch, not a payee, and
+        // it is usually the longest token in the line — as a rule pattern it
+        // would tag everything routed through that branch alike.
+        !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(t) &&
+        // Netbanking references (NBAJTT7KXGLJAOY4) carry no digits at all and
+        // would otherwise beat the payee on length.
+        !/^NB[A-Z0-9]{12,}$/.test(t) &&
+        // Reference numbers that start with letters (HDFCH00926070).
+        (t.replace(/\D/g, '').length < 3) &&
         !NOISE_TOKENS.has(t),
     )
   if (tokens.length === 0) return null
   // Longest token wins; ties → earliest.
-  return tokens.reduce((a, b) => (b.length > a.length ? b : a))
+  const winner = tokens.reduce((a, b) => (b.length > a.length ? b : a))
+  // Card descriptors bolt punctuation onto the merchant ("ANTHROPIC* CLAUDE",
+  // "OPENAI *CHATGPT"); trimming it keeps both spellings on one rule.
+  return winner.replace(/^[^A-Z0-9]+/, '').replace(/[^A-Z0-9]+$/, '') || null
 }
 
 export function normalizedNarration(narration: string): string {
