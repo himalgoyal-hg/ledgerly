@@ -1,11 +1,16 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 
-// Type-ahead account picker (v2 prototype's datalist inputs): type a few
-// letters, the browser filters "code · name" suggestions, picking one sets
-// the hidden id field the form actually submits. Free text that matches no
-// head submits an empty id — the server's "Pick a head" guard catches it.
+// Type-ahead account picker (v2 prototype's datalist inputs). The option
+// VALUE is the head's name, never "code · name": browsers match a datalist on
+// the value, and Safari matches only from the start of it — with the code in
+// front, typing "food" matched nothing. The code rides along as the option's
+// label, which Chrome shows on the right and also searches.
+//
+// Picking a suggestion (or typing a name outright) sets the hidden id the
+// form submits. Text that matches no head submits an empty id, so the
+// server's "Pick a head" guard catches it.
 
 export interface HeadOpt {
   id: string
@@ -14,8 +19,6 @@ export interface HeadOpt {
   kind: string
   defaultCostCentreId?: string | null
 }
-
-const label = (h: HeadOpt) => `${h.code} · ${h.name}`
 
 export function HeadCombobox(props: {
   heads: HeadOpt[]
@@ -27,9 +30,34 @@ export function HeadCombobox(props: {
   className?: string
 }) {
   const listId = useId()
-  const initial = props.heads.find((h) => h.id === props.defaultHeadId)
-  const [text, setText] = useState(initial ? label(initial) : '')
-  const [id, setId] = useState(initial?.id ?? '')
+
+  // A name that occurs twice in one set of books gets its code appended, so
+  // every option still resolves to exactly one head.
+  const options = useMemo(() => {
+    const seen = new Map<string, number>()
+    for (const h of props.heads) seen.set(h.name, (seen.get(h.name) ?? 0) + 1)
+    return props.heads
+      .map((h) => ({ head: h, label: (seen.get(h.name) ?? 0) > 1 ? `${h.name} (${h.code})` : h.name }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [props.heads])
+
+  const initial = options.find((o) => o.head.id === props.defaultHeadId)
+  const [text, setText] = useState(initial?.label ?? '')
+  const [id, setId] = useState(initial?.head.id ?? '')
+
+  const resolve = (raw: string): HeadOpt | null => {
+    const typed = raw.trim().toLowerCase()
+    if (!typed) return null
+    const byLabel = options.find((o) => o.label.toLowerCase() === typed)
+    if (byLabel) return byLabel.head
+    // Accept a bare code, and the old "code · name" shape too.
+    const byCode = props.heads.find((h) => h.code === typed)
+    if (byCode) return byCode
+    const byCombined = props.heads.find(
+      (h) => `${h.code} · ${h.name}`.toLowerCase() === typed || h.name.toLowerCase() === typed,
+    )
+    return byCombined ?? null
+  }
 
   return (
     <>
@@ -42,11 +70,7 @@ export function HeadCombobox(props: {
         onChange={(e) => {
           const v = e.target.value
           setText(v)
-          const typed = v.trim().toLowerCase()
-          const head =
-            props.heads.find((h) => label(h).toLowerCase() === typed) ??
-            props.heads.find((h) => h.name.toLowerCase() === typed) ??
-            null
+          const head = resolve(v)
           setId(head?.id ?? '')
           props.onPick?.(head)
         }}
@@ -55,8 +79,10 @@ export function HeadCombobox(props: {
         }
       />
       <datalist id={listId}>
-        {props.heads.map((h) => (
-          <option key={h.id} value={label(h)} />
+        {options.map((o) => (
+          <option key={o.head.id} value={o.label}>
+            {o.head.code}
+          </option>
         ))}
       </datalist>
       <input type="hidden" name={props.name ?? 'headAccountId'} value={id} />
