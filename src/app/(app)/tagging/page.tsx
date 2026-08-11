@@ -508,7 +508,7 @@ export default async function TaggingPage(props: {
                     costCentres={costCentres}
                     action={tagTransaction}
                     submitLabel="Save tag"
-                    defaults={txn}
+                    defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
                   />
                 </div>
               </details>
@@ -574,7 +574,7 @@ export default async function TaggingPage(props: {
                             costCentres={costCentres}
                             action={retagPosted}
                             submitLabel="Save (posts reversal + new version)"
-                            defaults={txn}
+                            defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
                           />
                         </div>
                       </details>
