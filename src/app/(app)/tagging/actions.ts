@@ -9,7 +9,7 @@ import {
   postAllConfirmed,
   retagPostedTransaction,
 } from '@/lib/statements/post'
-import { deleteJournalDocument, undoJournalDocument } from '@/lib/ledger/posting'
+import { undoJournalDocument } from '@/lib/ledger/posting'
 import { partyToken } from '@/lib/statements/rules'
 import { suggestNature } from '@/lib/statements/natures'
 
@@ -314,24 +314,9 @@ export async function retagPosted(formData: FormData) {
   revalidatePath('/tagging')
 }
 
-export async function deletePosted(formData: FormData) {
-  const user = await requirePermission('transactionEditDelete')
-  const txnId = String(formData.get('txnId') ?? '')
-
-  await auditedTransaction(async (tx) => {
-    const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
-    if (!txn.docId) throw new Error('Mirror rows have no journal of their own — delete the other side')
-    await deleteJournalDocument(tx, { docId: txn.docId, actorId: user.id })
-    await audit(tx, {
-      actorId: user.id,
-      action: 'statement_txn.delete',
-      targetType: 'StatementTransaction',
-      targetId: txnId,
-      summary: 'Deleted posted transaction (reversal posted, restorable)',
-    })
-  })
-  revalidatePath('/tagging')
-}
+// Posted rows are never deleted one by one — a wrong tag is corrected with
+// retagPosted (reversal + new version), and a wrong import goes out through
+// the Statements page's "Delete import", which reverses everything together.
 
 export async function undoPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')

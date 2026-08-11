@@ -14,7 +14,6 @@ import {
   untagTransaction,
   postAll,
   retagPosted,
-  deletePosted,
   undoPosted,
   requestAiSuggestions,
   acceptAiSuggestion,
@@ -560,34 +559,25 @@ export default async function TaggingPage(props: {
               </div>
               {canEditPosted && txn.docId && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {/* Posted rows cannot be deleted one by one — the books only
+                      move forward via retag (reversal + new version). */}
                   {!deleted && (
-                    <>
-                      <details>
-                        <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
-                          Retag
-                        </summary>
-                        <div className="mt-2">
-                          <TagForm
-                            txnId={txn.id}
-                            isOutflow={Number(txn.debit) > 0}
-                            heads={heads}
-                            costCentres={costCentres}
-                            action={retagPosted}
-                            submitLabel="Save (posts reversal + new version)"
-                            defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
-                          />
-                        </div>
-                      </details>
-                      <form action={deletePosted}>
-                        <input type="hidden" name="txnId" value={txn.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
-                      </form>
-                    </>
+                    <details>
+                      <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+                        Retag
+                      </summary>
+                      <div className="mt-2">
+                        <TagForm
+                          txnId={txn.id}
+                          isOutflow={Number(txn.debit) > 0}
+                          heads={heads}
+                          costCentres={costCentres}
+                          action={retagPosted}
+                          submitLabel="Save (posts reversal + new version)"
+                          defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
+                        />
+                      </div>
+                    </details>
                   )}
                   {(deleted || (doc?._count.entries ?? 0) > 1) && (
                     <form action={undoPosted}>
