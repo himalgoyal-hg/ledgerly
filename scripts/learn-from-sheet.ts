@@ -30,6 +30,16 @@ const ALIAS: Record<string, string> = {
 // side. A guess here posts money into the wrong account, so they are left for
 // Himal to tag by hand.
 const AMBIGUOUS = new Set(['icici transfer', 'self transfer', 'federal account'])
+// …except inside a register, where this side of the transfer is fixed by the
+// tab itself: an "ICICI Transfer" filed in the ICICI register can only be the
+// ICICI↔HDFC pair, so the vague label resolves to a definite head.
+const SHEET_ALIAS: Record<string, Record<string, string>> = {
+  'ICICI Bank (Himal)': {
+    'icici transfer': '2762 <<-->> ICICI',
+    'federal account': 'ICICI <<-->> Federal',
+    'kotak transfer': 'ICICI <<-->> Kotak',
+  },
+}
 
 const dry = process.argv.includes('--dry')
 const apply = process.argv.includes('--apply')
@@ -53,8 +63,9 @@ async function main() {
   for (const p of pairs) {
     const label = p.head.trim()
     const key = label.toLowerCase().replace(/\s+/g, ' ')
-    if (AMBIGUOUS.has(key)) { ambiguous++; continue }
-    const head = ALIAS[key] ?? label
+    const sheetAlias = SHEET_ALIAS[p.sheet]?.[key]
+    if (!sheetAlias && AMBIGUOUS.has(key)) { ambiguous++; continue }
+    const head = sheetAlias ?? ALIAS[key] ?? label
     const token = partyToken(p.narration)?.replace(CTRL, '')
     if (!token) { noToken++; continue }
     const forBook = tally.get(p.book) ?? new Map<string, Map<string, number>>()
