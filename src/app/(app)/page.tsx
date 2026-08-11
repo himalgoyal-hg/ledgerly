@@ -172,12 +172,21 @@ export default async function OverviewPage() {
             iconClass="bg-primary-soft text-primary"
             deltaPct={trends.receivables.deltaPct}
             deltaBasis="vs 30 days ago"
-            hint={
+            hint={[
+              // Whose money: the top debtor by ledger balance, so the tile
+              // answers "who owes us" even when there is no invoice behind it.
+              receivables.debtors.length === 1
+                ? receivables.debtors[0].name
+                : receivables.debtors.length > 1
+                  ? `${receivables.debtors[0].name} ${displayINR(receivables.debtors[0].balance)} +${receivables.debtors.length - 1} more`
+                  : null,
               Number(receivables.overdueTotal) > 0
                 ? `${displayINR(receivables.overdueTotal)} overdue`
-                : undefined
-            }
-            href="/invoices"
+                : null,
+            ]
+              .filter(Boolean)
+              .join(' · ') || undefined}
+            href="/reports/parties"
           />
         )}
         {admin && trends && (

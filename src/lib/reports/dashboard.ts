@@ -2,6 +2,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { accountBalances } from '@/lib/ledger/queries'
 import { agingBucket } from '@/lib/ops/invoices'
+import { partyLedgers } from '@/lib/reports/analysis'
 
 // Overview dashboard data (spec §9). Every figure is a live query; each
 // loader is independent so a screen can fetch only what the viewer may see.
@@ -92,13 +93,20 @@ export async function duesTiles(entityId: string, withinDays = 7) {
   }
 }
 
-/** Overdue receivables with aging (spec §9). */
+/**
+ * Overdue receivables with aging (spec §9), plus the party-wise ledger
+ * balances — a receivable can come from a tagged statement row with no
+ * invoice behind it, and the tile must still say WHOSE money it is.
+ */
 export async function receivableTiles(entityId: string) {
-  const invoices = await prisma.invoice.findMany({
-    where: { entityId, status: { in: ['OPEN', 'PARTIAL'] } },
-    include: { payments: true },
-    orderBy: { dueDate: 'asc' },
-  })
+  const [invoices, ledgers] = await Promise.all([
+    prisma.invoice.findMany({
+      where: { entityId, status: { in: ['OPEN', 'PARTIAL'] } },
+      include: { payments: true },
+      orderBy: { dueDate: 'asc' },
+    }),
+    partyLedgers(entityId),
+  ])
   const today = new Date()
   const rows = invoices.map((invoice) => {
     const paid = invoice.payments.reduce(
@@ -115,8 +123,10 @@ export async function receivableTiles(entityId: string) {
     }
   })
   const overdue = rows.filter((r) => r.bucket !== 'current')
+  const debtors = [...ledgers.customers].sort((a, b) => Number(b.balance) - Number(a.balance))
   return {
     overdue,
+    debtors,
     outstandingTotal: rows.reduce((t, r) => t.plus(r.outstanding), new Prisma.Decimal(0)).toFixed(2),
     overdueTotal: overdue.reduce((t, r) => t.plus(r.outstanding), new Prisma.Decimal(0)).toFixed(2),
   }
