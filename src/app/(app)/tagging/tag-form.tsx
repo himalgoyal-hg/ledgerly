@@ -38,8 +38,10 @@ export function TagForm(props: {
         onPick={(head) => {
           if (head) {
             setNature(suggestNature(head, props.isOutflow))
-            // v2 prototype: picking a head fills its default cost centre.
-            if (head.defaultCostCentreId) setCostCentreId(head.defaultCostCentreId)
+            // Picking a head moves the cost centre with it: its default when
+            // it has one, blank otherwise — the old tag's cost centre must
+            // never silently ride along into the new head.
+            setCostCentreId(head.defaultCostCentreId ?? '')
           }
         }}
       />

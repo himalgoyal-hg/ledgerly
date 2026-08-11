@@ -402,15 +402,23 @@ export async function retagPostedTransaction(
     )
   }
   if (!isNature(args.nature)) throw new TagError('Unknown nature')
-  await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
+  const head = await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
   const bank = await tx.bankAccount.findUniqueOrThrow({ where: { id: txn.bankAccountId } })
   if (!bank.ledgerAccountId) throw new TagError(`${bank.nickname} has no ledger account`)
+
+  // Same default-cost-centre fallback as a first-time tag: a blank cost
+  // centre lands in the new head's default, never in the old tag's.
+  let costCentreId = args.costCentreId ?? null
+  if (!costCentreId && head.defaultCostCentreId) {
+    const cc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
+    if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
+  }
 
   // Rebuild with the stored tax details — retag changes head/nature/cost
   // centre, never the tax split.
   const built = await buildLines(
     tx,
-    { ...txn, costCentreId: args.costCentreId ?? null },
+    { ...txn, costCentreId },
     args.headAccountId,
     bank.ledgerAccountId,
   )
@@ -429,7 +437,7 @@ export async function retagPostedTransaction(
     data: {
       headAccountId: args.headAccountId,
       nature: args.nature,
-      costCentreId: args.costCentreId ?? null,
+      costCentreId,
       autoTagged: false,
       taggedById: args.actorId,
       taggedAt: new Date(),
@@ -440,6 +448,6 @@ export async function retagPostedTransaction(
     narration: txn.narration,
     headAccountId: args.headAccountId,
     nature: args.nature,
-    costCentreId: args.costCentreId ?? null,
+    costCentreId,
   })
 }
