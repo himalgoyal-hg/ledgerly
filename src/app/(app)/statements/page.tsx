@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requirePermission, isAdmin, visibleEntityFilter } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
@@ -22,12 +23,12 @@ export default async function StatementsPage() {
   const user = await requirePermission('statementUpload')
   const entity = await getCurrentEntity(user)
 
-  const visibleEntityIds = (
-    await prisma.entity.findMany({
-      where: { archivedAt: null, ...visibleEntityFilter(user) },
-      select: { id: true },
-    })
-  ).map((e) => e.id)
+  const visibleEntities = await prisma.entity.findMany({
+    where: { archivedAt: null, ...visibleEntityFilter(user) },
+    select: { id: true, code: true },
+  })
+  const visibleEntityIds = visibleEntities.map((e) => e.id)
+  const entityCode = new Map(visibleEntities.map((e) => [e.id, e.code]))
 
   const [pending, confirmed, bankAccounts] = await Promise.all([
     // Awaiting confirmation: this user's visible entities + unassigned uploads.
@@ -77,9 +78,34 @@ export default async function StatementsPage() {
         </p>
       </div>
 
-      {/* Step 1 — upload */}
+      {/* Step 1 — upload. Statements land in the current books only — if the
+          books have no bank account yet there is nothing to import into, so
+          say that up front instead of failing on submit. */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
         <h2 className="font-medium text-zinc-900">Upload statements</h2>
+        {entity && (
+          <p className="mt-1 text-xs text-zinc-500">
+            Importing into <strong>{entity.name} ({entity.code})</strong> — switch books first if
+            these aren&apos;t the right ones.
+          </p>
+        )}
+        {entity && !bankAccounts.some((b) => b.entityId === entity.id) ? (
+          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            {entity.name} ({entity.code}) has no bank account yet, so statements cannot be
+            imported into these books.{' '}
+            {isAdmin(user) ? (
+              <>
+                Add the account in{' '}
+                <Link href="/admin/banking" className="font-medium underline">
+                  Admin → Banking
+                </Link>{' '}
+                first, then upload here.
+              </>
+            ) : (
+              'Ask the Admin to add the bank account first.'
+            )}
+          </p>
+        ) : (
         <form action={uploadStatements} className="mt-3 flex flex-wrap items-center gap-3">
           <input
             type="file"
@@ -102,6 +128,7 @@ export default async function StatementsPage() {
               : ' PDFs need ANTHROPIC_API_KEY in .env; without it, export CSV from netbanking.'}
           </span>
         </form>
+        )}
       </div>
 
       {/* Step 2 — confirmation banners (never silent) */}
@@ -110,6 +137,11 @@ export default async function StatementsPage() {
           <h2 className="font-medium text-zinc-900">Awaiting confirmation</h2>
           {pending.map((imp) => {
             const unrecognized = imp.detectedVia === 'unrecognized'
+            // Statements import into the books they were uploaded in — offer
+            // only that entity's accounts (all visible ones for legacy rows).
+            const eligibleAccounts = imp.entityId
+              ? bankAccounts.filter((b) => b.entityId === imp.entityId)
+              : bankAccounts
             return (
               <div
                 key={imp.id}
@@ -119,6 +151,11 @@ export default async function StatementsPage() {
               >
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="font-medium text-zinc-900">{imp.fileName}</span>
+                  {imp.entityId && entityCode.has(imp.entityId) && (
+                    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                      {entityCode.get(imp.entityId)} books
+                    </span>
+                  )}
                   <span className="text-xs text-zinc-500">
                     {imp.rowsTotal} rows
                     {imp.closingBalance !== null &&
@@ -148,7 +185,7 @@ export default async function StatementsPage() {
                         className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                       >
                         <option value="">— account —</option>
-                        {bankAccounts.map((b) => (
+                        {eligibleAccounts.map((b) => (
                           <option key={b.id} value={b.id}>
                             {b.nickname} ({b.entity.code})
                           </option>

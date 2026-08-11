@@ -1,7 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { prisma } from '@/lib/db'
 import { requirePermission, hasPermission, isAdmin } from '@/lib/auth'
+import { getCurrentEntity } from '@/lib/entity-context'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
 import {
@@ -19,6 +21,19 @@ export async function uploadStatements(formData: FormData) {
   const files = formData.getAll('files').filter((f): f is File => f instanceof File && f.size > 0)
   if (files.length === 0) throw new Error('Choose at least one statement file')
 
+  // Statements land in the books they were uploaded in — never auto-routed to
+  // another entity's account (spec §3 step 2, tightened).
+  const entity = await getCurrentEntity(user)
+  if (!entity) throw new Error('Select the books first')
+  const accountCount = await prisma.bankAccount.count({
+    where: { entityId: entity.id, archivedAt: null },
+  })
+  if (accountCount === 0) {
+    throw new Error(
+      `${entity.name} (${entity.code}) has no bank account yet — add it in Admin → Banking first, then upload the statement`,
+    )
+  }
+
   const failures: string[] = []
   for (const file of files) {
     let upload
@@ -35,13 +50,14 @@ export async function uploadStatements(formData: FormData) {
         parsed,
         parsedVia: via,
         actorId: user.id,
+        entityId: entity.id,
       })
       await audit(tx, {
         actorId: user.id,
         action: 'statement.upload',
         targetType: 'StatementImport',
         targetId: record.id,
-        summary: `Uploaded ${file.name} (${parsed.rows.length} rows, read by ${
+        summary: `Uploaded ${file.name} into ${entity.code} books (${parsed.rows.length} rows, read by ${
           via === 'ai' ? 'AI' : 'column detection'
         }, detected via ${detection.via})`,
       })

@@ -22,13 +22,19 @@ export interface DetectionResult {
   via: 'account_number' | 'ifsc' | 'mapping' | 'unrecognized'
 }
 
-/** Spec §3 step 2: metadata scan first, then the remembered layout mapping. */
+/**
+ * Spec §3 step 2: metadata scan first, then the remembered layout mapping.
+ * With `entityId` the scan only considers that entity's accounts — a statement
+ * uploaded in one set of books must never route to another entity's account
+ * (an HG statement once landed in ACPL via a shared-branch IFSC).
+ */
 export async function detectAccountForStatement(
   tx: Prisma.TransactionClient,
   parsed: ParsedStatement,
+  entityId?: string,
 ): Promise<DetectionResult> {
   const accounts = await tx.bankAccount.findMany({
-    where: { archivedAt: null },
+    where: { archivedAt: null, ...(entityId ? { entityId } : {}) },
     select: { id: true, entityId: true, accountNumber: true, ifsc: true, bankName: true, nickname: true },
   })
   const hit = detectBankAccount(parsed.metaText, accounts)
@@ -97,14 +103,16 @@ export async function createStatementImport(
     parsed: ParsedStatement
     actorId: string
     parsedVia?: 'heuristic' | 'ai'
+    /** The books the upload happened in — detection and confirm stay inside them. */
+    entityId?: string
   },
 ) {
-  const detection = await detectAccountForStatement(tx, args.parsed)
+  const detection = await detectAccountForStatement(tx, args.parsed, args.entityId)
   const record = await tx.statementImport.create({
     data: {
       fileName: args.fileName,
       bankAccountId: detection.bankAccountId,
-      entityId: detection.entityId,
+      entityId: detection.entityId ?? args.entityId ?? null,
       detectedVia: detection.via,
       // Dates serialize to ISO strings; reviveRows brings them back.
       rawRows: JSON.parse(JSON.stringify(args.parsed.rows)) as Prisma.InputJsonValue,
@@ -144,6 +152,11 @@ export async function confirmStatementImport(
   if (imp.status !== 'DETECTED') throw new ImportError('Import is already confirmed')
   const bank = await tx.bankAccount.findUniqueOrThrow({ where: { id: args.bankAccountId } })
   if (bank.archivedAt) throw new ImportError('That bank account is archived')
+  if (imp.entityId && bank.entityId !== imp.entityId) {
+    throw new ImportError(
+      'This statement was uploaded in different books — pick a bank account of those books, or discard and re-upload in the right ones',
+    )
+  }
 
   const rows = reviveRows(imp.rawRows)
 
