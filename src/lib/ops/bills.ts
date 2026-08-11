@@ -1,16 +1,14 @@
 import type { Prisma, Bill } from '@/generated/prisma/client'
-import { COA, getSystemAccount } from '@/lib/ledger/coa'
-import { createJournalDocument, type LineInput } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
 import { rateBp, gstOnNet, tdsOnGross } from '@/lib/tax/calc'
-import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
-import { getPartyAccount } from './party'
 import { OpsError } from './reimburse'
 
-// Bills & insurance (spec §6.3 + §7): entry posts Dr Expense (taxable)
-// [+ Dr GST Input Credit] / [Cr TDS Payable] / Cr Vendor payable; payment
-// clears the vendor payable (taxable + GST − TDS). Paying a recurring bill
-// spawns the next PENDING instance one period ahead.
+// Bills & insurance (spec §6.3): a bill is a document + reminder — vendor,
+// amounts, due/renewal dates and the attached file. It posts NOTHING: the
+// expense reaches the books when the bank-statement row is tagged, so an
+// entry here would count it twice. GST/TDS amounts are still computed and
+// stored as metadata for the record. Marking a recurring bill paid spawns
+// the next PENDING instance one period ahead.
 
 function addPeriod(date: Date, recurrence: string): Date {
   const next = new Date(date)
@@ -41,7 +39,7 @@ export async function createBill(
     link?: string | null
     remarks?: string | null
     recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
-    expenseAccountId: string
+    expenseAccountId?: string | null
     costCentreId?: string | null
     gstType?: string | null
     gstRate?: string | null
@@ -63,8 +61,6 @@ export async function createBill(
   const gst = args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
   const tds = args.tdsRate ? tdsOnGross(taxable, rateBp(args.tdsRate)) : 0n
   if (tds > 0n && !args.tdsSection) throw new OpsError('Pick the TDS section')
-  const payableAmount = taxable + gst - tds
-  const payable = await getPartyAccount(tx, args.entityId, COA.CREDITORS_GROUP, vendor)
 
   const bill = await tx.bill.create({
     data: {
@@ -81,7 +77,7 @@ export async function createBill(
       link: args.link ?? null,
       remarks: args.remarks ?? null,
       recurrence: args.recurrence ?? 'NONE',
-      expenseAccountId: args.expenseAccountId,
+      expenseAccountId: args.expenseAccountId ?? null,
       costCentreId: args.costCentreId ?? null,
       gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
       gstRate: gst > 0n ? args.gstRate : null,
@@ -99,98 +95,28 @@ export async function createBill(
   })
   // A recurring bill roots its own series.
   if ((args.recurrence ?? 'NONE') !== 'NONE' && !args.seriesId) {
-    await tx.bill.update({
+    return tx.bill.update({
       where: { id: bill.id },
       data: { seriesId: bill.id, periodKey: periodKeyOf(args.dueDate) },
     })
   }
-
-  const lines: LineInput[] = [
-    { accountId: args.expenseAccountId, debit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
-  ]
-  if (gst > 0n) {
-    const inputCredit = await getSystemAccount(tx, args.entityId, '1500')
-    lines.push({ accountId: inputCredit.id, debit: formatPaise(gst) })
-  }
-  if (tds > 0n) {
-    const tdsPayable = await getSystemAccount(tx, args.entityId, COA.TDS_PAYABLE)
-    lines.push({ accountId: tdsPayable.id, credit: formatPaise(tds) })
-  }
-  lines.push({ accountId: payable.id, credit: formatPaise(payableAmount) })
-
-  const { doc } = await createJournalDocument(tx, {
-    entityId: args.entityId,
-    sourceType: 'bill',
-    sourceId: bill.id,
-    actorId: args.actorId,
-    content: {
-      date: args.billDate,
-      narration: `Bill — ${vendor}: ${args.billType}`,
-      lines,
-    },
-  })
-  if (gst > 0n || tds > 0n) {
-    await writeTaxLine(tx, {
-      entityId: args.entityId,
-      docId: doc.id,
-      date: args.billDate,
-      direction: 'input',
-      party: vendor,
-      gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
-      gstRate: gst > 0n ? args.gstRate : null,
-      hsn: args.hsn,
-      counterpartyGstin: args.vendorGstin,
-      taxableValue: formatPaise(taxable),
-      gstAmount: formatPaise(gst),
-      tdsSection: tds > 0n ? args.tdsSection : null,
-      tdsRate: tds > 0n ? args.tdsRate : null,
-      deducteePan: args.vendorPan,
-      tdsAmount: formatPaise(tds),
-      sourceType: 'bill',
-      sourceId: bill.id,
-    })
-  }
-  if (tds > 0n) {
-    await ensureTdsDepositTask(tx, {
-      entityId: args.entityId,
-      deductionDate: args.billDate,
-      amount: formatPaise(tds),
-      actorId: args.actorId,
-    })
-  }
-  return tx.bill.update({ where: { id: bill.id }, data: { entryDocId: doc.id } })
+  return bill
 }
 
-/** Pay a pending bill; a recurring one spawns its next instance. */
+/**
+ * Mark a pending bill paid; a recurring one spawns its next instance.
+ * No posting happens here — the actual payment reaches the books when its
+ * bank-statement row is tagged.
+ */
 export async function payBill(
   tx: Prisma.TransactionClient,
-  args: { billId: string; date: Date; sourceAccountId: string; actorId: string },
+  args: { billId: string; date: Date; actorId: string },
 ): Promise<{ bill: Bill; nextBill: Bill | null }> {
   const bill = await tx.bill.findUniqueOrThrow({ where: { id: args.billId } })
   if (bill.status !== 'PENDING') throw new OpsError('Bill is already paid')
-  const payable = await getPartyAccount(tx, bill.entityId, COA.CREDITORS_GROUP, bill.vendor)
-  // Vendor gets taxable + GST − TDS withheld.
-  const amount = formatPaise(
-    parsePaise(String(bill.amount)) + parsePaise(String(bill.gstAmount)) - parsePaise(String(bill.tdsAmount)),
-  )
-
-  const { doc } = await createJournalDocument(tx, {
-    entityId: bill.entityId,
-    sourceType: 'bill_payment',
-    sourceId: bill.id,
-    actorId: args.actorId,
-    content: {
-      date: args.date,
-      narration: `Bill payment — ${bill.vendor}: ${bill.billType}`,
-      lines: [
-        { accountId: payable.id, debit: amount },
-        { accountId: args.sourceAccountId, credit: amount },
-      ],
-    },
-  })
   const paid = await tx.bill.update({
     where: { id: bill.id },
-    data: { status: 'PAID', paidAt: new Date(), paymentDocId: doc.id },
+    data: { status: 'PAID', paidAt: args.date },
   })
 
   let nextBill: Bill | null = null

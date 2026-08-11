@@ -85,7 +85,7 @@ export default async function OverviewPage() {
   }
 
   // Fetch only what this viewer is allowed to see.
-  const [balances, queues, receivables, alerts, activity, trends, flows, categories, bills, tasks] =
+  const [balances, queues, receivables, alerts, activity, trends, flows, categories, bills] =
     await Promise.all([
       can.financials || can.cash ? balanceTiles(entity.id) : null,
       can.tagging || can.upload || can.claims ? queueTiles(entity.id) : null,
@@ -96,13 +96,6 @@ export default async function OverviewPage() {
       admin || can.financials ? monthlyFlows(entity.id, 12) : null,
       admin || can.financials ? expenseCategories(entity.id, 12, 6) : null,
       admin ? pendingBills(entity.id) : null,
-      admin
-        ? prisma.financeTask.findMany({
-            where: { entityId: entity.id, status: 'OPEN' },
-            orderBy: { dueDate: 'asc' },
-            take: 6,
-          })
-        : null,
     ])
 
   const hasPostings = Boolean(flows?.some((m) => m.income || m.expense || m.cashNet))
@@ -316,50 +309,6 @@ export default async function OverviewPage() {
                   </Card>
                 </div>
 
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  {admin && tasks && (
-                    <Card className="lg:col-span-3">
-                      <CardHeader title="Pending tasks" action={{ label: 'All tasks', href: '/tasks' }} />
-                      <div className="px-3 pb-3">
-                        {tasks.length === 0 ? (
-                          <EmptyState icon={BookOpen} title="Nothing open" className="py-6" />
-                        ) : (
-                          <ul className="space-y-1">
-                            {tasks.map((t) => {
-                              const due = t.dueDate.toISOString().slice(0, 10)
-                              const overdue = due < today
-                              return (
-                                <li key={t.id}>
-                                  <Link
-                                    href="/tasks"
-                                    className="flex items-center gap-3 rounded-xl px-3 py-2 transition-colors hover:bg-surface-2"
-                                  >
-                                    <span
-                                      className={`size-2 shrink-0 rounded-full ${overdue ? 'bg-danger' : 'bg-warning'}`}
-                                      aria-hidden
-                                    />
-                                    <span className="min-w-0 flex-1">
-                                      <span className="block truncate text-[13px] font-medium text-ink">
-                                        {t.title}
-                                      </span>
-                                      <span className="block text-xs text-ink-3">
-                                        due {due}
-                                        {t.amount != null && ` · ${displayINR(String(t.amount))}`}
-                                      </span>
-                                    </span>
-                                    <Badge tone={overdue ? 'danger' : 'warning'}>
-                                      {overdue ? 'Overdue' : 'Open'}
-                                    </Badge>
-                                  </Link>
-                                </li>
-                              )
-                            })}
-                          </ul>
-                        )}
-                      </div>
-                    </Card>
-                  )}
-                </div>
               </>
             )
           )}

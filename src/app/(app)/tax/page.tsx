@@ -5,7 +5,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { gstr1Summary, gstr3bView, tdsRegister, monthRange } from '@/lib/tax/register'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
 import { SourceSelect } from '../source-select'
-import { fileAndLockPeriod, payGstAction, depositTdsAction } from './actions'
+import { fileAndLockPeriod, payGstAction } from './actions'
 
 // GST & TDS registers (spec §7): GSTR-1 outward summary, GSTR-3B with the
 // ITC tracker → net payable/refundable, and the TDS register by section and
@@ -30,7 +30,7 @@ export default async function TaxPage(props: {
   const [year, month] = period.split('-').map(Number)
   const range = monthRange(year, month)
 
-  const [gstr1, gstr3b, tds, lock, gstSuggestion, tdsSuggestion, openTdsTasks] = await Promise.all([
+  const [gstr1, gstr3b, tds, lock, gstSuggestion] = await Promise.all([
     gstr1Summary(entity.id, range),
     gstr3bView(entity.id, range),
     tdsRegister(entity.id, range),
@@ -38,11 +38,6 @@ export default async function TaxPage(props: {
       where: { entityId_year_month: { entityId: entity.id, year, month } },
     }),
     suggestPaymentSource({ entityId: entity.id, module: 'gst', taskKind: 'gst' }),
-    suggestPaymentSource({ entityId: entity.id, module: 'tds', taskKind: 'tds' }),
-    prisma.financeTask.findMany({
-      where: { entityId: entity.id, kind: 'tds', status: 'OPEN' },
-      orderBy: { dueDate: 'asc' },
-    }),
   ])
   const tdsTotal = tds.reduce((sum, s) => sum + Number(s.total), 0)
 
@@ -214,34 +209,6 @@ export default async function TaxPage(props: {
           <p className="mt-2 text-sm text-zinc-400">No TDS deducted in {period}.</p>
         )}
 
-        {/* Deposit reminders (spec §7.2) */}
-        {openTdsTasks.length > 0 && (
-          <div className="mt-4 space-y-2 rounded-lg bg-amber-50 p-3">
-            <h3 className="text-xs font-medium uppercase text-amber-700">Deposit due</h3>
-            {openTdsTasks.map((task) => (
-              <div key={task.id} className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="text-zinc-700">{task.title}</span>
-                <span className="text-xs text-zinc-500">due {task.dueDate.toISOString().slice(0, 10)}</span>
-                <span className="font-medium text-zinc-900">{displayINR(String(task.amount ?? 0))}</span>
-                {admin && (
-                  <form action={depositTdsAction} className="ml-auto flex flex-wrap items-center gap-2">
-                    <input type="hidden" name="entityId" value={entity.id} />
-                    <input type="hidden" name="taskId" value={task.id} />
-                    <input type="hidden" name="amount" value={String(task.amount ?? 0)} />
-                    <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-                    <SourceSelect
-                      suggestion={rankForAmount(tdsSuggestion.options, String(task.amount ?? 0))}
-                      compact
-                    />
-                    <button type="submit" className="rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700">
-                      Deposit
-                    </button>
-                  </form>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   )

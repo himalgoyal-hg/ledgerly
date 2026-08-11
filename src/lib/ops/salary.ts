@@ -2,7 +2,7 @@ import { Prisma } from '@/generated/prisma/client'
 import { COA } from '@/lib/ledger/coa'
 import { createJournalDocument, type LineInput } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
-import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
+import { writeTaxLine } from '@/lib/tax/register'
 import { getPartyAccount } from './party'
 import { OpsError } from './reimburse'
 
@@ -161,15 +161,7 @@ export async function approveRun(
     },
   })
 
-  // TDS deposit is due the 7th of the next month (spec §6.4/§7.2) — the
-  // month's task accumulates salary, bill and statement deductions.
   if (totalTds > 0n) {
-    await ensureTdsDepositTask(tx, {
-      entityId: run.entityId,
-      deductionDate: monthEnd,
-      amount: formatPaise(totalTds),
-      actorId: args.actorId,
-    })
     // TDS register rows (spec §7.2): one per person with a deduction. The
     // consolidated posting is one doc, so per-person rows key on
     // "<docId>:<lineId>" — register queries resolve the prefix to the doc.

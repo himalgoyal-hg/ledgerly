@@ -12,7 +12,6 @@ import {
 import { createCashEntry, cashBalances } from '../src/lib/ops/cash'
 import { createBill, payBill } from '../src/lib/ops/bills'
 import { upsertPerson, createRun, updateRunLine, approveRun, payRun } from '../src/lib/ops/salary'
-import { createTask, completeTask } from '../src/lib/ops/tasks'
 import { createInvoice, recordInvoicePayment, agingBucket } from '../src/lib/ops/invoices'
 
 const results: { name: string; ok: boolean; detail?: string }[] = []
@@ -193,26 +192,25 @@ async function main() {
     createBill(tx, {
       entityId: entity.id, vendor: 'Tata Power', billType: 'Electricity',
       amount: '2400.00', billDate: new Date('2026-07-01'), dueDate: new Date('2026-07-15'),
-      recurrence: 'MONTHLY', expenseAccountId: misc.id, actorId: admin.id,
+      recurrence: 'MONTHLY', actorId: admin.id,
     }),
   )
-  const vendorAccount = await prisma.ledgerAccount.findFirstOrThrow({
+  // Bills are a document store: nothing posts, no vendor payable appears —
+  // the expense reaches the books from the tagged statement row instead.
+  const billDocs = await prisma.journalDoc.count({ where: { sourceType: 'bill', sourceId: bill.id } })
+  const vendorAccount = await prisma.ledgerAccount.findFirst({
     where: { entityId: entity.id, name: 'Tata Power' },
   })
-  const vendorParent = await prisma.ledgerAccount.findUniqueOrThrow({ where: { id: vendorAccount.parentId! } })
-  const vendorOwed = await prisma.$transaction((tx) => ledgerBalance(tx, vendorAccount.id))
-  check('bills: entry posts payable under Sundry Creditors', vendorParent.code === COA.CREDITORS_GROUP && Number(vendorOwed) === -2400, vendorOwed)
+  check('bills: document store — nothing posts, no vendor payable created', billDocs === 0 && vendorAccount === null)
 
   const { nextBill } = await prisma.$transaction((tx) =>
-    payBill(tx, { billId: bill.id, date: new Date('2026-07-14'), sourceAccountId: bankLedger.id, actorId: admin.id }),
+    payBill(tx, { billId: bill.id, date: new Date('2026-07-14'), actorId: admin.id }),
   )
-  const vendorAfter = await prisma.$transaction((tx) => ledgerBalance(tx, vendorAccount.id))
+  const paymentDocs = await prisma.journalDoc.count({ where: { sourceType: 'bill_payment', sourceId: bill.id } })
   check(
-    'bills: payment clears payable (next instance re-posts it), bill PAID',
-    // paid 2400 against the old payable, then the spawned next bill posts 2400 again
-    Number(vendorAfter) === -2400 &&
+    'bills: mark paid flips status without posting',
+    paymentDocs === 0 &&
       (await prisma.bill.findUniqueOrThrow({ where: { id: bill.id } })).status === 'PAID',
-    `vendor balance ${vendorAfter}`,
   )
   check(
     'bills: recurring spawns next month PENDING',
@@ -222,7 +220,7 @@ async function main() {
     nextBill?.dueDate.toISOString().slice(0, 10),
   )
   await prisma.$transaction((tx) =>
-    payBill(tx, { billId: bill.id, date: new Date('2026-07-15'), sourceAccountId: bankLedger.id, actorId: admin.id }),
+    payBill(tx, { billId: bill.id, date: new Date('2026-07-15'), actorId: admin.id }),
   ).then(
     () => check('bills: double payment refused', false),
     (e) => check('bills: double payment refused', /already paid/.test(String(e))),
@@ -263,15 +261,6 @@ async function main() {
   })
   const ashaOwed = await prisma.$transaction((tx) => ledgerBalance(tx, ashaPayable.id))
   check('salary: per-person net payable posted', Number(ashaOwed) === -46800, ashaOwed)
-  const tdsTask = await prisma.financeTask.findFirstOrThrow({
-    where: { entityId: entity.id, kind: 'tds' },
-  })
-  check(
-    'salary: TDS deposit task due the 7th next month',
-    tdsTask.dueDate.toISOString().slice(0, 10) === '2026-08-07' && String(tdsTask.amount) === '8200',
-    `${tdsTask.dueDate.toISOString().slice(0, 10)} ₹${tdsTask.amount}`,
-  )
-
   await prisma.$transaction((tx) =>
     payRun(tx, { runId: run.id, date: new Date('2026-07-31'), sourceAccountId: bankLedger.id, actorId: admin.id }),
   )
@@ -283,37 +272,6 @@ async function main() {
     (e) => check('salary: double approve refused', /already approved/.test(String(e))),
   )
 
-  // =========================================================================
-  // §6.5 Finance tasks
-  // =========================================================================
-  const emi = await prisma.$transaction((tx) =>
-    createTask(tx, {
-      entityId: entity.id, title: 'Car EMI', kind: 'emi', amount: '18000.00',
-      dueDate: new Date('2026-07-05'), recurrence: 'MONTHLY', actorId: admin.id,
-    }),
-  )
-  const { nextTask } = await prisma.$transaction((tx) =>
-    completeTask(tx, { taskId: emi.id, actorId: admin.id }),
-  )
-  check(
-    'tasks: completing recurring spawns next instance',
-    nextTask !== null && nextTask.dueDate.toISOString().slice(0, 10) === '2026-08-05' && nextTask.seriesId === emi.id,
-    nextTask?.dueDate.toISOString().slice(0, 10),
-  )
-  await prisma.$transaction((tx) => completeTask(tx, { taskId: emi.id, actorId: admin.id })).then(
-    () => check('tasks: double completion refused', false),
-    (e) => check('tasks: double completion refused', /already done/.test(String(e))),
-  )
-  const oneOff = await prisma.$transaction((tx) =>
-    createTask(tx, {
-      entityId: entity.id, title: 'One-off filing', kind: 'other',
-      dueDate: new Date('2026-07-20'), actorId: admin.id,
-    }),
-  )
-  const { nextTask: none } = await prisma.$transaction((tx) =>
-    completeTask(tx, { taskId: oneOff.id, actorId: admin.id }),
-  )
-  check('tasks: one-time completion spawns nothing', none === null)
 
   // =========================================================================
   // §6.6 Invoices
@@ -388,7 +346,6 @@ async function main() {
   // --- Clean up ---
   await prisma.invoicePayment.deleteMany({ where: { invoice: { entityId: entity.id } } })
   await prisma.invoice.deleteMany({ where: { entityId: entity.id } })
-  await prisma.financeTask.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryRun.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryPerson.deleteMany({ where: { entityId: entity.id } })
   await prisma.bill.deleteMany({ where: { entityId: entity.id } })

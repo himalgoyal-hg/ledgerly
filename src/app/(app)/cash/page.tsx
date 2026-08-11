@@ -124,7 +124,7 @@ export default async function CashPage() {
                 {selects.location('locationId')}
                 {selects.head('— received from (head) —')}
                 {selects.costCentre}
-                <input name="remarks" placeholder="Remarks" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <input name="remarks" placeholder="Received from — name / note" className="w-56 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
                 {submit('Add receipt')}
               </form>
             </details>
@@ -136,7 +136,7 @@ export default async function CashPage() {
                 {selects.location('locationId')}
                 {selects.head('— paid for (head) —')}
                 {selects.costCentre}
-                <input name="remarks" placeholder="Remarks" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <input name="remarks" placeholder="Paid to — name / note" className="w-56 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
                 {submit('Add payment')}
               </form>
             </details>

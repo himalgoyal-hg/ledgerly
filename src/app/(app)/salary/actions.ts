@@ -82,7 +82,6 @@ export async function approveRunAction(formData: FormData) {
     })
   })
   revalidatePath('/salary')
-  revalidatePath('/tasks')
 }
 
 export async function payRunAction(formData: FormData) {

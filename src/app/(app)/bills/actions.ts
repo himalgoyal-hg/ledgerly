@@ -24,7 +24,6 @@ const billSchema = z.object({
   link: z.string().trim().optional(),
   remarks: z.string().trim().optional(),
   recurrence: z.enum(['NONE', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY']),
-  expenseAccountId: z.string().min(1, 'Pick the expense head'),
   costCentreId: z.string().optional(),
   gstType: z.string().optional(),
   gstRate: z.string().optional(),
@@ -51,7 +50,6 @@ export async function createBillAction(formData: FormData) {
     link: formData.get('link') ?? undefined,
     remarks: formData.get('remarks') ?? undefined,
     recurrence: formData.get('recurrence') ?? 'NONE',
-    expenseAccountId: formData.get('expenseAccountId'),
     costCentreId: formData.get('costCentreId') ?? undefined,
     gstType: formData.get('gstType') ?? undefined,
     gstRate: formData.get('gstRate') ?? undefined,
@@ -97,7 +95,7 @@ export async function createBillAction(formData: FormData) {
       targetId: bill.id,
       summary: `Bill ${bill.vendor} (${bill.billType}) taxable ₹${bill.amount}${
         Number(bill.gstAmount) ? ` + GST ₹${bill.gstAmount}` : ''
-      }${Number(bill.tdsAmount) ? ` − TDS ₹${bill.tdsAmount}` : ''} — payable posted`,
+      }${Number(bill.tdsAmount) ? ` − TDS ₹${bill.tdsAmount}` : ''} — document stored, books post from the statement`,
     })
   })
   revalidatePath('/bills')
@@ -106,19 +104,17 @@ export async function createBillAction(formData: FormData) {
 export async function payBillAction(formData: FormData) {
   const admin = await requireAdmin()
   const billId = String(formData.get('billId') ?? '')
-  const sourceAccountId = String(formData.get('sourceAccountId') ?? '')
   const date = new Date(String(formData.get('date') ?? ''))
-  if (!sourceAccountId) throw new Error('Pick the paying account')
   if (isNaN(date.getTime())) throw new Error('Pick a date')
 
   await auditedTransaction(async (tx) => {
-    const { bill, nextBill } = await payBill(tx, { billId, date, sourceAccountId, actorId: admin.id })
+    const { bill, nextBill } = await payBill(tx, { billId, date, actorId: admin.id })
     await audit(tx, {
       actorId: admin.id,
       action: 'bill.pay',
       targetType: 'Bill',
       targetId: bill.id,
-      summary: `Paid ${bill.vendor} ₹${bill.amount}${nextBill ? ` — next ${nextBill.recurrence.toLowerCase().replace('_', '-')} instance created` : ''}`,
+      summary: `Marked ${bill.vendor} ₹${bill.amount} paid${nextBill ? ` — next ${nextBill.recurrence.toLowerCase().replace('_', '-')} instance created` : ''}`,
     })
   })
   revalidatePath('/bills')

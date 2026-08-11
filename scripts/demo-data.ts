@@ -19,7 +19,6 @@ async function cleanup(client: Client, entityId: string) {
   await prisma.invoicePayment.deleteMany({ where: { invoice: { entityId } } })
   await prisma.invoice.deleteMany({ where: { entityId } })
   await prisma.bill.deleteMany({ where: { entityId } })
-  await prisma.financeTask.deleteMany({ where: { entityId } })
   await prisma.reimbursement.deleteMany({ where: { entityId } })
   await client.query(`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`)
   await client.query(`ALTER TABLE "JournalEntry" DISABLE TRIGGER USER`)
@@ -173,13 +172,6 @@ async function main() {
         { entityId: entity.id, vendor: 'Tata Power', billType: 'Electricity', amount: 18_400, billDate: soon(-4), dueDate: soon(5), expenseAccountId: a.rent, createdById: admin.id },
         { entityId: entity.id, vendor: 'Acme Insurance', billType: 'Insurance', amount: 46_000, billDate: soon(-30), dueDate: soon(-2), expenseAccountId: a.misc, createdById: admin.id },
       ] as never,
-    })
-    await prisma.financeTask.createMany({
-      data: [
-        { entityId: entity.id, title: 'GST deposit — July', kind: 'gst', amount: 92_400, dueDate: soon(4), createdById: admin.id },
-        { entityId: entity.id, title: 'TDS deposit — Q1', kind: 'tds', amount: 31_500, dueDate: soon(-1), createdById: admin.id },
-        { entityId: entity.id, title: 'Office lease renewal', kind: 'renewal', dueDate: soon(12), createdById: admin.id },
-      ],
     })
     await prisma.invoice.createMany({
       data: [

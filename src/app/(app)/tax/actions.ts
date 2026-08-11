@@ -86,47 +86,5 @@ export async function payGstAction(formData: FormData) {
   revalidatePath('/tax')
 }
 
-/** Deposit withheld TDS: Dr TDS Payable / Cr Bank. */
-export async function depositTdsAction(formData: FormData) {
-  const admin = await requireAdmin()
-  const entityId = String(formData.get('entityId') ?? '')
-  const amount = String(formData.get('amount') ?? '')
-  const sourceAccountId = String(formData.get('sourceAccountId') ?? '')
-  const date = new Date(String(formData.get('date') ?? ''))
-  const taskId = String(formData.get('taskId') ?? '') || null
-  if (!sourceAccountId) throw new Error('Pick the paying account')
-  if (isNaN(date.getTime())) throw new Error('Pick a date')
-  if (parsePaise(amount) <= 0n) throw new Error('Amount must be positive')
-
-  await auditedTransaction(async (tx) => {
-    const payable = await getSystemAccount(tx, entityId, COA.TDS_PAYABLE)
-    const { doc } = await createJournalDocument(tx, {
-      entityId,
-      sourceType: 'tds_deposit',
-      actorId: admin.id,
-      content: {
-        date,
-        narration: `TDS deposit ${date.toISOString().slice(0, 10)}`,
-        lines: [
-          { accountId: payable.id, debit: amount },
-          { accountId: sourceAccountId, credit: amount },
-        ],
-      },
-    })
-    if (taskId) {
-      await tx.financeTask.update({
-        where: { id: taskId },
-        data: { status: 'DONE', completedAt: new Date(), completedById: admin.id },
-      })
-    }
-    await audit(tx, {
-      actorId: admin.id,
-      action: 'tds.deposit',
-      targetType: 'JournalDoc',
-      targetId: doc.id,
-      summary: `Deposited TDS ₹${amount}`,
-    })
-  })
-  revalidatePath('/tax')
-  revalidatePath('/tasks')
-}
+// TDS deposits reach the books through statement tagging (head 2230 → nature
+// "tds_deposit") — there is no separate deposit form.

@@ -111,39 +111,22 @@ async function main() {
     createBill(tx, {
       entityId: entity.id, vendor: 'Design Studio', billType: 'Professional fees',
       amount: '50000.00', billDate: new Date('2026-07-10'), dueDate: new Date('2026-07-25'),
-      expenseAccountId: consultFees.id,
       gstType: 'intra', gstRate: '18', hsn: '998314', vendorGstin: '27AAACD2222B1Z2',
       tdsSection: '194J', tdsRate: '10', vendorPan: 'AAACD2222B',
       actorId: admin.id,
     }),
   )
   check(
-    'bill: GST 9000 + TDS 5000 computed on the taxable value',
+    'bill: GST 9000 + TDS 5000 computed on the taxable value (metadata only)',
     String(bill.gstAmount) === '9000' && String(bill.tdsAmount) === '5000',
     `${bill.gstAmount} / ${bill.tdsAmount}`,
   )
-  const vendor = await prisma.ledgerAccount.findFirstOrThrow({
-    where: { entityId: entity.id, name: 'Design Studio' },
-  })
-  const [vendorBal, itcBal, tdsBal, expenseBal] = await prisma.$transaction((tx) =>
-    Promise.all([
-      ledgerBalance(tx, vendor.id), ledgerBalance(tx, inputCredit.id),
-      ledgerBalance(tx, tdsPayable.id), ledgerBalance(tx, consultFees.id),
-    ]),
-  )
+  // Bills are a document store: no vendor payable, no journal, no tax line —
+  // GST/TDS reach the registers from the tagged statement row instead.
   check(
-    'bill split: Dr Expense 50000 + Dr ITC 9000 / Cr TDS 5000 / Cr Vendor 54000',
-    Number(expenseBal) === 50000 && Number(itcBal) === 9000 &&
-      Number(tdsBal) === -5000 && Number(vendorBal) === -54000,
-    `exp ${expenseBal}, itc ${itcBal}, tds ${tdsBal}, vendor ${vendorBal}`,
-  )
-  const autoTask = await prisma.financeTask.findFirstOrThrow({
-    where: { entityId: entity.id, kind: 'tds', status: 'OPEN' },
-  })
-  check(
-    '§7.2 TDS deposit task auto-created, due the 7th of the next month',
-    autoTask.dueDate.toISOString().slice(0, 10) === '2026-08-07' && String(autoTask.amount) === '5000',
-    `${autoTask.dueDate.toISOString().slice(0, 10)} ₹${autoTask.amount}`,
+    'bill: document store — nothing posts, no vendor account created',
+    (await prisma.ledgerAccount.findFirst({ where: { entityId: entity.id, name: 'Design Studio' } })) === null &&
+      (await prisma.journalDoc.count({ where: { sourceType: 'bill', sourceId: bill.id } })) === 0,
   )
 
   // =========================================================================
@@ -251,12 +234,6 @@ async function main() {
       payoutLines.some((l) => l.accountId === tdsReceivable.id && String(l.debit) === '10000') &&
       payoutLines.some((l) => l.accountId === fees.id && String(l.credit) === '100000'),
   )
-  const accumulated = await prisma.financeTask.findUniqueOrThrow({ where: { id: autoTask.id } })
-  check(
-    '§7.2 deposit task accumulates the statement deduction (5000 + 1000)',
-    String(accumulated.amount) === '6000',
-    String(accumulated.amount),
-  )
 
   // =========================================================================
   // Salary TDS lands in the register too (§6.4 → §7.2)
@@ -285,23 +262,23 @@ async function main() {
   )
   const gstr3b = await gstr3bView(entity.id, range)
   check(
-    'GSTR-3B: output 18000 − ITC 10800 = 7200 net payable',
-    gstr3b.outputLiability === '18000.00' && gstr3b.inputCredit === '10800.00' &&
-      gstr3b.netPayable === '7200.00' && gstr3b.refundable === '0.00',
+    'GSTR-3B: output 18000 − ITC 1800 (statement row) = 16200 net payable',
+    gstr3b.outputLiability === '18000.00' && gstr3b.inputCredit === '1800.00' &&
+      gstr3b.netPayable === '16200.00' && gstr3b.refundable === '0.00',
     JSON.stringify(gstr3b),
   )
   const register = await tdsRegister(entity.id, range)
   const bySection = Object.fromEntries(register.map((s) => [s.section, s.total]))
   check(
-    'TDS register: by section (194J bill, 194C statement, 192 salary)',
-    bySection['194J'] === '5000.00' && bySection['194C'] === '1000.00' && bySection['192'] === '8000.00',
+    'TDS register: by section (194C statement, 192 salary — bills feed nothing)',
+    bySection['194J'] === undefined && bySection['194C'] === '1000.00' && bySection['192'] === '8000.00',
     JSON.stringify(bySection),
   )
-  const j194 = register.find((s) => s.section === '194J')!
+  const c194 = register.find((s) => s.section === '194C')!
   check(
     'TDS register: deductee-wise with PAN',
-    j194.deductees.some((d) => d.name === 'Design Studio' && d.pan === 'AAACD2222B' && d.tds === '5000.00'),
-    JSON.stringify(j194.deductees),
+    c194.deductees.some((d) => d.pan === 'AAAPK4444D' && d.tds === '1000.00'),
+    JSON.stringify(c194.deductees),
   )
 
   // Deleting a taxed posting drops it from the registers (no phantom rows).
@@ -310,8 +287,8 @@ async function main() {
   )
   const gstr3bAfter = await gstr3bView(entity.id, range)
   check(
-    'registers: deleting a taxed row removes its ITC (10800 → 9000)',
-    gstr3bAfter.inputCredit === '9000.00' && gstr3bAfter.netPayable === '9000.00',
+    'registers: deleting a taxed row removes its ITC (1800 → 0)',
+    gstr3bAfter.inputCredit === '0.00' && gstr3bAfter.netPayable === '18000.00',
     JSON.stringify(gstr3bAfter),
   )
 
@@ -345,7 +322,6 @@ async function main() {
   await prisma.taxLine.deleteMany({ where: { entityId: entity.id } })
   await prisma.invoicePayment.deleteMany({ where: { invoice: { entityId: entity.id } } })
   await prisma.invoice.deleteMany({ where: { entityId: entity.id } })
-  await prisma.financeTask.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryRun.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryPerson.deleteMany({ where: { entityId: entity.id } })
   await prisma.bill.deleteMany({ where: { entityId: entity.id } })

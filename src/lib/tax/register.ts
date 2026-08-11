@@ -49,46 +49,6 @@ export async function writeTaxLine(tx: Prisma.TransactionClient, input: TaxLineI
   })
 }
 
-/**
- * TDS deposit reminder (spec §7.2): due the 7th of the month AFTER the
- * deduction. One OPEN task per entity-month accumulates every deduction.
- */
-export async function ensureTdsDepositTask(
-  tx: Prisma.TransactionClient,
-  args: { entityId: string; deductionDate: Date; amount: string; actorId: string },
-) {
-  const due = new Date(Date.UTC(
-    args.deductionDate.getUTCFullYear(),
-    args.deductionDate.getUTCMonth() + 1,
-    7,
-  ))
-  const seriesId = `tds-auto-${args.entityId}`
-  const periodKey = due.toISOString().slice(0, 7)
-  const existing = await tx.financeTask.findFirst({ where: { seriesId, periodKey } })
-  if (existing) {
-    if (existing.status === 'OPEN') {
-      const total = new Prisma.Decimal(String(existing.amount ?? 0)).plus(args.amount)
-      return tx.financeTask.update({
-        where: { id: existing.id },
-        data: { amount: total.toFixed(2) },
-      })
-    }
-    return existing // already deposited this period — leave it be
-  }
-  return tx.financeTask.create({
-    data: {
-      entityId: args.entityId,
-      title: `TDS deposit — due ${periodKey}-07`,
-      kind: 'tds',
-      amount: args.amount,
-      dueDate: due,
-      seriesId,
-      periodKey,
-      createdById: args.actorId,
-    },
-  })
-}
-
 export interface PeriodRange {
   from: Date
   to: Date

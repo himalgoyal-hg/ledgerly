@@ -15,7 +15,6 @@ export interface JobReport {
   entities: {
     entity: string
     billsCreated: number
-    tasksCreated: number
     remindersQueued: number
     alertsQueued: number
     weeklyQueued: boolean
@@ -39,7 +38,7 @@ export async function runAutomation(args: {
   const report: JobReport['entities'] = []
 
   for (const entity of entities) {
-    // 1. Materialize recurring bills and tasks coming due.
+    // 1. Materialize recurring bills coming due.
     const generated = await generateRecurring(entity.id, args.actorId, now)
 
     // 2. Queue reminders for what falls due shortly.
@@ -98,7 +97,6 @@ export async function runAutomation(args: {
     report.push({
       entity: entity.code,
       billsCreated: generated.bills.length,
-      tasksCreated: generated.tasks.length,
       remindersQueued,
       alertsQueued,
       weeklyQueued,
@@ -111,19 +109,18 @@ export async function runAutomation(args: {
   const totals = report.reduce(
     (t, r) => ({
       bills: t.bills + r.billsCreated,
-      tasks: t.tasks + r.tasksCreated,
       messages: t.messages + r.remindersQueued + r.alertsQueued,
     }),
-    { bills: 0, tasks: 0, messages: 0 },
+    { bills: 0, messages: 0 },
   )
-  if (totals.bills || totals.tasks || totals.messages || delivery.sent) {
+  if (totals.bills || totals.messages || delivery.sent) {
     await auditedTransaction((tx) =>
       audit(tx, {
         actorId: args.actorId,
         action: 'automation.run',
         targetType: 'System',
         targetId: 'automation',
-        summary: `Automation: ${totals.bills} bill(s), ${totals.tasks} task(s) generated; ${totals.messages} message(s) queued; ${delivery.sent} sent`,
+        summary: `Automation: ${totals.bills} bill(s) generated; ${totals.messages} message(s) queued; ${delivery.sent} sent`,
         after: { entities: report, delivery },
       }),
     )

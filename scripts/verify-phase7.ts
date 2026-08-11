@@ -7,7 +7,6 @@ import { prisma } from '../src/lib/db'
 import { seedChartOfAccounts, COA } from '../src/lib/ledger/coa'
 import { createJournalDocument } from '../src/lib/ledger/posting'
 import { createBill } from '../src/lib/ops/bills'
-import { createTask } from '../src/lib/ops/tasks'
 import { suggestPaymentSource, rankForAmount, purposeKeys } from '../src/lib/automation/suggest'
 import { generateRecurring, LEAD_DAYS } from '../src/lib/automation/recurring'
 import { queueNotification, deliverQueued, transportConfigured } from '../src/lib/automation/notify'
@@ -152,13 +151,16 @@ async function main() {
   // =========================================================================
   const soon = new Date(Date.now() + 3 * 86_400_000)
   await prisma.$transaction((tx) =>
-    createTask(tx, {
-      entityId: entity.id, title: 'Payroll', kind: 'payroll', amount: '55000.00',
-      dueDate: soon, actorId: admin.id,
+    createBill(tx, {
+      entityId: entity.id, vendor: 'Payroll Services', billType: 'Payroll',
+      amount: '55000.00', billDate: soon, dueDate: soon, actorId: admin.id,
     }),
   )
+  // Re-point the bill mapping at the main account — §8.1's spare mapping
+  // would otherwise soak up the reservation.
+  await prisma.paymentPreference.deleteMany({ where: { entityId: entity.id, purpose: 'bill' } })
   await prisma.paymentPreference.create({
-    data: { entityId: entity.id, purpose: 'payroll', ledgerAccountId: main1.id },
+    data: { entityId: entity.id, purpose: 'bill', ledgerAccountId: main1.id },
   })
   const reserved = await suggestPaymentSource({ entityId: entity.id, module: 'salary' })
   const mainOption = reserved.options.find((o) => o.ledgerAccountId === main1.id)!
@@ -186,10 +188,11 @@ async function main() {
   )
 
   // A far-future commitment must not reserve anything.
+  const far = new Date(Date.now() + 120 * 86_400_000)
   await prisma.$transaction((tx) =>
-    createTask(tx, {
-      entityId: entity.id, title: 'Annual audit fee', kind: 'other', amount: '90000.00',
-      dueDate: new Date(Date.now() + 120 * 86_400_000), actorId: admin.id,
+    createBill(tx, {
+      entityId: entity.id, vendor: 'Audit & Co', billType: 'Annual audit fee',
+      amount: '90000.00', billDate: far, dueDate: far, actorId: admin.id,
     }),
   )
   const afterFarTask = await suggestPaymentSource({ entityId: entity.id, module: 'salary' })
@@ -224,7 +227,7 @@ async function main() {
   const after2 = await prisma.bill.count({ where: { entityId: entity.id } })
   check(
     'recurring: re-running generates nothing new (idempotent)',
-    gen2.bills.length === 0 && gen2.tasks.length === 0 && after2 === after1,
+    gen2.bills.length === 0 && after2 === after1,
     `${after1} → ${after2}`,
   )
   const generated = await prisma.bill.findFirst({
@@ -232,8 +235,8 @@ async function main() {
     orderBy: { dueDate: 'desc' },
   })
   check(
-    'recurring: the generated bill carries the series and its own payable',
-    generated?.seriesId !== null && generated?.entryDocId !== null,
+    'recurring: the generated bill carries the series (document only, no posting)',
+    generated?.seriesId !== null && generated?.entryDocId === null,
   )
 
   // =========================================================================
@@ -314,8 +317,7 @@ async function main() {
     'job: a second pass in the same period is a no-op (idempotent)',
     !vp7Run2.weeklyQueued &&
       vp7Run2.remindersQueued === 0 &&
-      vp7Run2.billsCreated === 0 &&
-      vp7Run2.tasksCreated === 0,
+      vp7Run2.billsCreated === 0,
     JSON.stringify(vp7Run2),
   )
   const runAudit = await prisma.auditLog.findFirst({
@@ -328,7 +330,6 @@ async function main() {
   await prisma.notificationOutbox.deleteMany({ where: { entityId: entity.id } })
   await prisma.paymentPreference.deleteMany({ where: { entityId: entity.id } })
   await prisma.taxLine.deleteMany({ where: { entityId: entity.id } })
-  await prisma.financeTask.deleteMany({ where: { entityId: entity.id } })
   await prisma.bill.deleteMany({ where: { entityId: entity.id } })
   await prisma.bankAccount.deleteMany({ where: { entityId: entity.id } })
   await prisma.$executeRaw`ALTER TABLE "JournalLine" DISABLE TRIGGER USER`

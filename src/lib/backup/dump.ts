@@ -47,7 +47,6 @@ export const TABLES = [
   'SalaryPerson',
   'SalaryRun',
   'SalaryRunLine',
-  'FinanceTask',
   'Invoice',
   'InvoicePayment',
   'Budget',

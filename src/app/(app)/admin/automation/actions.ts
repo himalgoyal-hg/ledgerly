@@ -57,7 +57,6 @@ export async function runNow() {
   await runAutomation({ actorId: admin.id, force: true })
   revalidatePath('/admin/automation')
   revalidatePath('/bills')
-  revalidatePath('/tasks')
 }
 
 export async function retryDelivery() {

@@ -28,7 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     notifications = dues.items.slice(0, 6).map((item) => ({
       title: item.title,
       hint: `due ${item.dueDate.toISOString().slice(0, 10)}${item.amount ? ` · ${displayINR(item.amount)}` : ''}`,
-      href: item.source === 'bill' ? '/bills' : '/tasks',
+      href: '/bills',
       overdue: item.dueDate.toISOString().slice(0, 10) < today,
     }))
   }

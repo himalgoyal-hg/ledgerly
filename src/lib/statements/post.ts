@@ -9,7 +9,7 @@ import {
 import { getSystemAccount, COA } from '@/lib/ledger/coa'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
 import { rateBp, splitGrossGst, grossFromNetTds, TDS_SECTIONS } from '@/lib/tax/calc'
-import { writeTaxLine, ensureTdsDepositTask } from '@/lib/tax/register'
+import { writeTaxLine } from '@/lib/tax/register'
 import { learnRule, partyToken } from './rules'
 import { isNature } from './natures'
 
@@ -344,14 +344,6 @@ export async function postStatementTransaction(
       sourceType: 'statement_txn',
       sourceId: txn.id,
     })
-    if (built.tax.withholdsTds) {
-      await ensureTdsDepositTask(tx, {
-        entityId: txn.entityId,
-        deductionDate: txn.date,
-        amount: built.tax.tdsAmount,
-        actorId: args.actorId,
-      })
-    }
   }
   await tx.statementTransaction.update({
     where: { id: txn.id },

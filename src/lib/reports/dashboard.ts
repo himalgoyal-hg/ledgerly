@@ -64,28 +64,13 @@ export async function queueTiles(entityId: string) {
 export async function duesTiles(entityId: string, withinDays = 7) {
   const today = new Date()
   const horizon = new Date(today.getTime() + withinDays * 86_400_000)
-  const [tasks, bills] = await Promise.all([
-    prisma.financeTask.findMany({
-      where: { entityId, status: 'OPEN', dueDate: { lte: horizon } },
-      orderBy: { dueDate: 'asc' },
-      take: 10,
-    }),
-    prisma.bill.findMany({
-      where: { entityId, status: 'PENDING', dueDate: { lte: horizon } },
-      orderBy: { dueDate: 'asc' },
-      take: 10,
-    }),
-  ])
-  const items = [
-    ...tasks.map((t) => ({
-      id: t.id,
-      kind: t.kind,
-      title: t.title,
-      dueDate: t.dueDate,
-      amount: t.amount === null ? null : new Prisma.Decimal(String(t.amount)).toFixed(2),
-      source: 'task' as const,
-    })),
-    ...bills.map((b) => ({
+  const bills = await prisma.bill.findMany({
+    where: { entityId, status: 'PENDING', dueDate: { lte: horizon } },
+    orderBy: { dueDate: 'asc' },
+    take: 10,
+  })
+  const items = bills
+    .map((b) => ({
       id: b.id,
       kind: b.billType,
       title: `${b.vendor} — ${b.billType}`,
@@ -95,8 +80,8 @@ export async function duesTiles(entityId: string, withinDays = 7) {
         .minus(String(b.tdsAmount))
         .toFixed(2),
       source: 'bill' as const,
-    })),
-  ].sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+    }))
+    .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
 
   const todayStr = today.toISOString().slice(0, 10)
   const total = items.reduce((t, i) => t.plus(i.amount ?? 0), new Prisma.Decimal(0))

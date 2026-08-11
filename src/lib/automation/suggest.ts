@@ -36,7 +36,7 @@ export interface SourceSuggestion {
  * head:<rentAccountId>, then "bill", then "default".
  */
 export function purposeKeys(args: {
-  module: 'bill' | 'salary' | 'reimbursement' | 'task' | 'gst' | 'tds' | 'invoice_receipt'
+  module: 'bill' | 'salary' | 'reimbursement' | 'gst' | 'tds' | 'invoice_receipt'
   taskKind?: string | null
   expenseAccountId?: string | null
 }): string[] {
@@ -48,17 +48,14 @@ export function purposeKeys(args: {
 }
 
 /**
- * Commitments falling due within the window (spec §8.3): open finance tasks
- * with an amount and unpaid bills. Each is reserved against the account its
- * mapping points at; unmapped commitments reserve against the entity's
- * largest balance, which is where they would naturally be paid from.
+ * Commitments falling due within the window (spec §8.3): unpaid bills. Each
+ * is reserved against the account its mapping points at; unmapped
+ * commitments reserve against the entity's largest balance, which is where
+ * they would naturally be paid from.
  */
 async function reservations(entityId: string, accountIds: string[], balances: Map<string, string>) {
   const horizon = new Date(Date.now() + COMMITMENT_WINDOW_DAYS * 86_400_000)
-  const [tasks, bills, preferences] = await Promise.all([
-    prisma.financeTask.findMany({
-      where: { entityId, status: 'OPEN', dueDate: { lte: horizon }, amount: { not: null } },
-    }),
+  const [bills, preferences] = await Promise.all([
     prisma.bill.findMany({ where: { entityId, status: 'PENDING', dueDate: { lte: horizon } } }),
     prisma.paymentPreference.findMany({ where: { entityId }, orderBy: { priority: 'asc' } }),
   ])
@@ -80,9 +77,6 @@ async function reservations(entityId: string, accountIds: string[], balances: Ma
     if (!target) return
     reserved.set(target, (reserved.get(target) ?? new Prisma.Decimal(0)).plus(amount))
   }
-  for (const task of tasks) {
-    add(prefFor(purposeKeys({ module: 'task', taskKind: task.kind })), new Prisma.Decimal(String(task.amount)))
-  }
   for (const bill of bills) {
     const payable = new Prisma.Decimal(String(bill.amount))
       .plus(String(bill.gstAmount))
@@ -96,7 +90,7 @@ async function reservations(entityId: string, accountIds: string[], balances: Ma
 export async function suggestPaymentSource(args: {
   entityId: string
   amount?: string | null
-  module: 'bill' | 'salary' | 'reimbursement' | 'task' | 'gst' | 'tds' | 'invoice_receipt'
+  module: 'bill' | 'salary' | 'reimbursement' | 'gst' | 'tds' | 'invoice_receipt'
   taskKind?: string | null
   expenseAccountId?: string | null
   /** Exclude a commitment already counted in the reservations (e.g. this bill). */

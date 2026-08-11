@@ -15,11 +15,10 @@ import { profitAndLoss, balanceSheet, cashFlow } from '../src/lib/reports/statem
 import { costCentreReport, partyLedgers, budgetVsActual, salaryReport } from '../src/lib/reports/analysis'
 import { balanceTiles, queueTiles, duesTiles, receivableTiles, balanceAlerts } from '../src/lib/reports/dashboard'
 import { createCashEntry } from '../src/lib/ops/cash'
-import { createBill, payBill } from '../src/lib/ops/bills'
+import { createBill } from '../src/lib/ops/bills'
 import { createInvoice, recordInvoicePayment } from '../src/lib/ops/invoices'
 import { submitClaim } from '../src/lib/ops/reimburse'
 import { upsertPerson, createRun, approveRun } from '../src/lib/ops/salary'
-import { createTask } from '../src/lib/ops/tasks'
 
 const results: { name: string; ok: boolean; detail?: string }[] = []
 function check(name: string, ok: boolean, detail = '') {
@@ -101,15 +100,20 @@ async function main() {
       sourceAccountId: bankLedger.id, actorId: admin.id,
     }),
   )
-  const bill = await prisma.$transaction((tx) =>
-    createBill(tx, {
-      entityId: entity.id, vendor: 'Landlord', billType: 'Rent',
-      amount: '40000.00', billDate: new Date('2026-07-02'), dueDate: new Date('2026-07-07'),
-      expenseAccountId: rent.id, costCentreId: office.id, actorId: admin.id,
-    }),
-  )
+  // Rent posts straight from the (simulated) tagged statement row — bills
+  // are a document store now and post nothing themselves.
   await prisma.$transaction((tx) =>
-    payBill(tx, { billId: bill.id, date: new Date('2026-07-07'), sourceAccountId: bankLedger.id, actorId: admin.id }),
+    createJournalDocument(tx, {
+      entityId: entity.id, sourceType: 'manual', actorId: admin.id,
+      content: {
+        date: new Date('2026-07-07'),
+        narration: 'Rent — Landlord',
+        lines: [
+          { accountId: rent.id, debit: '40000.00', costCentreId: office.id },
+          { accountId: bankLedger.id, credit: '40000.00' },
+        ],
+      },
+    }),
   )
   await prisma.$transaction((tx) =>
     createCashEntry(tx, {
@@ -352,9 +356,10 @@ async function main() {
     }),
   )
   await prisma.$transaction((tx) =>
-    createTask(tx, {
-      entityId: entity.id, title: 'GST payment', kind: 'gst', amount: '15000.00',
-      dueDate: new Date('2026-07-20'), actorId: admin.id,
+    createBill(tx, {
+      entityId: entity.id, vendor: 'Tata Power', billType: 'Electricity',
+      amount: '15000.00', billDate: new Date('2026-07-10'), dueDate: new Date('2026-07-20'),
+      actorId: admin.id,
     }),
   )
   const queues = await queueTiles(entity.id)
@@ -365,8 +370,8 @@ async function main() {
   )
   const dues = await duesTiles(entity.id, 3650) // wide horizon: this is dated data
   check(
-    'dashboard: dues tile merges tasks and unpaid bills',
-    dues.items.some((i) => i.source === 'task' && i.title === 'GST payment'),
+    'dashboard: dues tile lists unpaid bills',
+    dues.items.some((i) => i.source === 'bill' && i.title === 'Tata Power — Electricity'),
     JSON.stringify(dues.items.map((i) => i.title)),
   )
   const receivables = await receivableTiles(entity.id)
@@ -383,7 +388,6 @@ async function main() {
   await prisma.taxLine.deleteMany({ where: { entityId: entity.id } })
   await prisma.invoicePayment.deleteMany({ where: { invoice: { entityId: entity.id } } })
   await prisma.invoice.deleteMany({ where: { entityId: entity.id } })
-  await prisma.financeTask.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryRun.deleteMany({ where: { entityId: entity.id } })
   await prisma.salaryPerson.deleteMany({ where: { entityId: entity.id } })
   await prisma.bill.deleteMany({ where: { entityId: entity.id } })

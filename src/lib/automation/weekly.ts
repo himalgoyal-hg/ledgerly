@@ -121,9 +121,7 @@ export async function dueReminders(entityId: string, now = new Date(), withinDay
         ...(item.amount ? [line('Amount', displayINR(item.amount))] : []),
         line('Books', `${entity.name} (${entity.code})`),
         '',
-        item.source === 'bill'
-          ? 'Open Ledgerly → Bills to record the payment.'
-          : 'Open Ledgerly → Tasks to complete it.',
+        'Open Ledgerly → Bills to record the payment.',
       ].join('\n'),
     }
   })

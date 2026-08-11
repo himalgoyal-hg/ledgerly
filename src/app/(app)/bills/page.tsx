@@ -3,13 +3,12 @@ import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
-import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
-import { SourceSelect } from '../source-select'
 import { createBillAction, payBillAction, deleteBillAction } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
 
-// Bills & insurance (spec §6.3): entry posts the payable; payment clears it.
-// Recurring bills spawn their next instance on payment.
+// Bills & insurance (spec §6.3): a document store + reminder list. Nothing
+// posts from here — the expense reaches the books when the bank-statement
+// row is tagged. Recurring bills spawn their next instance on "Mark paid".
 
 export default async function BillsPage() {
   const admin = await requireAdmin()
@@ -17,7 +16,7 @@ export default async function BillsPage() {
   if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
   const today = new Date().toISOString().slice(0, 10)
-  const [pending, paid, heads, costCentres, policyBills] = await Promise.all([
+  const [pending, paid, policyBills] = await Promise.all([
     prisma.bill.findMany({
       where: { entityId: entity.id, status: 'PENDING' },
       orderBy: { dueDate: 'asc' },
@@ -26,14 +25,6 @@ export default async function BillsPage() {
       where: { entityId: entity.id, status: 'PAID' },
       orderBy: { paidAt: 'desc' },
       take: 20,
-    }),
-    prisma.ledgerAccount.findMany({
-      where: { entityId: entity.id, isGroup: false, archivedAt: null, kind: 'EXPENSE' },
-      orderBy: { code: 'asc' },
-    }),
-    prisma.costCentre.findMany({
-      where: { entityId: entity.id, archivedAt: null },
-      orderBy: { name: 'asc' },
     }),
     prisma.bill.findMany({
       where: { entityId: entity.id, policyNumber: { not: null } },
@@ -51,12 +42,9 @@ export default async function BillsPage() {
     if (d <= soon) return { label: `renews soon — ${d}`, cls: 'bg-amber-100 text-amber-700' }
     return { label: `active till ${d}`, cls: 'bg-emerald-100 text-emerald-700' }
   }
-  // Balances and commitment reservations once; ranked per bill below.
-  const baseSuggestion = await suggestPaymentSource({ entityId: entity.id, module: 'bill' })
-  const headName = (id: string) => {
-    const h = heads.find((a) => a.id === id)
-    return h ? `${h.code} · ${h.name}` : '—'
-  }
+  // The attached file lands in /files/<id>; a pasted Drive link stays a link.
+  const fileLinks = (link: string | null) =>
+    link?.startsWith('/files/') ? { view: link, download: `${link}?download=1` } : null
 
   return (
     <div className="space-y-6">
@@ -66,7 +54,7 @@ export default async function BillsPage() {
 
       {/* New bill */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">New bill (posts the payable)</h2>
+        <h2 className="font-medium text-zinc-900">New bill — document &amp; reminder only, books post from the statement</h2>
         <form action={createBillAction} className="mt-3 flex flex-wrap items-center gap-2">
           <input type="hidden" name="entityId" value={entity.id} />
           <input name="vendor" required placeholder="Vendor" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
@@ -78,18 +66,6 @@ export default async function BillsPage() {
           <input name="dueDate" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">renewal</label>
           <input name="renewalDate" type="date" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-          <select name="expenseAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-            <option value="">— expense head —</option>
-            {heads.map((h) => (
-              <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
-            ))}
-          </select>
-          <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-            <option value="">— cost centre —</option>
-            {costCentres.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
           <select name="recurrence" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
             <option value="NONE">One-time</option>
             <option value="MONTHLY">Monthly</option>
@@ -164,12 +140,7 @@ export default async function BillsPage() {
         <h2 className="font-medium text-zinc-900">Pending ({pending.length})</h2>
         {pending.map((bill) => {
           const overdue = bill.dueDate.toISOString().slice(0, 10) < today
-          const payable = (
-            Number(bill.amount) + Number(bill.gstAmount) - Number(bill.tdsAmount)
-          ).toFixed(2)
-          // This bill is itself a reserved commitment — don't count it against
-          // the account that is about to pay it.
-          const suggestion = rankForAmount(baseSuggestion.options, payable)
+          const files = fileLinks(bill.link)
           return (
             <div key={bill.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -178,13 +149,12 @@ export default async function BillsPage() {
                 <form action={deleteBillAction} className="order-last ml-auto">
                   <input type="hidden" name="billId" value={bill.id} />
                   <ConfirmButton
-                    message={`Delete this ${bill.vendor} bill? Its ledger postings are reversed (restorable from Journal).`}
+                    message={`Delete this ${bill.vendor} bill and its stored document?`}
                     className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
                   >
                     Delete
                   </ConfirmButton>
                 </form>
-                <span className="text-xs text-zinc-400">{headName(bill.expenseAccountId)}</span>
                 <span className={`text-xs ${overdue ? 'font-medium text-red-600' : 'text-zinc-400'}`}>
                   due {bill.dueDate.toISOString().slice(0, 10)}{overdue ? ' — OVERDUE' : ''}
                 </span>
@@ -207,9 +177,14 @@ export default async function BillsPage() {
                     {bill.recurrence.toLowerCase().replace('_', '-')}
                   </span>
                 )}
-                {bill.link && (
-                  <a href={bill.link} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">bill</a>
-                )}
+                {files ? (
+                  <>
+                    <a href={files.view} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">view</a>
+                    <a href={files.download} className="text-xs text-sky-600 hover:underline">download</a>
+                  </>
+                ) : bill.link ? (
+                  <a href={bill.link} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">link</a>
+                ) : null}
                 {Number(bill.gstAmount) > 0 && (
                   <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
                     GST {String(bill.gstRate)}% · ITC {displayINR(String(bill.gstAmount))}
@@ -238,10 +213,12 @@ export default async function BillsPage() {
               <form action={payBillAction} className="mt-3 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="billId" value={bill.id} />
                 <input name="date" type="date" required defaultValue={today} className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <SourceSelect suggestion={suggestion} compact />
                 <button type="submit" className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600">
-                  Mark paid (clears payable)
+                  Mark paid
                 </button>
+                <span className="text-[10px] text-zinc-400">
+                  posting happens when the statement row is tagged
+                </span>
               </form>
             </div>
           )
@@ -281,14 +258,25 @@ export default async function BillsPage() {
       {paid.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-medium text-zinc-900">Recently paid</h2>
-          {paid.map((bill) => (
-            <div key={bill.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-500">
-              <span>{bill.vendor}</span>
-              <span className="text-xs">{bill.billType}</span>
-              <span className="text-xs">paid {bill.paidAt?.toISOString().slice(0, 10)}</span>
-              <span className="ml-auto">{displayINR(String(bill.amount))}</span>
-            </div>
-          ))}
+          {paid.map((bill) => {
+            const files = fileLinks(bill.link)
+            return (
+              <div key={bill.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-100 bg-zinc-50 p-3 text-sm text-zinc-500">
+                <span>{bill.vendor}</span>
+                <span className="text-xs">{bill.billType}</span>
+                <span className="text-xs">paid {bill.paidAt?.toISOString().slice(0, 10)}</span>
+                {files ? (
+                  <>
+                    <a href={files.view} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">view</a>
+                    <a href={files.download} className="text-xs text-sky-600 hover:underline">download</a>
+                  </>
+                ) : bill.link ? (
+                  <a href={bill.link} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">link</a>
+                ) : null}
+                <span className="ml-auto">{displayINR(String(bill.amount))}</span>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>

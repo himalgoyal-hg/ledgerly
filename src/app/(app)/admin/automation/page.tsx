@@ -5,7 +5,6 @@ import { transportConfigured } from '@/lib/automation/notify'
 import { aiConfigured, aiUsageSummary, AI_MODEL } from '@/lib/ai/client'
 import { LEAD_DAYS } from '@/lib/automation/recurring'
 import { COMMITMENT_WINDOW_DAYS } from '@/lib/automation/suggest'
-import { TASK_KINDS } from '@/lib/ops/tasks'
 import { setPreference, clearPreference, runNow, retryDelivery } from './actions'
 
 // Automation & payment mapping (spec §8, §6.5, §10) — Admin only.
@@ -64,8 +63,8 @@ export default async function AutomationPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
           Payment mapping feeds the suggestions on every payment form. The job
-          generates recurring bills and tasks {LEAD_DAYS} days ahead, queues
-          reminders and alerts, and emails the weekly summary on Mondays.
+          generates recurring bills {LEAD_DAYS} days ahead, queues reminders
+          and alerts, and emails the weekly summary on Mondays.
         </p>
       </div>
 
@@ -215,9 +214,6 @@ export default async function AutomationPage() {
             <option value="">— purpose —</option>
             {MODULE_PURPOSES.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-            {TASK_KINDS.map((k) => (
-              <option key={k} value={k}>Task: {k}</option>
             ))}
           </select>
           <span className="text-xs text-zinc-400">paid from</span>

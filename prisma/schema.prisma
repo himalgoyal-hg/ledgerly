@@ -316,6 +316,8 @@ model StatementImport {
   // Null while unrecognized — Admin maps it once, mapping is remembered.
   bankAccountId String?
   bankAccount   BankAccount? @relation(fields: [bankAccountId], references: [id])
+  // The books the upload was made in; imports never cross into other books,
+  // even while the account itself is still unmapped.
   entityId      String?
   fileName      String
   status        ImportStatus @default(DETECTED)
@@ -545,7 +547,9 @@ model Bill {
   link             String? // Drive link
   remarks          String?
   recurrence       Recurrence @default(NONE)
-  expenseAccountId String
+  // Legacy — bills are a document store now; the expense posts from the
+  // tagged statement row, so no head is chosen here.
+  expenseAccountId String?
   costCentreId     String?
 
   // Tax (spec §7): amount above is the TAXABLE value. GST adds Input Credit;
@@ -632,34 +636,6 @@ model SalaryRunLine {
   costCentreId String?
 
   @@unique([runId, personId])
-}
-
-enum TaskStatus {
-  OPEN
-  DONE
-}
-
-// Finance tasks (spec §6.5): EMI, subscriptions, payroll, GST/TDS payments,
-// renewals. Completing a recurring task spawns the next instance.
-model FinanceTask {
-  id            String     @id @default(cuid())
-  entityId      String
-  title         String
-  kind          String // emi | subscription | payroll | gst | tds | renewal | other
-  amount        Decimal?   @db.Decimal(14, 2)
-  dueDate       DateTime   @db.Date
-  recurrence    Recurrence @default(NONE)
-  status        TaskStatus @default(OPEN)
-  completedAt   DateTime?
-  completedById String?
-  notes         String?
-  seriesId      String?
-  periodKey     String?
-  createdById   String
-  createdAt     DateTime   @default(now())
-
-  @@unique([seriesId, periodKey])
-  @@index([entityId, status, dueDate])
 }
 
 enum InvoiceStatus {
