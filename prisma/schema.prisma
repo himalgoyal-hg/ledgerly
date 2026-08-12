@@ -506,7 +506,8 @@ model CashEntry {
   costCentreId  String?
   inflow        Boolean       @default(false) // ADJUSTMENT direction (cash increases)
   amount        Decimal       @db.Decimal(14, 2)
-  remarks       String?
+  remarks       String? // "Details" — what / who
+  comments      String? // free note, the Excel cash book's Comments column
   reason        String? // ADJUSTMENT: mandatory
   docId         String?       @unique
   createdById   String

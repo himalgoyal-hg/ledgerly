@@ -22,8 +22,13 @@ export async function createCashEntryAction(formData: FormData) {
   const date = new Date(String(formData.get('date') ?? ''))
   if (isNaN(date.getTime())) throw new Error('Pick a date')
 
-  const entityId = String(formData.get('entityId') ?? '')
   await auditedTransaction(async (tx) => {
+    // Cash shows all books at once, so the books are whichever the picked
+    // location lives in — never a hidden field.
+    const location = await tx.cashLocation.findUniqueOrThrow({
+      where: { id: String(formData.get('locationId') ?? '') },
+    })
+    const entityId = location.entityId
     const costCentreId = await resolveCostCentre(tx, {
       entityId,
       costCentreId: String(formData.get('costCentreId') ?? '') || null,
@@ -33,6 +38,12 @@ export async function createCashEntryAction(formData: FormData) {
     // outflow adjustments birth expense heads. Transfers carry no head.
     let headAccountId = String(formData.get('headAccountId') ?? '') || null
     const headText = String(formData.get('headText') ?? '').trim() || null
+    if (headAccountId && kind !== 'TRANSFER') {
+      const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
+      if (head.entityId !== entityId) {
+        throw new Error(`"${head.name}" is a head of other books — pick one from ${location.name}'s books`)
+      }
+    }
     if (!headAccountId && headText && kind !== 'TRANSFER') {
       headAccountId = await resolveHeadAccount(tx, {
         entityId,
@@ -65,6 +76,68 @@ export async function createCashEntryAction(formData: FormData) {
         entry.kind === 'ADJUSTMENT'
           ? `CASH ADJUSTMENT ₹${entry.amount} — reason: ${entry.reason}` // flagged (spec §6.2)
           : `Cash ${entry.kind.toLowerCase()} ₹${entry.amount}`,
+    })
+  })
+  revalidatePath('/cash')
+}
+
+/**
+ * The Excel-style quick row: one signed amount instead of separate
+ * receipt/payment forms — "−4000" is cash paid, "4000" is cash received.
+ * The books are whichever the picked location lives in (cash is one physical
+ * pool shown across all books; each entry still posts double-entry in its
+ * own books). A head typed but unknown is created there on the fly.
+ */
+export async function quickCashEntryAction(formData: FormData) {
+  const user = await requirePermission('cashEntries')
+  const date = new Date(String(formData.get('date') ?? ''))
+  if (isNaN(date.getTime())) throw new Error('Pick a date')
+  const rawAmount = String(formData.get('amount') ?? '').replace(/[,₹\s]/g, '')
+  const value = Number(rawAmount)
+  if (!isFinite(value) || value === 0) {
+    throw new Error('Amount: positive = cash received, negative = cash paid')
+  }
+  const isOutflow = value < 0
+  const locationId = String(formData.get('locationId') ?? '')
+  const details = String(formData.get('details') ?? '').trim() || null
+  const comments = String(formData.get('comments') ?? '').trim() || null
+
+  await auditedTransaction(async (tx) => {
+    const location = await tx.cashLocation.findUniqueOrThrow({ where: { id: locationId } })
+    const entityId = location.entityId
+    let headAccountId = String(formData.get('headAccountId') ?? '') || null
+    if (headAccountId) {
+      const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
+      if (head.entityId !== entityId) {
+        throw new Error(`"${head.name}" is a head of other books — pick one from ${location.name}'s books`)
+      }
+    } else {
+      headAccountId = await resolveHeadAccount(tx, {
+        entityId,
+        headText: String(formData.get('headText') ?? '').trim() || null,
+        isOutflow,
+      })
+    }
+    const entry = await createCashEntry(tx, {
+      entityId,
+      kind: isOutflow ? 'PAYMENT' : 'RECEIPT',
+      date,
+      locationId,
+      headAccountId,
+      costCentreId: null, // head's default rides along inside createCashEntry
+      amount: Math.abs(value).toFixed(2),
+      remarks: details,
+      actorId: user.id,
+    })
+    if (comments) {
+      await tx.cashEntry.update({ where: { id: entry.id }, data: { comments } })
+    }
+    await audit(tx, {
+      actorId: user.id,
+      action: 'cash.entry',
+      targetType: 'CashEntry',
+      targetId: entry.id,
+      summary: `Cash ${entry.kind.toLowerCase()} ₹${entry.amount} — ${location.name}${details ? ` (${details})` : ''}`,
     })
   })
   revalidatePath('/cash')

@@ -1,238 +1,361 @@
+import Link from 'next/link'
 import { prisma } from '@/lib/db'
-import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
-import { getCurrentEntity } from '@/lib/entity-context'
+import { requireUser, isAdmin, hasPermission, visibleEntityFilter } from '@/lib/auth'
 import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
-import { HeadCombobox } from '@/components/head-combobox'
-import { SmartCombobox } from '@/components/smart-combobox'
-import { createCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
+import type { HeadOpt } from '@/components/head-combobox'
+import { CashQuickRow, type QuickLocation } from './quick-row'
+import { createCashEntryAction, quickCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
 
-// Cash (spec §6.2): "where is cash" live view + the entry form
-// (receipt / payment / transfer / adjustment-with-reason).
+// Cash (spec §6.2) — ONE physical pool across all books, never split by the
+// "Books of" switcher: every location of every visible books shows here,
+// and each entry posts double-entry in its own location's books. The screen
+// is the Excel cash book: a quick signed-amount entry row on top, a
+// passbook table with a running balance underneath.
 
-export default async function CashPage() {
+export default async function CashPage(props: {
+  searchParams: Promise<{ loc?: string; month?: string }>
+}) {
   const user = await requireUser()
-  const canEnter = hasPermission(user, 'cashEntries')
-  const canView = canEnter || hasPermission(user, 'viewCashReports') || isAdmin(user)
+  const canEnter = isAdmin(user) || hasPermission(user, 'cashEntries')
+  const canView = canEnter || hasPermission(user, 'viewCashReports')
   if (!canView) throw new Error('Forbidden: missing cash permissions')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
-  const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
-  const [balances, locations, heads, costCentres, entries] = await Promise.all([
-    cashBalances(entity.id),
+  const entities = await prisma.entity.findMany({
+    where: { archivedAt: null, ...visibleEntityFilter(user) },
+    orderBy: { code: 'asc' },
+  })
+  const entityCode = new Map(entities.map((e) => [e.id, e.code]))
+  const entityIds = entities.map((e) => e.id)
+
+  const sp = await props.searchParams
+  const loc = sp.loc ?? ''
+  const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
+
+  const [locations, headRows, entries] = await Promise.all([
     prisma.cashLocation.findMany({
-      where: { entityId: entity.id, archivedAt: null, ledgerAccountId: { not: null } },
-      orderBy: { name: 'asc' },
+      where: { entityId: { in: entityIds }, archivedAt: null, ledgerAccountId: { not: null } },
+      orderBy: [{ entityId: 'asc' }, { name: 'asc' }],
     }),
     prisma.ledgerAccount.findMany({
-      where: { entityId: entity.id, isGroup: false, archivedAt: null },
+      where: { entityId: { in: entityIds }, isGroup: false, archivedAt: null },
       orderBy: { code: 'asc' },
-    }),
-    prisma.costCentre.findMany({
-      where: { entityId: entity.id, archivedAt: null },
-      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, kind: true, defaultCostCentreId: true, entityId: true },
     }),
     prisma.cashEntry.findMany({
-      where: { entityId: entity.id },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
+      where: { entityId: { in: entityIds } },
+      orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
     }),
   ])
   const docs = await prisma.journalDoc.findMany({
     where: { id: { in: entries.map((e) => e.docId).filter((d): d is string => d !== null) } },
     select: { id: true, deletedAt: true },
   })
-  const docById = new Map(docs.map((d) => [d.id, d]))
-  const locationName = (id: string | null) => locations.find((l) => l.id === id)?.name ?? '?'
+  const deletedDoc = new Set(docs.filter((d) => d.deletedAt).map((d) => d.id))
+
+  // Balances: per location across every books, plus the one grand total.
+  const perEntity = await Promise.all(entityIds.map((id) => cashBalances(id)))
+  const balanceRows = perEntity.flatMap((b, i) =>
+    b.perLocation
+      .filter((r) => !r.archived || r.balance !== '0.00')
+      .map((r) => ({ ...r, entityCode: entities[i].code })),
+  )
+  const total = perEntity
+    .reduce((t, b) => t + Number(b.total), 0)
+    .toFixed(2)
+
+  const headsByEntity: Record<string, HeadOpt[]> = {}
+  for (const h of headRows) {
+    ;(headsByEntity[h.entityId] ??= []).push({
+      id: h.id, code: h.code, name: h.name, kind: h.kind, defaultCostCentreId: h.defaultCostCentreId,
+    })
+  }
   const headName = (id: string | null) => {
-    const h = heads.find((a) => a.id === id)
-    return h ? `${h.code} · ${h.name}` : null
+    const h = headRows.find((a) => a.id === id)
+    return h ? h.name : null
+  }
+  const locationById = new Map(locations.map((l) => [l.id, l]))
+  const locationName = (id: string | null) => (id ? locationById.get(id)?.name ?? '(archived)' : '?')
+
+  const quickLocations: QuickLocation[] = locations.map((l) => ({
+    id: l.id, name: l.name, entityId: l.entityId, entityCode: entityCode.get(l.entityId) ?? '?',
+  }))
+
+  // --- Passbook (running balance) ---
+  // Scope = one location or the whole pool; walk backwards from the live
+  // ledger balance so opening balances fold in without replaying them.
+  const scoped = loc
+    ? entries.filter((e) => e.locationId === loc || e.toLocationId === loc)
+    : entries
+  const scopeBalanceNow = loc
+    ? Number(balanceRows.find((b) => b.locationId === loc)?.balance ?? 0)
+    : Number(total)
+  const effect = (e: (typeof entries)[number]) => {
+    if (e.docId && deletedDoc.has(e.docId)) return 0
+    const a = Number(e.amount)
+    if (e.kind === 'TRANSFER') {
+      if (!loc) return 0
+      return e.toLocationId === loc ? a : e.locationId === loc ? -a : 0
+    }
+    if (e.kind === 'RECEIPT') return a
+    if (e.kind === 'PAYMENT') return -a
+    return e.inflow ? a : -a // ADJUSTMENT
+  }
+  const balanceAfter = new Array<number>(scoped.length)
+  let bal = scopeBalanceNow
+  for (let i = scoped.length - 1; i >= 0; i--) {
+    balanceAfter[i] = bal
+    bal -= effect(scoped[i])
+  }
+  const rows = scoped
+    .map((e, i) => ({ entry: e, balance: balanceAfter[i] }))
+    .filter((r) => !month || r.entry.date.toISOString().slice(0, 7) === month)
+
+  const flows = rows.reduce(
+    (t, r) => {
+      const eff = effect(r.entry)
+      if (eff > 0) t.in += eff
+      if (eff < 0) t.out -= eff
+      return t
+    },
+    { in: 0, out: 0 },
+  )
+  const months = [...new Set(entries.map((e) => e.date.toISOString().slice(0, 7)))].sort().reverse()
+  const monthLabel = (m: string) => {
+    const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
   }
 
-  const selects = {
-    location: (name: string) => (
-      <select name={name} required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-        <option value="">— location —</option>
-        {locations.map((l) => (
-          <option key={l.id} value={l.id}>{l.name}</option>
-        ))}
-      </select>
-    ),
-    head: (label: string) => (
-      <HeadCombobox
-        heads={heads.map((h) => ({
-          id: h.id,
-          code: h.code,
-          name: h.name,
-          kind: h.kind,
-          defaultCostCentreId: h.defaultCostCentreId,
-        }))}
-        required
-        placeholder={label}
-        createName="headText"
-        className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-      />
-    ),
-    costCentre: (
-      <SmartCombobox
-        options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
-        name="costCentreId"
-        createName="costCentreText"
-        placeholder="Cost centre — type or add"
-        className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-      />
-    ),
+  const signedAmount = (e: (typeof entries)[number]) => {
+    const a = Number(e.amount)
+    if (e.kind === 'TRANSFER') {
+      if (!loc) return { text: displayINR(String(e.amount)), cls: 'text-zinc-500' }
+      const inbound = e.toLocationId === loc
+      return {
+        text: `${inbound ? '+' : '−'}${displayINR(String(e.amount))}`,
+        cls: inbound ? 'text-emerald-600' : 'text-red-600',
+      }
+    }
+    const positive = e.kind === 'RECEIPT' || (e.kind === 'ADJUSTMENT' && e.inflow)
+    return {
+      text: `${positive ? '+' : '−'}${displayINR(String(Math.abs(a).toFixed(2)))}`,
+      cls: positive ? 'text-emerald-600' : 'text-red-600',
+    }
   }
-  const common = (
-    <>
-      <input name="entityId" type="hidden" value={entity.id} />
-      <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-      <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-    </>
-  )
-  const submit = (label: string) => (
-    <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
-      {label}
-    </button>
-  )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Cash — {entity.name} ({entity.code})
-        </h1>
+        <h1 className="text-xl font-semibold text-zinc-900">Cash — all books, one pool</h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Every location from every books in one place; an entry posts in its own location&apos;s books.
+        </p>
       </div>
 
-      {/* Where is cash (spec §6.2) */}
-      <div className="flex flex-wrap gap-3">
-        {balances.perLocation
-          .filter((b) => !b.archived || b.balance !== '0.00')
-          .map((b) => (
-            <div key={b.locationId} className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-              <div className="text-xs text-zinc-500">{b.name}{b.archived ? ' (archived)' : ''}</div>
-              <div className="text-lg font-semibold text-zinc-900">{displayINR(b.balance)}</div>
-            </div>
-          ))}
-        <div className="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-3 shadow-sm">
-          <div className="text-xs text-zinc-400">Total cash</div>
-          <div className="text-lg font-semibold text-white">{displayINR(balances.total)}</div>
+      {/* Where is cash — slim strip */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 shadow-sm">
+        {balanceRows.map((b) => (
+          <Link
+            key={b.locationId}
+            href={loc === b.locationId ? '/cash' : `/cash?loc=${b.locationId}${month ? `&month=${month}` : ''}`}
+            className={`flex items-baseline gap-1.5 border-l-2 pl-2 hover:opacity-70 ${
+              loc === b.locationId ? 'border-zinc-900' : 'border-zinc-200'
+            }`}
+          >
+            <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{b.entityCode}</span>
+            <span className="text-[11px] text-zinc-500">{b.name}{b.archived ? ' (archived)' : ''}</span>
+            <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(b.balance)}</span>
+          </Link>
+        ))}
+        <div className="ml-auto flex items-baseline gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Total</span>
+          <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(total)}</span>
         </div>
       </div>
 
-      {/* Entry forms (permission-gated) */}
+      {/* Quick entry — the Excel row */}
       {canEnter && locations.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium text-zinc-900">New cash entry</h2>
-          <div className="mt-3 space-y-3">
-            <details open>
-              <summary className="cursor-pointer text-sm font-medium text-zinc-700">Receipt (cash in)</summary>
-              <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
-                <input type="hidden" name="kind" value="RECEIPT" />
-                {common}
-                {selects.location('locationId')}
-                {selects.head('— received from (head) —')}
-                {selects.costCentre}
-                <input name="remarks" placeholder="Received from — name / note" className="w-56 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                {submit('Add receipt')}
-              </form>
-            </details>
+        <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+          <CashQuickRow
+            locations={quickLocations}
+            headsByEntity={headsByEntity}
+            action={quickCashEntryAction}
+          />
+          <div className="flex flex-wrap gap-4">
             <details>
-              <summary className="cursor-pointer text-sm font-medium text-zinc-700">Payment (cash out)</summary>
-              <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
-                <input type="hidden" name="kind" value="PAYMENT" />
-                {common}
-                {selects.location('locationId')}
-                {selects.head('— paid for (head) —')}
-                {selects.costCentre}
-                <input name="remarks" placeholder="Paid to — name / note" className="w-56 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                {submit('Add payment')}
-              </form>
-            </details>
-            <details>
-              <summary className="cursor-pointer text-sm font-medium text-zinc-700">Transfer between locations</summary>
+              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+                Transfer between locations (same books)
+              </summary>
               <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="kind" value="TRANSFER" />
-                {common}
-                {selects.location('locationId')}
+                <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <select name="locationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                  {quickLocations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
+                  ))}
+                </select>
                 <span className="text-xs text-zinc-400">→</span>
-                {selects.location('toLocationId')}
+                <select name="toLocationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                  {quickLocations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
+                  ))}
+                </select>
                 <input name="remarks" placeholder="Remarks" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                {submit('Transfer')}
+                <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                  Transfer
+                </button>
               </form>
             </details>
             <details>
-              <summary className="cursor-pointer text-sm font-medium text-zinc-700">Adjustment (mandatory reason)</summary>
+              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+                Adjustment (mandatory reason)
+              </summary>
               <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="kind" value="ADJUSTMENT" />
-                {common}
-                {selects.location('locationId')}
+                <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <select name="locationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                  {quickLocations.map((l) => (
+                    <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
+                  ))}
+                </select>
                 <select name="inflow" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
                   <option value="false">Cash short (remove)</option>
                   <option value="true">Cash excess (add)</option>
                 </select>
-                {selects.head('— against head —')}
+                <select name="headAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                  <option value="">— against head (same books) —</option>
+                  {entities.map((e) => (
+                    <optgroup key={e.id} label={e.code}>
+                      {(headsByEntity[e.id] ?? []).map((h) => (
+                        <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
                 <input name="reason" required placeholder="Reason (required)" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                {submit('Adjust')}
+                <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                  Adjust
+                </button>
               </form>
             </details>
           </div>
         </div>
       )}
 
-      {/* Recent entries */}
+      {/* Passbook */}
       <div className="space-y-2">
-        <h2 className="font-medium text-zinc-900">Recent entries</h2>
-        {entries.map((entry) => {
-          const doc = entry.docId ? docById.get(entry.docId) : undefined
-          const deleted = Boolean(doc?.deletedAt)
-          return (
-            <div
-              key={entry.id}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border p-3 text-sm shadow-sm ${
-                deleted ? 'border-red-100 bg-red-50/40 opacity-70' : 'border-zinc-200 bg-white'
-              }`}
-            >
-              <span className="text-xs text-zinc-400">{entry.date.toISOString().slice(0, 10)}</span>
-              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium uppercase text-zinc-500">
-                {entry.kind.toLowerCase()}
-              </span>
-              <span className="text-zinc-800">
-                {entry.kind === 'TRANSFER'
-                  ? `${locationName(entry.locationId)} → ${locationName(entry.toLocationId)}`
-                  : locationName(entry.locationId)}
-              </span>
-              {headName(entry.headAccountId) && (
-                <span className="text-xs text-zinc-500">{headName(entry.headAccountId)}</span>
-              )}
-              {entry.reason && <span className="text-xs text-amber-600">reason: {entry.reason}</span>}
-              {entry.remarks && <span className="text-xs text-zinc-400">{entry.remarks}</span>}
-              {deleted && (
-                <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">deleted</span>
-              )}
-              <span className="ml-auto font-semibold text-zinc-900">{displayINR(String(entry.amount))}</span>
-              {canEditPosted && entry.docId && (
-                deleted ? (
-                  <form action={undoCashEntryAction}>
-                    <input type="hidden" name="entryId" value={entry.id} />
-                    <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
-                      Undo delete
-                    </button>
-                  </form>
-                ) : (
-                  <form action={deleteCashEntryAction}>
-                    <input type="hidden" name="entryId" value={entry.id} />
-                    <button type="submit" className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50">
-                      Delete
-                    </button>
-                  </form>
-                )
-              )}
-            </div>
-          )
-        })}
-        {entries.length === 0 && <p className="text-sm text-zinc-400">No cash entries yet.</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-medium text-zinc-900">
+            Cash book{loc ? ` — ${locationName(loc)}` : ''}
+          </h2>
+          <form className="ml-auto flex flex-wrap items-center gap-2">
+            {loc && <input type="hidden" name="loc" value={loc} />}
+            <select name="month" defaultValue={month} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+              <option value="">All months</option>
+              {months.map((m) => (
+                <option key={m} value={m}>{monthLabel(m)}</option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
+              Apply
+            </button>
+            {(loc || month) && (
+              <Link href="/cash" className="text-xs text-zinc-400 hover:text-zinc-700">reset</Link>
+            )}
+          </form>
+          <span className="w-full text-xs text-zinc-500 sm:w-auto">
+            In {displayINR(flows.in.toFixed(2))} · Out {displayINR(flows.out.toFixed(2))} · Net{' '}
+            {displayINR((flows.in - flows.out).toFixed(2))}
+          </span>
+        </div>
+
+        {rows.length > 0 ? (
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <table className="w-full min-w-[56rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-400">
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Details</th>
+                  <th className="px-2 py-2">Location</th>
+                  <th className="px-2 py-2">Head</th>
+                  <th className="px-2 py-2 text-right">Amount</th>
+                  <th className="px-2 py-2">Comments</th>
+                  <th className="px-2 py-2 text-right">Balance</th>
+                  <th className="px-2 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {rows.map(({ entry, balance }) => {
+                  const deleted = Boolean(entry.docId && deletedDoc.has(entry.docId))
+                  const amt = signedAmount(entry)
+                  return (
+                    <tr key={entry.id} className={deleted ? 'bg-red-50/40 opacity-60' : 'hover:bg-zinc-50/60'}>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-zinc-500">
+                        {entry.date.toISOString().slice(0, 10)}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <span className="block max-w-[18rem] truncate font-medium text-zinc-800" title={entry.remarks ?? ''}>
+                          {entry.remarks ?? <span className="font-normal text-zinc-300">—</span>}
+                        </span>
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">
+                        <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">
+                          {entityCode.get(entry.entityId)}
+                        </span>{' '}
+                        <span className="text-xs text-zinc-600">
+                          {entry.kind === 'TRANSFER'
+                            ? `${locationName(entry.locationId)} → ${locationName(entry.toLocationId)}`
+                            : locationName(entry.locationId)}
+                        </span>
+                      </td>
+                      <td className="max-w-40 truncate px-2 py-1.5 text-xs text-zinc-600" title={headName(entry.headAccountId) ?? ''}>
+                        {headName(entry.headAccountId) ?? <span className="text-zinc-300">transfer</span>}
+                      </td>
+                      <td className={`whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums ${amt.cls}`}>
+                        {amt.text}
+                      </td>
+                      <td className="max-w-48 truncate px-2 py-1.5 text-xs text-zinc-500" title={entry.comments ?? entry.reason ?? ''}>
+                        {entry.reason ? <span className="text-amber-600">reason: {entry.reason}</span> : entry.comments}
+                        {deleted && (
+                          <span className="ml-1 rounded bg-red-100 px-1 text-[10px] font-medium text-red-700">deleted</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-zinc-900">
+                        {displayINR(balance.toFixed(2))}
+                      </td>
+                      <td className="px-2 py-1.5 text-right">
+                        {canEditPosted && entry.docId && (
+                          deleted ? (
+                            <form action={undoCashEntryAction}>
+                              <input type="hidden" name="entryId" value={entry.id} />
+                              <button type="submit" className="whitespace-nowrap rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                                Undo delete
+                              </button>
+                            </form>
+                          ) : (
+                            <form action={deleteCashEntryAction}>
+                              <input type="hidden" name="entryId" value={entry.id} />
+                              <button type="submit" className="whitespace-nowrap rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                                Delete
+                              </button>
+                            </form>
+                          )
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400">
+            {month || loc ? 'No entries match these filters.' : 'No cash entries yet.'}
+          </p>
+        )}
       </div>
     </div>
   )
