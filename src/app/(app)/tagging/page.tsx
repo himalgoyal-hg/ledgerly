@@ -228,7 +228,7 @@ export default async function TaggingPage(props: {
   )
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
         <div>
           <h1 className="text-xl font-semibold text-zinc-900">
@@ -265,22 +265,22 @@ export default async function TaggingPage(props: {
         </div>
       </div>
 
-      {/* KPIs (v2 prototype) */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* KPIs (v2 prototype) — one slim strip, not four tall cards: the
+          vertical space belongs to the entries below. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 shadow-sm">
         {kpiTiles.map(([label, value, sub, accent]) => (
-          <div
-            key={label}
-            className={`rounded-xl border border-zinc-200 border-t-[3px] bg-white p-4 shadow-sm ${accent}`}
-          >
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{label}</p>
-            <p className="mt-1.5 text-2xl font-semibold tabular-nums text-zinc-900">{value}</p>
-            <p className="mt-0.5 text-xs text-zinc-400">{sub}</p>
+          <div key={label} className={`flex items-baseline gap-1.5 border-l-2 pl-2 ${accent}`}>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              {label}
+            </span>
+            <span className="text-sm font-semibold tabular-nums text-zinc-900">{value}</span>
+            <span className="text-[10px] text-zinc-400">{sub}</span>
           </div>
         ))}
       </div>
 
       {/* Search & filters (v2 prototype) */}
-      <form className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
+      <form className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
         <input
           name="q"
           defaultValue={q}
@@ -323,7 +323,7 @@ export default async function TaggingPage(props: {
 
       {/* Bulk tagging (v2 prototype): tick rows below, apply one tag to all */}
       {showPending && pendingSlice.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-2">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
             <HeadCombobox
