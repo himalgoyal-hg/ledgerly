@@ -58,6 +58,27 @@ export default async function ReimbursementsPage(props: {
     return new Prisma.Decimal(row?.balance ?? 0).toFixed(2)
   }
 
+  // Claims still waiting for approval — the payable ledger only knows a
+  // member once something IS approved, but the tab must show their money
+  // from the moment they submit.
+  const pendingSums = await prisma.reimbursement.groupBy({
+    by: ['memberId'],
+    where: { entityId: entity.id, status: 'PENDING' },
+    _sum: { amount: true },
+  })
+  const pendingOf = (memberId: string) =>
+    new Prisma.Decimal(
+      String(pendingSums.find((p) => p.memberId === memberId)?._sum.amount ?? 0),
+    ).toFixed(2)
+  const tabAmount = (u: { id: string; name: string }) => {
+    const owed = owedTo(u.name)
+    const pending = pendingOf(u.id)
+    const parts: string[] = []
+    if (Number(owed) !== 0) parts.push(displayINR(owed))
+    if (Number(pending) > 0) parts.push(`${displayINR(pending)} pending`)
+    return parts.join(' · ') || displayINR('0.00')
+  }
+
   const { member: memberParam } = await props.searchParams
   const selected = tabUsers.find((u) => u.id === memberParam) ?? (admin ? tabUsers[0] : user)
 
@@ -104,7 +125,7 @@ export default async function ReimbursementsPage(props: {
           >
             {u.name}
             <span className={`ml-2 text-xs ${u.id === selected.id ? 'text-zinc-300' : 'text-zinc-400'}`}>
-              {displayINR(owedTo(u.name))}
+              {tabAmount(u)}
             </span>
           </Link>
         ))}
