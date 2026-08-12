@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
-import { createInvoice, recordInvoicePayment } from '@/lib/ops/invoices'
+import { createInvoice, recordInvoicePayment, recordFxReceipt } from '@/lib/ops/invoices'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
@@ -81,6 +81,80 @@ export async function createInvoiceAction(formData: FormData) {
       targetType: 'Invoice',
       targetId: invoice.id,
       summary: `Invoice ${invoice.number} — ${invoice.customer} ₹${invoice.amount}`,
+    })
+  })
+  revalidatePath('/invoices')
+}
+
+/**
+ * Export invoice ($): at billing time only the client, the $ amount and the
+ * date are known — the due date defaults to +7 days (follow up after the
+ * 10th). Nothing posts; recordFxReceiptAction fills the money in when the
+ * credit lands.
+ */
+export async function createFxInvoiceAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const entityId = String(formData.get('entityId') ?? '')
+  const customer = String(formData.get('customer') ?? '').trim()
+  const country = String(formData.get('country') ?? '').trim() || null
+  const currency = String(formData.get('currency') ?? 'USD') || 'USD'
+  const amountFx = String(formData.get('amountFx') ?? '').trim()
+  const date = new Date(String(formData.get('date') ?? ''))
+  if (!customer) throw new Error('Client is required')
+  if (!amountFx || Number(amountFx) <= 0) throw new Error('Enter the invoiced $ amount')
+  if (isNaN(date.getTime())) throw new Error('Pick the invoice date')
+  const dueRaw = String(formData.get('dueDate') ?? '')
+  const dueDate = dueRaw ? new Date(dueRaw) : new Date(date.getTime() + 7 * 86_400_000)
+
+  await auditedTransaction(async (tx) => {
+    const invoice = await createInvoice(tx, {
+      entityId,
+      customer,
+      date,
+      dueDate,
+      amount: '0', // register-only: INR unknown until the credit lands
+      narration: String(formData.get('narration') ?? '').trim() || null,
+      actorId: admin.id,
+    })
+    await tx.invoice.update({
+      where: { id: invoice.id },
+      data: { currency, amountFx, country, firc: 'Awaited' },
+    })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'invoice.create',
+      targetType: 'Invoice',
+      targetId: invoice.id,
+      summary: `Export invoice ${invoice.number} — ${customer} ${currency} ${amountFx} (due ${dueDate.toISOString().slice(0, 10)})`,
+    })
+  })
+  revalidatePath('/invoices')
+}
+
+/** The realization: $ received, INR credited, charges & fees — rate computed. */
+export async function recordFxReceiptAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const invoiceId = String(formData.get('invoiceId') ?? '')
+  const creditDate = new Date(String(formData.get('creditDate') ?? ''))
+  if (isNaN(creditDate.getTime())) throw new Error('Pick the credit date')
+
+  await auditedTransaction(async (tx) => {
+    const invoice = await recordFxReceipt(tx, {
+      invoiceId,
+      receivedFx: String(formData.get('receivedFx') ?? ''),
+      realizedInr: String(formData.get('realizedInr') ?? ''),
+      bankCharges: String(formData.get('bankCharges') ?? '') || null,
+      providerFees: String(formData.get('providerFees') ?? '') || null,
+      creditDate,
+      firc: String(formData.get('firc') ?? '') || null,
+      actorId: admin.id,
+    })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'invoice.fx_receipt',
+      targetType: 'Invoice',
+      targetId: invoice.id,
+      summary: `Realized ${invoice.number}: $${invoice.receivedFx} → ₹${invoice.realizedInr} @ ${invoice.fxRate} (charges ₹${invoice.bankCharges}, fees ₹${invoice.providerFees})`,
     })
   })
   revalidatePath('/invoices')

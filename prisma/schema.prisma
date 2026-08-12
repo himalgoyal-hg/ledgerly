@@ -652,11 +652,14 @@ model Invoice {
   customer        String
   date            DateTime      @db.Date
   dueDate         DateTime      @db.Date
-  amount          Decimal       @db.Decimal(14, 2) // invoice TOTAL (incl. GST)
+  amount          Decimal       @db.Decimal(14, 2) // invoice TOTAL (incl. GST); 0 for FX register-only invoices
   narration       String?
-  incomeAccountId String
+  // Null for FX register-only invoices — income posts when the statement
+  // row is tagged, never at billing time (the rate isn't known yet).
+  incomeAccountId String?
   costCentreId    String?
   debtorAccountId String // per-customer account under Sundry Debtors (1300)
+  country         String? // client's country (export invoices)
 
   // GST (spec §7.1): amount = taxable + gstAmount; Cr Output Liability.
   gstType       String? // intra | inter
@@ -665,13 +668,18 @@ model Invoice {
   customerGstin String?
   gstAmount     Decimal  @default(0) @db.Decimal(14, 2)
 
-  // Foreign-currency metadata (v2 prototype): the posting stays in INR;
-  // these record what was billed and realised in the client's currency.
-  currency    String   @default("INR") // INR | USD
-  amountFx    Decimal? @db.Decimal(14, 2)
-  fxRate      Decimal? @db.Decimal(9, 4)
-  bankCharges Decimal  @default(0) @db.Decimal(14, 2)
-  firc        String? // Awaited | Partial | Received
+  // Foreign-currency billing + realization. Billed in the client's currency;
+  // everything about the money (rate, charges, fees) is learned only when
+  // the credit lands, so those fields fill at receipt time.
+  currency     String   @default("INR") // INR | USD
+  amountFx     Decimal? @db.Decimal(14, 2) // invoiced $
+  receivedFx   Decimal? @db.Decimal(14, 2) // $ actually received (client-side deductions)
+  realizedInr  Decimal? @db.Decimal(14, 2) // INR credited by the bank
+  fxRate       Decimal? @db.Decimal(9, 4) // realizedInr ÷ receivedFx, computed
+  bankCharges  Decimal  @default(0) @db.Decimal(14, 2)
+  providerFees Decimal  @default(0) @db.Decimal(14, 2) // Skydo / platform fees
+  creditDate   DateTime? @db.Date
+  firc         String? // Awaited | Partial | Received
 
   status          InvoiceStatus @default(OPEN)
   docId           String?       @unique // Dr Debtor / Cr Income

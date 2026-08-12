@@ -11,6 +11,10 @@ import { OpsError } from './reimburse'
 // due-date tracking, partial payments, aging buckets, settled archive.
 // With GST: `amount` input is the TAXABLE value; posting splits
 // Dr Debtor (total) / Cr Income (taxable) / Cr GST Output Liability.
+//
+// FX register-only invoices pass amount "0": nothing posts at billing time
+// (the INR isn't known until the credit lands — recordFxReceipt captures it,
+// and the books move when the statement row is tagged).
 
 export async function createInvoice(
   tx: Prisma.TransactionClient,
@@ -19,9 +23,9 @@ export async function createInvoice(
     customer: string
     date: Date
     dueDate: Date
-    amount: string // taxable value
+    amount: string // taxable value; "0" for FX register-only
     narration?: string | null
-    incomeAccountId: string
+    incomeAccountId?: string | null
     costCentreId?: string | null
     gstType?: string | null
     gstRate?: string | null
@@ -33,8 +37,10 @@ export async function createInvoice(
   const customer = args.customer.trim()
   if (!customer) throw new OpsError('Customer is required')
   const taxable = parsePaise(args.amount)
-  if (taxable <= 0n) throw new OpsError('Amount must be positive')
-  const gst = args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
+  if (taxable < 0n) throw new OpsError('Amount must be positive')
+  const posts = taxable > 0n
+  if (posts && !args.incomeAccountId) throw new OpsError('Pick the income head')
+  const gst = posts && args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
   const total = taxable + gst
 
   // Auto numbering (spec §6.6): per-entity prefix + counter, atomically.
@@ -54,7 +60,7 @@ export async function createInvoice(
       dueDate: args.dueDate,
       amount: formatPaise(total),
       narration: args.narration ?? null,
-      incomeAccountId: args.incomeAccountId,
+      incomeAccountId: args.incomeAccountId ?? null,
       costCentreId: args.costCentreId ?? null,
       debtorAccountId: debtor.id,
       gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
@@ -65,9 +71,11 @@ export async function createInvoice(
       createdById: args.actorId,
     },
   })
+  if (!posts) return invoice
+
   const lines: LineInput[] = [
     { accountId: debtor.id, debit: formatPaise(total) },
-    { accountId: args.incomeAccountId, credit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
+    { accountId: args.incomeAccountId!, credit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
   ]
   if (gst > 0n) {
     const output = await getSystemAccount(tx, args.entityId, '2210')
@@ -103,6 +111,49 @@ export async function createInvoice(
     })
   }
   return tx.invoice.update({ where: { id: invoice.id }, data: { docId: doc.id } })
+}
+
+/**
+ * The realization step of an FX invoice — everything about the money is
+ * learned when the credit lands: $ actually received, INR credited, bank
+ * charges and platform (Skydo) fees, FIRC. The rate is computed, never
+ * typed. Posts NOTHING: the statement row tagged to an income head is what
+ * moves the books; this records the economics against the invoice.
+ */
+export async function recordFxReceipt(
+  tx: Prisma.TransactionClient,
+  args: {
+    invoiceId: string
+    receivedFx: string
+    realizedInr: string
+    bankCharges?: string | null
+    providerFees?: string | null
+    creditDate: Date
+    firc?: string | null
+    actorId: string
+  },
+) {
+  const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: args.invoiceId } })
+  if (invoice.status === 'SETTLED') throw new OpsError('Invoice is already settled')
+  if (invoice.currency === 'INR') throw new OpsError('Not an FX invoice — record a payment instead')
+  const receivedFx = parsePaise(args.receivedFx)
+  const realizedInr = parsePaise(args.realizedInr)
+  if (receivedFx <= 0n || realizedInr <= 0n) throw new OpsError('Received $ and INR must be positive')
+  const rate = Number(formatPaise(realizedInr)) / Number(formatPaise(receivedFx))
+
+  return tx.invoice.update({
+    where: { id: invoice.id },
+    data: {
+      receivedFx: formatPaise(receivedFx),
+      realizedInr: formatPaise(realizedInr),
+      fxRate: rate.toFixed(4),
+      bankCharges: formatPaise(parsePaise(args.bankCharges || '0')),
+      providerFees: formatPaise(parsePaise(args.providerFees || '0')),
+      creditDate: args.creditDate,
+      firc: args.firc ?? invoice.firc,
+      status: 'SETTLED',
+    },
+  })
 }
 
 export async function paidSoFar(
