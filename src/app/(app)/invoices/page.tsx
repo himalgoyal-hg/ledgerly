@@ -1,4 +1,3 @@
-import { Fragment } from 'react'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
@@ -9,13 +8,13 @@ import {
   createInvoiceAction,
   createFxInvoiceAction,
   recordPaymentAction,
-  recordFxReceiptAction,
   updateInvoiceAction,
   deleteInvoiceAction,
 } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
 import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { InvoiceRow } from './invoice-row'
 
 // Invoices (spec §6.6), export-first: billing knows only the client, the $
 // and the date (due = +7 days, follow up after the 10th) — the money (rate,
@@ -72,26 +71,6 @@ export default async function InvoicesPage() {
     const shortFx = invoicedFx !== null && receivedFx !== null ? invoicedFx - receivedFx : null
     return { fx, invoicedFx, receivedFx, inr, charges, effective, days, shortFx }
   }
-  const dueBadge = (invoice: (typeof invoices)[number]) => {
-    if (invoice.status === 'SETTLED') return null
-    const overdueDays = Math.floor((today.getTime() - invoice.dueDate.getTime()) / 86_400_000)
-    const sinceInvoice = Math.floor((today.getTime() - invoice.date.getTime()) / 86_400_000)
-    if (sinceInvoice >= 10)
-      return (
-        <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-          follow up ({sinceInvoice}d)
-        </span>
-      )
-    if (overdueDays > 0)
-      return (
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-          overdue {overdueDays}d
-        </span>
-      )
-    return <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] text-zinc-500">not due</span>
-  }
-
-  const open = invoices.filter((i) => i.status !== 'SETTLED')
   const totals = invoices.reduce(
     (t, i) => {
       const m = money(i)
@@ -216,164 +195,84 @@ export default async function InvoicesPage() {
             {invoices.map((invoice) => {
               const m = money(invoice)
               const settled = invoice.status === 'SETTLED'
+              const overdueDays = Math.floor((today.getTime() - invoice.dueDate.getTime()) / 86_400_000)
+              const sinceInvoice = Math.floor((today.getTime() - invoice.date.getTime()) / 86_400_000)
+              const badge = settled
+                ? null
+                : sinceInvoice >= 10
+                  ? { label: `follow up (${sinceInvoice}d)`, tone: 'red' as const }
+                  : overdueDays > 0
+                    ? { label: `overdue ${overdueDays}d`, tone: 'amber' as const }
+                    : { label: 'not due', tone: 'zinc' as const }
               return (
-                <Fragment key={invoice.id}>
-                  <tr className={`align-top ${settled ? 'text-zinc-500' : ''} hover:bg-zinc-50/60`}>
-                    <td className="whitespace-nowrap px-2 py-1.5 font-mono text-xs text-zinc-500">{invoice.number}</td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-zinc-500">
-                      {invoice.date.toISOString().slice(0, 10)}
-                    </td>
-                    <td className="px-2 py-1.5 font-medium text-zinc-800">
-                      {invoice.customer}
-                      {invoice.narration && (
-                        <span className="block max-w-40 truncate text-[10px] font-normal text-zinc-400" title={invoice.narration}>
-                          {invoice.narration}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs text-zinc-600">{invoice.country ?? '—'}</td>
-                    <td className="whitespace-nowrap px-2 py-1.5">
-                      <span className="text-xs tabular-nums text-zinc-500">{invoice.dueDate.toISOString().slice(0, 10)}</span>{' '}
-                      {dueBadge(invoice)}
-                      {settled && (
-                        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
-                          settled
-                        </span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {m.fx ? `$${m.invoicedFx?.toLocaleString('en-US')}` : displayINR(String(invoice.amount))}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {m.receivedFx !== null ? (
-                        <>
-                          ${m.receivedFx.toLocaleString('en-US')}
-                          {m.shortFx !== null && m.shortFx > 0 && (
-                            <span className="block text-[10px] text-red-500">−${m.shortFx.toLocaleString('en-US')}</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-zinc-300">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {m.inr !== null ? displayINR(m.inr.toFixed(2)) : m.fx ? <span className="text-zinc-300">—</span> : ''}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {invoice.fxRate ? Number(invoice.fxRate).toFixed(2) : <span className="text-zinc-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">
-                      {m.charges > 0 ? displayINR(m.charges.toFixed(2)) : <span className="text-zinc-300">—</span>}
-                    </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right font-medium tabular-nums">
-                      {m.effective !== null ? m.effective.toFixed(2) : <span className="text-zinc-300">—</span>}
-                    </td>
-                    <td className="px-2 py-1.5 text-xs">{invoice.firc ?? '—'}</td>
-                    <td className="px-2 py-1.5 text-right text-xs tabular-nums">{m.days ?? '—'}</td>
-                    <td className="px-2 py-1.5">
-                      <div className="flex items-start justify-end gap-1.5">
-                        {!settled && m.fx && (
-                          <details>
-                            <summary className="cursor-pointer whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600">
-                              Record receipt
-                            </summary>
-                            <form action={recordFxReceiptAction} className="mt-1 w-44 space-y-1">
-                              <input type="hidden" name="invoiceId" value={invoice.id} />
-                              <input name="receivedFx" required inputMode="decimal" defaultValue={m.invoicedFx ?? undefined} placeholder="$ received" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <input name="realizedInr" required inputMode="decimal" placeholder="₹ credited" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <input name="bankCharges" inputMode="decimal" placeholder="Bank charges ₹" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <input name="providerFees" inputMode="decimal" placeholder="Skydo/platform fees ₹" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <input name="creditDate" type="date" required title="Date of credit" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <select name="firc" className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
-                                <option value="">FIRC —</option>
-                                <option>Awaited</option>
-                                <option>Partial</option>
-                                <option>Received</option>
-                              </select>
-                              <button type="submit" className="w-full rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">
-                                Save — rate computes itself
-                              </button>
-                            </form>
-                          </details>
-                        )}
-                        {!settled && !m.fx && (
-                          <details>
-                            <summary className="cursor-pointer whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600">
-                              Record payment
-                            </summary>
-                            <form action={recordPaymentAction} className="mt-1 w-44 space-y-1">
-                              <input type="hidden" name="invoiceId" value={invoice.id} />
-                              <input name="date" type="date" required className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <input name="amount" required inputMode="decimal" defaultValue={outstandingOf(invoice)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              <select name="sourceAccountId" required className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
-                                <option value="">— received into —</option>
-                                {sources.map((s) => (
-                                  <option key={s.id} value={s.id}>{s.label}</option>
-                                ))}
-                              </select>
-                              <button type="submit" className="w-full rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">
-                                Record payment
-                              </button>
-                            </form>
-                          </details>
-                        )}
-                        <details>
-                          <summary className="cursor-pointer whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100">
-                            edit
-                          </summary>
-                          <form action={updateInvoiceAction} className="mt-1 w-44 space-y-1 text-left">
-                            <input type="hidden" name="invoiceId" value={invoice.id} />
-                            {!invoice.docId && (
-                              <input name="customer" defaultValue={invoice.customer} placeholder="Client" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            )}
-                            <input name="country" defaultValue={invoice.country ?? ''} placeholder="Country" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            {m.fx && (
-                              <input name="amountFx" defaultValue={m.invoicedFx ?? undefined} inputMode="decimal" placeholder="Invoiced $" title="Invoiced $" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            )}
-                            <label className="block text-[10px] text-zinc-400">invoice date</label>
-                            <input name="date" type="date" defaultValue={invoice.date.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            <label className="block text-[10px] text-zinc-400">due date</label>
-                            <input name="dueDate" type="date" defaultValue={invoice.dueDate.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            {m.fx && settled && (
-                              <>
-                                <input name="receivedFx" defaultValue={m.receivedFx ?? undefined} inputMode="decimal" placeholder="$ received" title="$ received" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                                <input name="realizedInr" defaultValue={m.inr ?? undefined} inputMode="decimal" placeholder="₹ credited" title="₹ credited" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                                <input name="bankCharges" defaultValue={String(invoice.bankCharges)} inputMode="decimal" placeholder="Bank charges ₹" title="Bank charges" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                                <input name="providerFees" defaultValue={String(invoice.providerFees)} inputMode="decimal" placeholder="Skydo fees ₹" title="Skydo/platform fees" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                                <label className="block text-[10px] text-zinc-400">credit date</label>
-                                <input name="creditDate" type="date" defaultValue={invoice.creditDate?.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                              </>
-                            )}
-                            <select name="firc" defaultValue={invoice.firc ?? ''} className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
-                              <option value="">FIRC —</option>
-                              <option>Awaited</option>
-                              <option>Partial</option>
-                              <option>Received</option>
-                            </select>
-                            <input name="narration" defaultValue={invoice.narration ?? ''} placeholder="Description" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                            <button type="submit" className="w-full rounded bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700">
-                              Save{m.fx && settled ? ' — rate recomputes' : ''}
-                            </button>
-                            {invoice.docId && (
-                              <p className="text-[10px] leading-tight text-zinc-400">
-                                Posted invoice: amounts/GST change via delete &amp; re-raise.
-                              </p>
-                            )}
-                          </form>
-                        </details>
-                        <form action={deleteInvoiceAction}>
-                          <input type="hidden" name="invoiceId" value={invoice.id} />
-                          <ConfirmButton
-                            message={`Delete invoice ${invoice.number}? Any postings are reversed (restorable from Journal).`}
-                            className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
-                          >
-                            ✕
-                          </ConfirmButton>
-                        </form>
-                      </div>
-                    </td>
-                  </tr>
-                </Fragment>
+                <InvoiceRow
+                  key={invoice.id}
+                  update={updateInvoiceAction}
+                  data={{
+                    id: invoice.id,
+                    number: invoice.number,
+                    dateIso: invoice.date.toISOString().slice(0, 10),
+                    dueIso: invoice.dueDate.toISOString().slice(0, 10),
+                    customer: invoice.customer,
+                    narration: invoice.narration ?? '',
+                    country: invoice.country ?? '',
+                    fx: m.fx,
+                    posted: Boolean(invoice.docId),
+                    settled,
+                    amountFx: invoice.amountFx ? String(invoice.amountFx) : '',
+                    receivedFx: invoice.receivedFx ? String(invoice.receivedFx) : '',
+                    realizedInr: invoice.realizedInr ? String(invoice.realizedInr) : '',
+                    bankCharges: Number(invoice.bankCharges) > 0 ? String(invoice.bankCharges) : '',
+                    providerFees: Number(invoice.providerFees) > 0 ? String(invoice.providerFees) : '',
+                    creditDateIso: invoice.creditDate?.toISOString().slice(0, 10) ?? '',
+                    firc: invoice.firc ?? '',
+                    invDisp: m.fx
+                      ? `$${m.invoicedFx?.toLocaleString('en-US')}`
+                      : displayINR(String(invoice.amount)),
+                    recdDisp: m.receivedFx !== null ? `$${m.receivedFx.toLocaleString('en-US')}` : '',
+                    shortDisp:
+                      m.shortFx !== null && m.shortFx > 0
+                        ? `−$${m.shortFx.toLocaleString('en-US')}`
+                        : '',
+                    inrDisp: m.inr !== null ? displayINR(m.inr.toFixed(2)) : m.fx ? '' : displayINR(String(invoice.amount)),
+                    rateDisp: invoice.fxRate ? Number(invoice.fxRate).toFixed(2) : '',
+                    chargesDisp: m.charges > 0 ? displayINR(m.charges.toFixed(2)) : '',
+                    effDisp: m.effective !== null ? m.effective.toFixed(2) : '',
+                    daysDisp: m.days !== null ? String(m.days) : '',
+                    badge,
+                  }}
+                >
+                  {!settled && !m.fx && (
+                    <details>
+                      <summary className="cursor-pointer whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600">
+                        Record payment
+                      </summary>
+                      <form action={recordPaymentAction} className="mt-1 w-44 space-y-1 text-left">
+                        <input type="hidden" name="invoiceId" value={invoice.id} />
+                        <input name="date" type="date" required className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                        <input name="amount" required inputMode="decimal" defaultValue={outstandingOf(invoice)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                        <select name="sourceAccountId" required className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
+                          <option value="">— received into —</option>
+                          {sources.map((s) => (
+                            <option key={s.id} value={s.id}>{s.label}</option>
+                          ))}
+                        </select>
+                        <button type="submit" className="w-full rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">
+                          Record payment
+                        </button>
+                      </form>
+                    </details>
+                  )}
+                  <form action={deleteInvoiceAction}>
+                    <input type="hidden" name="invoiceId" value={invoice.id} />
+                    <ConfirmButton
+                      message={`Delete invoice ${invoice.number}? Any postings are reversed (restorable from Journal).`}
+                      className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
+                    >
+                      ✕
+                    </ConfirmButton>
+                  </form>
+                </InvoiceRow>
               )
             })}
             {invoices.length === 0 && (
@@ -388,7 +287,7 @@ export default async function InvoicesPage() {
             <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
               <tr>
                 <td className="px-2 py-2" colSpan={5}>
-                  Total ({invoices.length} invoices, {open.length} open)
+                  Total ({invoices.length} invoices)
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">${totals.invoicedFx.toLocaleString('en-US')}</td>
                 <td className="px-2 py-2 text-right tabular-nums">${totals.receivedFx.toLocaleString('en-US')}</td>

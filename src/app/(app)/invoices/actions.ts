@@ -162,7 +162,9 @@ export async function updateInvoiceAction(formData: FormData) {
       data.amountFx = field('amountFx')
     }
 
-    // Realization edits (settled FX): recompute the rate from what changed.
+    // Realization (FX): a settled row recomputes from what changed; an OPEN
+    // row with ₹ credited + credit date filled in IS the receipt — saving
+    // the line settles it (Excel-style: fill the row, done).
     if (fx && invoice.status === 'SETTLED') {
       const receivedFx = field('receivedFx') || String(invoice.receivedFx ?? '')
       const realizedInr = field('realizedInr') || String(invoice.realizedInr ?? '')
@@ -176,6 +178,22 @@ export async function updateInvoiceAction(formData: FormData) {
       if (formData.has('providerFees')) data.providerFees = field('providerFees') || '0'
       const creditDate = field('creditDate') ? new Date(field('creditDate')) : null
       if (creditDate && !isNaN(creditDate.getTime())) data.creditDate = creditDate
+    } else if (fx && field('realizedInr') && field('creditDate')) {
+      const receivedFx =
+        field('receivedFx') || field('amountFx') || String(invoice.amountFx ?? '')
+      const realizedInr = field('realizedInr')
+      const creditDate = new Date(field('creditDate'))
+      if (Number(receivedFx) <= 0 || Number(realizedInr) <= 0) {
+        throw new Error('Received $ and ₹ must be positive')
+      }
+      if (isNaN(creditDate.getTime())) throw new Error('Pick the credit date')
+      data.receivedFx = receivedFx
+      data.realizedInr = realizedInr
+      data.fxRate = (Number(realizedInr) / Number(receivedFx)).toFixed(4)
+      data.bankCharges = field('bankCharges') || '0'
+      data.providerFees = field('providerFees') || '0'
+      data.creditDate = creditDate
+      data.status = 'SETTLED'
     }
 
     const updated = await tx.invoice.update({ where: { id: invoiceId }, data })
