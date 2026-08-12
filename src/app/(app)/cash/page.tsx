@@ -70,6 +70,7 @@ export default async function CashPage() {
         }))}
         required
         placeholder={label}
+        className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
     ),
     costCentre: (
@@ -77,7 +78,7 @@ export default async function CashPage() {
         options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
         name="costCentreId"
         createName="costCentreText"
-        placeholder="cost centre — new name adds it"
+        placeholder="Cost centre — type or add"
         className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
     ),

@@ -51,8 +51,8 @@ export default async function SalaryPage() {
         options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
         name="costCentreId"
         createName="costCentreText"
-        placeholder="cost centre — new name adds it"
-        className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+        placeholder="Cost centre — type or add"
+        className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
       <input name="monthlyGross" required inputMode="decimal" placeholder="Monthly gross ₹" className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <input name="tdsRate" required inputMode="decimal" placeholder={type === 'SALARY' ? 'TDS % (192)' : 'TDS % (194J)'} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />

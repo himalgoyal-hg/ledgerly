@@ -219,9 +219,9 @@ export default async function TaggingPage(props: {
         <th className="px-2 py-2">A/c</th>
         <th className="px-2 py-2">Narration</th>
         <th className="px-2 py-2 text-right">Amount</th>
-        <th className="w-full min-w-44 px-2 py-2">Head</th>
-        <th className="px-2 py-2">Nature</th>
-        <th className="px-2 py-2">Cost centre</th>
+        <th className="w-[18%] min-w-36 px-2 py-2">Head</th>
+        <th className="w-[18%] min-w-36 px-2 py-2">Nature</th>
+        <th className="w-[18%] min-w-36 px-2 py-2">Cost centre</th>
         <th className="px-2 py-2" />
       </tr>
     </thead>
@@ -326,19 +326,24 @@ export default async function TaggingPage(props: {
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-3">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
-            <HeadCombobox heads={heads} required placeholder="Bulk head — type to search" />
+            <HeadCombobox
+              heads={heads}
+              required
+              placeholder="Head — type to search"
+              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            />
             <SmartCombobox
               options={NATURES.map((n) => ({ id: n.value, label: n.label }))}
               name="nature"
-              placeholder="nature — auto by direction"
-              className="w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              placeholder="Nature — auto by direction"
+              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
             />
             <SmartCombobox
               options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
               name="costCentreId"
               createName="costCentreText"
-              placeholder="cost centre — new name adds it"
-              className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              placeholder="Cost centre — type or add"
+              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
             />
             <button
               type="submit"

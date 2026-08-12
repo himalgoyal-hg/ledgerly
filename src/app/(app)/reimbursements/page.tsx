@@ -193,13 +193,14 @@ export default async function ReimbursementsPage(props: {
                     name="expenseAccountId"
                     required
                     placeholder="Expense head — type to search"
+                    className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                   />
                   <SmartCombobox
                     options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
                     name="costCentreId"
                     createName="costCentreText"
-                    placeholder="cost centre — new name adds it"
-                    className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    placeholder="Cost centre — type or add"
+                    className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                   />
                   <button type="submit" className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600">
                     Approve & post

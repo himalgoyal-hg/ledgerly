@@ -46,15 +46,17 @@ export function TagRowCells(props: {
 
   return (
     <>
-      {/* w-full: the head column absorbs the table's slack, so narration and
-          amount stay snug together instead of drifting apart. */}
-      <td className="w-full px-2 py-1">
+      {/* The three tiers are identical twins: equal 18% columns (they share
+          the table's slack evenly, keeping narration and amount snug) and
+          the same input styling. */}
+      <td className="w-[18%] px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
           required
           formId={formId}
-          className={`${inputCls} min-w-36`}
+          className={inputCls}
+          placeholder="Head — type to search"
           onPick={(head) => {
             if (head) {
               setNature(suggestNature(head, props.isOutflow))
@@ -64,7 +66,7 @@ export function TagRowCells(props: {
           }}
         />
       </td>
-      <td className="px-2 py-1">
+      <td className="w-[18%] px-2 py-1">
         <SmartCombobox
           key={`n${seed}`}
           options={NATURE_OPTIONS}
@@ -72,12 +74,12 @@ export function TagRowCells(props: {
           defaultId={nature}
           required
           formId={formId}
-          placeholder="nature"
-          className={`${inputCls} w-28`}
+          placeholder="Nature — type to search"
+          className={inputCls}
           onPick={(opt) => setNature(opt?.id ?? '')}
         />
       </td>
-      <td className="px-2 py-1">
+      <td className="w-[18%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -85,8 +87,8 @@ export function TagRowCells(props: {
           createName="costCentreText"
           defaultId={costCentreId}
           formId={formId}
-          placeholder="cost centre — new name adds it"
-          className={`${inputCls} w-40`}
+          placeholder="Cost centre — type or add"
+          className={inputCls}
           onPick={(opt) => setCostCentreId(opt?.id ?? '')}
         />
       </td>

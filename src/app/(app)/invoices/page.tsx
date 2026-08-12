@@ -74,12 +74,13 @@ export default async function InvoicesPage() {
             name="incomeAccountId"
             required
             placeholder="Income head — type to search"
+            className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
           <SmartCombobox
             options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
             name="costCentreId"
             createName="costCentreText"
-            placeholder="cost centre — new name adds it"
+            placeholder="Cost centre — type or add"
             className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
           <input name="narration" placeholder="Description" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
