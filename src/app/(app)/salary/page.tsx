@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
+import { SmartCombobox } from '@/components/smart-combobox'
 import { SourceSelect } from '../source-select'
 import {
   upsertPersonAction,
@@ -46,12 +47,13 @@ export default async function SalaryPage() {
       <input type="hidden" name="type" value={type} />
       <input name="name" required placeholder="Name" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <input name="team" placeholder="Team" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-      <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-        <option value="">— cost centre —</option>
-        {costCentres.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
+      <SmartCombobox
+        options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
+        name="costCentreId"
+        createName="costCentreText"
+        placeholder="cost centre — new name adds it"
+        className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+      />
       <input name="monthlyGross" required inputMode="decimal" placeholder="Monthly gross ₹" className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <input name="tdsRate" required inputMode="decimal" placeholder={type === 'SALARY' ? 'TDS % (192)' : 'TDS % (194J)'} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">

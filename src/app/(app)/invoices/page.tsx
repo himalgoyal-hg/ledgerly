@@ -6,6 +6,8 @@ import { agingBucket, outstandingOf } from '@/lib/ops/invoices'
 import { GST_RATES, GST_TYPES } from '@/lib/tax/calc'
 import { createInvoiceAction, recordPaymentAction, deleteInvoiceAction } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
+import { HeadCombobox } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 
 // Invoices & receivables (spec §6.6): auto numbering, due-date tracking,
 // partial payments, aging buckets, settled archive.
@@ -67,18 +69,19 @@ export default async function InvoicesPage() {
           <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <label className="text-xs text-zinc-400">due</label>
           <input name="dueDate" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-          <select name="incomeAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-            <option value="">— income head —</option>
-            {incomeHeads.map((h) => (
-              <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
-            ))}
-          </select>
-          <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-            <option value="">— cost centre —</option>
-            {costCentres.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <HeadCombobox
+            heads={incomeHeads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
+            name="incomeAccountId"
+            required
+            placeholder="Income head — type to search"
+          />
+          <SmartCombobox
+            options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
+            name="costCentreId"
+            createName="costCentreText"
+            placeholder="cost centre — new name adds it"
+            className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+          />
           <input name="narration" placeholder="Description" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           {/* FX (v2 prototype): billed in USD, realised in INR */}
           <select name="currency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createCashEntry } from '@/lib/ops/cash'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { deleteJournalDocument, undoJournalDocument } from '@/lib/ledger/posting'
 
 // Cash entries (spec §6.2): gated by the "Cash entries" flag. Adjustments
@@ -20,15 +21,21 @@ export async function createCashEntryAction(formData: FormData) {
   const date = new Date(String(formData.get('date') ?? ''))
   if (isNaN(date.getTime())) throw new Error('Pick a date')
 
+  const entityId = String(formData.get('entityId') ?? '')
   await auditedTransaction(async (tx) => {
+    const costCentreId = await resolveCostCentre(tx, {
+      entityId,
+      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+    })
     const entry = await createCashEntry(tx, {
-      entityId: String(formData.get('entityId') ?? ''),
+      entityId,
       kind,
       date,
       locationId: String(formData.get('locationId') ?? ''),
       toLocationId: String(formData.get('toLocationId') ?? '') || null,
       headAccountId: String(formData.get('headAccountId') ?? '') || null,
-      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreId,
       inflow: String(formData.get('inflow') ?? '') === 'true',
       amount: String(formData.get('amount') ?? ''),
       remarks: String(formData.get('remarks') ?? '') || null,

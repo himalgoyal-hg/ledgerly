@@ -12,6 +12,7 @@ import {
 import { undoJournalDocument } from '@/lib/ledger/posting'
 import { partyToken } from '@/lib/statements/rules'
 import { suggestNature } from '@/lib/statements/natures'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 
 // Tagging queue actions (spec §3 steps 5–6). Queue work needs the
 // "Transaction tagging" flag; touching posted rows needs
@@ -21,6 +22,9 @@ function tagFields(formData: FormData) {
   const headAccountId = String(formData.get('headAccountId') ?? '')
   const nature = String(formData.get('nature') ?? '')
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
+  // Creatable combobox: text that matched no cost centre arrives here and is
+  // found-or-created in the books being tagged (resolveCostCentre).
+  const costCentreText = String(formData.get('costCentreText') ?? '').trim() || null
   if (!headAccountId) throw new Error('Pick a head')
   if (!nature) throw new Error('Pick a nature')
   // Optional tax details (spec §3 step 5 / §7) — validated in the service.
@@ -34,16 +38,24 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  return { headAccountId, nature, costCentreId, tax }
+  return { headAccountId, nature, costCentreId, costCentreText, tax }
 }
 
 export async function tagTransaction(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const txnId = String(formData.get('txnId') ?? '')
-  const fields = tagFields(formData)
+  const { costCentreText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
+    const fields = {
+      ...raw,
+      costCentreId: await resolveCostCentre(tx, {
+        entityId: txn.entityId,
+        costCentreId: raw.costCentreId,
+        costCentreText,
+      }),
+    }
     await applyTag(tx, { txnId, ...fields, actorId: user.id })
     await tx.statementTransaction.update({
       where: { id: txnId },
@@ -97,10 +109,14 @@ export async function bulkTag(formData: FormData) {
   const headAccountId = String(formData.get('headAccountId') ?? '')
   if (!headAccountId) throw new Error('Pick a head')
   const natureRaw = String(formData.get('nature') ?? '')
-  const costCentreId = String(formData.get('costCentreId') ?? '') || null
 
   await auditedTransaction(async (tx) => {
     const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
+    const costCentreId = await resolveCostCentre(tx, {
+      entityId: head.entityId,
+      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+    })
     let tagged = 0
     for (const id of ids) {
       const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
@@ -296,10 +312,18 @@ export async function postAll(formData: FormData) {
 export async function retagPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const txnId = String(formData.get('txnId') ?? '')
-  const fields = tagFields(formData)
+  const { costCentreText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const before = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
+    const fields = {
+      ...raw,
+      costCentreId: await resolveCostCentre(tx, {
+        entityId: before.entityId,
+        costCentreId: raw.costCentreId,
+        costCentreText,
+      }),
+    }
     await retagPostedTransaction(tx, { txnId, ...fields, actorId: user.id })
     await audit(tx, {
       actorId: user.id,

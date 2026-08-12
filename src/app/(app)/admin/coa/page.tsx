@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
+import { SmartCombobox } from '@/components/smart-combobox'
 import {
   createAccount,
   archiveAccount,
@@ -73,19 +74,17 @@ export default async function CoaPage() {
                 <td className="px-4 py-1.5 text-xs text-zinc-500">{a.kind}</td>
                 <td className="px-4 py-1.5">
                   {/* v2 prototype: this default auto-fills tagging & cash forms */}
-                  {!a.isGroup && costCentres.length > 0 ? (
+                  {!a.isGroup ? (
                     <form action={setDefaultCostCentre} className="flex items-center gap-1">
                       <input type="hidden" name="id" value={a.id} />
-                      <select
+                      <SmartCombobox
+                        options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
                         name="costCentreId"
-                        defaultValue={a.defaultCostCentreId ?? ''}
-                        className="rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-xs text-zinc-600"
-                      >
-                        <option value="">—</option>
-                        {costCentres.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                        createName="costCentreText"
+                        defaultId={a.defaultCostCentreId}
+                        placeholder="—"
+                        className="w-40 rounded-md border border-zinc-200 bg-white px-1.5 py-0.5 text-xs text-zinc-600"
+                      />
                       <button type="submit" className="text-[10px] text-zinc-400 hover:text-zinc-700">
                         set
                       </button>

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { upsertPerson, createRun, updateRunLine, approveRun, payRun } from '@/lib/ops/salary'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 
 // Salary register (spec §6.4) — Admin-only.
 
@@ -11,13 +12,18 @@ export async function upsertPersonAction(formData: FormData) {
   const admin = await requireAdmin()
 
   await auditedTransaction(async (tx) => {
+    const entityId = String(formData.get('entityId') ?? '')
     const person = await upsertPerson(tx, {
       id: String(formData.get('id') ?? '') || null,
-      entityId: String(formData.get('entityId') ?? ''),
+      entityId,
       name: String(formData.get('name') ?? ''),
       type: String(formData.get('type') ?? 'SALARY') === 'CONSULTANT' ? 'CONSULTANT' : 'SALARY',
       team: String(formData.get('team') ?? '') || null,
-      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreId: await resolveCostCentre(tx, {
+        entityId,
+        costCentreId: String(formData.get('costCentreId') ?? '') || null,
+        costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+      }),
       monthlyGross: String(formData.get('monthlyGross') ?? ''),
       tdsRate: String(formData.get('tdsRate') ?? '0'),
     })

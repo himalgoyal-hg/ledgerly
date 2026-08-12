@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { submitClaim, approveClaim, rejectClaim, settleMember } from '@/lib/ops/reimburse'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { saveUpload } from '@/lib/files'
 
 // Reimbursements (spec §6.1): members submit their own; Approve / Reject /
@@ -61,10 +62,15 @@ export async function approveClaimAction(formData: FormData) {
   const admin = await requireAdmin()
   const claimId = String(formData.get('claimId') ?? '')
   const expenseAccountId = String(formData.get('expenseAccountId') ?? '')
-  const costCentreId = String(formData.get('costCentreId') ?? '') || null
   if (!expenseAccountId) throw new Error('Pick the expense head')
 
   await auditedTransaction(async (tx) => {
+    const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: expenseAccountId } })
+    const costCentreId = await resolveCostCentre(tx, {
+      entityId: head.entityId,
+      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+    })
     const claim = await approveClaim(tx, { claimId, expenseAccountId, costCentreId, actorId: admin.id })
     await audit(tx, {
       actorId: admin.id,

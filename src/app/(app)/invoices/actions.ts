@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createInvoice, recordInvoicePayment } from '@/lib/ops/invoices'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
 
 // Invoices & receivables (spec §6.6) — Admin-only.
@@ -54,7 +55,11 @@ export async function createInvoiceAction(formData: FormData) {
     const invoice = await createInvoice(tx, {
       ...parsed.data,
       narration: parsed.data.narration || null,
-      costCentreId: parsed.data.costCentreId || null,
+      costCentreId: await resolveCostCentre(tx, {
+        entityId: parsed.data.entityId,
+        costCentreId: parsed.data.costCentreId || null,
+        costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+      }),
       gstType: parsed.data.gstType || null,
       gstRate: parsed.data.gstRate || null,
       hsn: parsed.data.hsn || null,

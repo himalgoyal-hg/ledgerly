@@ -3,6 +3,8 @@ import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
+import { HeadCombobox } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 import { createCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
 
 // Cash (spec §6.2): "where is cash" live view + the entry form
@@ -58,20 +60,26 @@ export default async function CashPage() {
       </select>
     ),
     head: (label: string) => (
-      <select name="headAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-        <option value="">{label}</option>
-        {heads.map((h) => (
-          <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
-        ))}
-      </select>
+      <HeadCombobox
+        heads={heads.map((h) => ({
+          id: h.id,
+          code: h.code,
+          name: h.name,
+          kind: h.kind,
+          defaultCostCentreId: h.defaultCostCentreId,
+        }))}
+        required
+        placeholder={label}
+      />
     ),
     costCentre: (
-      <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-        <option value="">— cost centre —</option>
-        {costCentres.map((c) => (
-          <option key={c.id} value={c.id}>{c.name}</option>
-        ))}
-      </select>
+      <SmartCombobox
+        options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
+        name="costCentreId"
+        createName="costCentreText"
+        placeholder="cost centre — new name adds it"
+        className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+      />
     ),
   }
   const common = (

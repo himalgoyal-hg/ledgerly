@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { nextChildCode } from '@/lib/ledger/coa'
+import { resolveCostCentre } from '@/lib/ops/cost-centres'
 
 // Chart of Accounts management — Admin can add heads under any group
 // (spec §4). System accounts cannot be archived; accounts with postings
@@ -99,15 +100,18 @@ export async function restoreAccount(formData: FormData) {
 export async function setDefaultCostCentre(formData: FormData) {
   const admin = await requireAdmin()
   const id = String(formData.get('id') ?? '')
-  const costCentreId = String(formData.get('costCentreId') ?? '') || null
 
   await auditedTransaction(async (tx) => {
     const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id } })
     if (account.isGroup) throw new Error('Defaults go on leaf accounts, not groups')
+    const costCentreId = await resolveCostCentre(tx, {
+      entityId: account.entityId,
+      costCentreId: String(formData.get('costCentreId') ?? '') || null,
+      costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
+    })
     let ccName = '— none —'
     if (costCentreId) {
       const cc = await tx.costCentre.findUniqueOrThrow({ where: { id: costCentreId } })
-      if (cc.entityId !== account.entityId || cc.archivedAt) throw new Error('Invalid cost centre')
       ccName = cc.name
     }
     await tx.ledgerAccount.update({ where: { id }, data: { defaultCostCentreId: costCentreId } })

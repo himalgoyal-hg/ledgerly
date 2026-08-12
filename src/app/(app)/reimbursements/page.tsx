@@ -6,6 +6,8 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { memberPayableName } from '@/lib/ops/reimburse'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
+import { HeadCombobox } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 import { SourceSelect } from '../source-select'
 import {
   submitClaimAction,
@@ -186,18 +188,19 @@ export default async function ReimbursementsPage(props: {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <form action={approveClaimAction} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="claimId" value={claim.id} />
-                  <select name="expenseAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-                    <option value="">— expense head —</option>
-                    {heads.map((h) => (
-                      <option key={h.id} value={h.id}>{h.code} · {h.name}</option>
-                    ))}
-                  </select>
-                  <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-                    <option value="">— cost centre —</option>
-                    {costCentres.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <HeadCombobox
+                    heads={heads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
+                    name="expenseAccountId"
+                    required
+                    placeholder="Expense head — type to search"
+                  />
+                  <SmartCombobox
+                    options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
+                    name="costCentreId"
+                    createName="costCentreText"
+                    placeholder="cost centre — new name adds it"
+                    className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  />
                   <button type="submit" className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600">
                     Approve & post
                   </button>

@@ -10,6 +10,7 @@ import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells } from './tag-form'
 import { SelectAll } from './select-all'
 import { HeadCombobox } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 import {
   tagTransaction,
   untagTransaction,
@@ -184,8 +185,10 @@ export default async function TaggingPage(props: {
             {bankName(txn.bankAccountId)}
           </span>
         </td>
-        <td className="w-full max-w-0 px-2 py-1.5">
-          <span className="flex items-center gap-1.5">
+        {/* Capped width keeps narration and amount snug together — the
+            table's slack goes to the head column instead. */}
+        <td className="px-2 py-1.5">
+          <span className="flex max-w-[22rem] items-center gap-1.5">
             <span className="truncate font-medium text-zinc-800" title={title}>
               {desc.title}
             </span>
@@ -216,7 +219,7 @@ export default async function TaggingPage(props: {
         <th className="px-2 py-2">A/c</th>
         <th className="px-2 py-2">Narration</th>
         <th className="px-2 py-2 text-right">Amount</th>
-        <th className="min-w-40 px-2 py-2">Head</th>
+        <th className="w-full min-w-44 px-2 py-2">Head</th>
         <th className="px-2 py-2">Nature</th>
         <th className="px-2 py-2">Cost centre</th>
         <th className="px-2 py-2" />
@@ -324,18 +327,19 @@ export default async function TaggingPage(props: {
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
             <HeadCombobox heads={heads} required placeholder="Bulk head — type to search" />
-            <select name="nature" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="">nature — auto by direction</option>
-              {NATURES.map((n) => (
-                <option key={n.value} value={n.value}>{n.label}</option>
-              ))}
-            </select>
-            <select name="costCentreId" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="">— cost centre —</option>
-              {costCentres.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <SmartCombobox
+              options={NATURES.map((n) => ({ id: n.value, label: n.label }))}
+              name="nature"
+              placeholder="nature — auto by direction"
+              className="w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            />
+            <SmartCombobox
+              options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
+              name="costCentreId"
+              createName="costCentreText"
+              placeholder="cost centre — new name adds it"
+              className="w-52 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            />
             <button
               type="submit"
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"

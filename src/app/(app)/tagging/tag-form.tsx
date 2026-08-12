@@ -4,13 +4,17 @@ import { useState, type ReactNode } from 'react'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 
 // Spreadsheet-style tag cells (spec §3 step 5): head → nature (auto-suggested
 // from the head) → cost centre, laid out as table cells so the queue reads
-// like a sheet — one transaction per line. The inputs bind to a row-scoped
-// <form> via the form="" attribute; picking a head fills nature and moves the
-// cost centre with it (its default, blank otherwise — the old tag's cost
-// centre must never silently ride along into the new head).
+// like a sheet — one transaction per line. All three tiers are type-ahead
+// comboboxes; the cost centre is creatable (an unknown name is added to these
+// books on submit). The inputs bind to a row-scoped <form> via the form=""
+// attribute; picking a head fills nature and moves the cost centre with it
+// (its default, blank otherwise — the old tag's cost centre must never
+// silently ride along into the new head). The nature/cc comboboxes re-mount
+// on every head pick (the `seed` key) so their text follows the head.
 
 export type HeadOption = HeadOpt
 
@@ -20,6 +24,8 @@ export interface CostCentreOption {
 }
 
 const inputCls = 'w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs'
+
+export const NATURE_OPTIONS = NATURES.map((n) => ({ id: n.value, label: n.label }))
 
 export function TagRowCells(props: {
   txnId: string
@@ -36,10 +42,13 @@ export function TagRowCells(props: {
   const formId = `tag-${props.txnId}`
   const [nature, setNature] = useState(props.defaults?.nature ?? '')
   const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
+  const [seed, setSeed] = useState(0)
 
   return (
     <>
-      <td className="px-2 py-1">
+      {/* w-full: the head column absorbs the table's slack, so narration and
+          amount stay snug together instead of drifting apart. */}
+      <td className="w-full px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
@@ -50,42 +59,36 @@ export function TagRowCells(props: {
             if (head) {
               setNature(suggestNature(head, props.isOutflow))
               setCostCentreId(head.defaultCostCentreId ?? '')
+              setSeed((s) => s + 1)
             }
           }}
         />
       </td>
-      <td className="w-32 px-2 py-1">
-        <select
+      <td className="px-2 py-1">
+        <SmartCombobox
+          key={`n${seed}`}
+          options={NATURE_OPTIONS}
           name="nature"
-          form={formId}
+          defaultId={nature}
           required
-          value={nature}
-          onChange={(e) => setNature(e.target.value)}
-          className={inputCls}
-        >
-          <option value="">— nature —</option>
-          {NATURES.map((n) => (
-            <option key={n.value} value={n.value}>
-              {n.label}
-            </option>
-          ))}
-        </select>
+          formId={formId}
+          placeholder="nature"
+          className={`${inputCls} w-28`}
+          onPick={(opt) => setNature(opt?.id ?? '')}
+        />
       </td>
-      <td className="w-36 px-2 py-1">
-        <select
+      <td className="px-2 py-1">
+        <SmartCombobox
+          key={`c${seed}`}
+          options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
           name="costCentreId"
-          form={formId}
-          value={costCentreId}
-          onChange={(e) => setCostCentreId(e.target.value)}
-          className={inputCls}
-        >
-          <option value="">— cc —</option>
-          {props.costCentres.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
+          createName="costCentreText"
+          defaultId={costCentreId}
+          formId={formId}
+          placeholder="cost centre — new name adds it"
+          className={`${inputCls} w-40`}
+          onPick={(opt) => setCostCentreId(opt?.id ?? '')}
+        />
       </td>
       <td className="px-2 py-1">
         <div className="flex items-start gap-1.5">
