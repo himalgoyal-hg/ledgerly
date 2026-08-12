@@ -240,14 +240,17 @@ export default async function TaggingPage(props: {
           </p>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {aiReady && awaitingSuggestion > 0 && (
+          {awaitingSuggestion > 0 && (
             <form action={requestAiSuggestions}>
               <input type="hidden" name="entityId" value={entity.id} />
               <button
                 type="submit"
+                title="Matches pending rows against your own past tags (and asks AI too, when a key is configured)"
                 className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
               >
-                Suggest tags with AI ({Math.min(awaitingSuggestion, 25)})
+                {aiReady
+                  ? `Suggest tags with AI (${Math.min(awaitingSuggestion, 25)})`
+                  : `Suggest tags from my history (${awaitingSuggestion})`}
               </button>
             </form>
           )}

@@ -26,8 +26,9 @@ const NOISE_TOKENS = new Set([
  * payee fragment that survives across transactions, e.g.
  * "UPI/512345/SWIGGY LTD/swiggy@ybl" → "SWIGGY".
  */
-export function partyToken(narration: string): string | null {
-  const tokens = narration
+/** Every meaningful token of a narration — refs, IFSCs and rails stripped. */
+export function salientTokens(narration: string): string[] {
+  return narration
     .toUpperCase()
     // Statements occasionally carry control bytes; Postgres rejects a NUL in
     // text, and they are never part of a payee's name.
@@ -51,6 +52,10 @@ export function partyToken(narration: string): string | null {
         (t.replace(/\D/g, '').length < 3) &&
         !NOISE_TOKENS.has(t),
     )
+}
+
+export function partyToken(narration: string): string | null {
+  const tokens = salientTokens(narration)
   if (tokens.length === 0) return null
   // Longest token wins; ties → earliest.
   const winner = tokens.reduce((a, b) => (b.length > a.length ? b : a))

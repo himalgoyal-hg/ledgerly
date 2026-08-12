@@ -100,17 +100,21 @@ export async function confirmImport(formData: FormData) {
     suggestEntityId = imp.entityId
   })
 
-  // Smart layer, hands-free: the moment an import lands, ask the model to
-  // suggest head/nature/cost centre for the rows no learned rule matched.
-  // Advisory only (accept/dismiss on the queue) and skipped silently when
-  // AI isn't configured — the "Suggest tags with AI" button remains the
-  // manual backstop.
-  if (suggestEntityId && aiConfigured()) {
+  // Smart layer, hands-free: the moment an import lands, suggest a
+  // head/nature/cost centre for the rows no learned rule matched — first
+  // from the user's own tagging history (no key needed), then from the
+  // model for whatever is left (only when AI is configured). Advisory only:
+  // accept/dismiss on the queue.
+  if (suggestEntityId) {
     try {
-      const { suggestForPending } = await import('@/lib/ai/tag')
-      await suggestForPending(suggestEntityId)
+      const { suggestFromHistory } = await import('@/lib/statements/suggest-local')
+      await suggestFromHistory(suggestEntityId)
+      if (aiConfigured()) {
+        const { suggestForPending } = await import('@/lib/ai/tag')
+        await suggestForPending(suggestEntityId)
+      }
     } catch (e) {
-      console.error('post-import AI suggestions failed:', e)
+      console.error('post-import tag suggestions failed:', e)
     }
   }
   revalidatePath('/statements')

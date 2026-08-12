@@ -200,20 +200,28 @@ export async function acceptAllSuggestions(formData: FormData) {
   revalidatePath('/tagging')
 }
 
-/** Ask Claude to suggest tags for pending rows the rule engine couldn't match. */
+/**
+ * Suggest tags for pending rows the rule engine couldn't match: first from
+ * the user's own tagging history (fuzzy narration match + same party in
+ * other books — needs no key), then from Claude for whatever is left, when
+ * AI is configured.
+ */
 export async function requestAiSuggestions(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const entityId = String(formData.get('entityId') ?? '')
 
-  const { aiConfigured, AI_UNCONFIGURED_MESSAGE, AiError } = await import('@/lib/ai/client')
-  if (!aiConfigured()) throw new Error(AI_UNCONFIGURED_MESSAGE)
-  const { suggestForPending } = await import('@/lib/ai/tag')
+  const { suggestFromHistory } = await import('@/lib/statements/suggest-local')
+  const local = await suggestFromHistory(entityId)
 
-  let result: { considered: number; suggested: number }
-  try {
-    result = await suggestForPending(entityId)
-  } catch (e) {
-    throw new Error(e instanceof AiError ? e.message : 'AI suggestions failed')
+  let ai = { considered: 0, suggested: 0 }
+  const { aiConfigured, AiError } = await import('@/lib/ai/client')
+  if (aiConfigured()) {
+    const { suggestForPending } = await import('@/lib/ai/tag')
+    try {
+      ai = await suggestForPending(entityId)
+    } catch (e) {
+      throw new Error(e instanceof AiError ? e.message : 'AI suggestions failed')
+    }
   }
   await auditedTransaction((tx) =>
     audit(tx, {
@@ -221,7 +229,7 @@ export async function requestAiSuggestions(formData: FormData) {
       action: 'ai.suggest_tags',
       targetType: 'Entity',
       targetId: entityId,
-      summary: `AI reviewed ${result.considered} pending row(s), suggested ${result.suggested}`,
+      summary: `Suggested tags for ${local.suggested + ai.suggested} of ${Math.max(local.considered, ai.considered + local.suggested)} pending row(s) (${local.suggested} from history, ${ai.suggested} from AI)`,
     }),
   )
   revalidatePath('/tagging')
