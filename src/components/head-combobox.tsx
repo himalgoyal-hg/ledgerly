@@ -28,6 +28,8 @@ export function HeadCombobox(props: {
   required?: boolean
   placeholder?: string
   className?: string
+  /** Bind to a <form> elsewhere in the page (table-row layouts). */
+  formId?: string
 }) {
   const listId = useId()
 
@@ -65,6 +67,7 @@ export function HeadCombobox(props: {
         list={listId}
         value={text}
         required={props.required}
+        form={props.formId}
         placeholder={props.placeholder ?? 'Head — type to search'}
         autoComplete="off"
         onChange={(e) => {
@@ -85,7 +88,7 @@ export function HeadCombobox(props: {
           </option>
         ))}
       </datalist>
-      <input type="hidden" name={props.name ?? 'headAccountId'} value={id} />
+      <input type="hidden" name={props.name ?? 'headAccountId'} value={id} form={props.formId} />
     </>
   )
 }

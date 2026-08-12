@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Fragment, type ReactNode } from 'react'
 import { prisma } from '@/lib/db'
 import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
@@ -6,7 +7,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { NATURES } from '@/lib/statements/natures'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
-import { TagForm } from './tag-form'
+import { TagRowCells } from './tag-form'
 import { SelectAll } from './select-all'
 import { HeadCombobox } from '@/components/head-combobox'
 import {
@@ -26,7 +27,9 @@ import {
 // tagged rows wait for "Post All Confirmed", posted rows carry a balanced
 // journal underneath (with member edit/delete/undo when granted).
 // Search, bank/month/status filters, KPIs, bulk tagging and pagination come
-// from the v2 prototype's Tagging screen.
+// from the v2 prototype's Tagging screen. Every section is a dense
+// spreadsheet-style table — one transaction per line, tag inputs inline —
+// so a screenful shows dozens of rows, not 4-5 cards.
 
 const PER_PAGE = 60
 
@@ -162,51 +165,64 @@ export default async function TaggingPage(props: {
     ['Awaiting post', String(tagged.length), 'tagged, not yet posted', 'border-teal-600'],
   ]
 
-  const rowHeader = (txn: (typeof pending)[number], selectable = false) => {
+  // Leading cells of every row (date / account / narration / amount) — one
+  // line per transaction, Excel-style; the full narration rides in the
+  // tooltip so the line can stay short.
+  const leadCells = (txn: (typeof pending)[number], tip?: string, chips?: ReactNode) => {
     const outflow = Number(txn.debit) > 0
+    const desc = describeNarration(txn.narration)
+    const title = [txn.narration, txn.reference ? `ref ${txn.reference}` : '', tip ?? '']
+      .filter(Boolean)
+      .join('\n')
     return (
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        {selectable && (
-          <input
-            type="checkbox"
-            name="ids"
-            value={txn.id}
-            form="bulk-tag"
-            className="accent-zinc-900"
-            aria-label="Select for bulk tagging"
-          />
-        )}
-        <span className="text-xs text-zinc-400">{txn.date.toISOString().slice(0, 10)}</span>
-        <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
-          {bankName(txn.bankAccountId)}
-        </span>
-        {(() => {
-          const desc = describeNarration(txn.narration)
-          return (
-            <span className="flex min-w-0 max-w-md flex-col">
-              <span className="flex items-center gap-2">
-                <span className="truncate font-medium text-zinc-800">{desc.title}</span>
-                {desc.kind && (
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
-                    {desc.kind}
-                  </span>
-                )}
-              </span>
-              <span className="truncate text-xs text-zinc-400" title={txn.narration}>
-                {txn.narration}
-              </span>
+      <>
+        <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-zinc-500">
+          {txn.date.toISOString().slice(0, 10)}
+        </td>
+        <td className="px-2 py-1.5">
+          <span className="whitespace-nowrap rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+            {bankName(txn.bankAccountId)}
+          </span>
+        </td>
+        <td className="w-full max-w-0 px-2 py-1.5">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate font-medium text-zinc-800" title={title}>
+              {desc.title}
             </span>
-          )
-        })()}
-        {txn.reference && <span className="text-xs text-zinc-400">ref {txn.reference}</span>}
-        <span
-          className={`ml-auto font-semibold ${outflow ? 'text-red-600' : 'text-emerald-600'}`}
+            {desc.kind && (
+              <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                {desc.kind}
+              </span>
+            )}
+            {chips}
+          </span>
+        </td>
+        <td
+          className={`whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums ${
+            outflow ? 'text-red-600' : 'text-emerald-600'
+          }`}
         >
           {outflow ? 'Out' : 'In'} {displayINR(String(outflow ? txn.debit : txn.credit))}
-        </span>
-      </div>
+        </td>
+      </>
     )
   }
+
+  const tableHead = (withCheckbox: boolean) => (
+    <thead>
+      <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-400">
+        {withCheckbox && <th className="w-8 px-2 py-2" />}
+        <th className="px-2 py-2">Date</th>
+        <th className="px-2 py-2">A/c</th>
+        <th className="px-2 py-2">Narration</th>
+        <th className="px-2 py-2 text-right">Amount</th>
+        <th className="min-w-40 px-2 py-2">Head</th>
+        <th className="px-2 py-2">Nature</th>
+        <th className="px-2 py-2">Cost centre</th>
+        <th className="px-2 py-2" />
+      </tr>
+    </thead>
+  )
 
   return (
     <div className="space-y-8">
@@ -349,91 +365,108 @@ export default async function TaggingPage(props: {
             <span className="ml-2 text-xs font-normal text-zinc-400">Page {page} of {pages}</span>
           )}
         </h2>
-        {pendingSlice.map((txn) => {
-          const confidence = txn.aiConfidence === null ? null : Number(txn.aiConfidence)
-          const hasSuggestion = Boolean(txn.aiHeadAccountId && txn.aiNature)
-          return (
-            <div key={txn.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-              {rowHeader(txn, true)}
-
-              {/* AI suggestion — advisory: accept it or ignore it (spec §12.8) */}
-              {hasSuggestion && (
-                <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 p-3">
-                  <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-800">
-                      AI suggests
-                    </span>
-                    <span className="font-medium text-zinc-800">
-                      {headName(txn.aiHeadAccountId)}
-                    </span>
-                    <span className="text-zinc-400">·</span>
-                    <span className="text-zinc-700">{natureLabel(txn.aiNature)}</span>
-                    {ccName(txn.aiCostCentreId) && (
-                      <>
-                        <span className="text-zinc-400">·</span>
-                        <span className="text-zinc-700">{ccName(txn.aiCostCentreId)}</span>
-                      </>
-                    )}
-                    {confidence !== null && (
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
-                          confidence >= 0.8
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : confidence >= 0.5
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-zinc-200 text-zinc-600'
-                        }`}
-                      >
-                        {Math.round(confidence * 100)}% confident
-                      </span>
-                    )}
-                  </div>
-                  {txn.aiReason && (
-                    <p className="mt-1 text-xs text-zinc-600">{txn.aiReason}</p>
-                  )}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <form action={acceptAiSuggestion}>
-                      <input type="hidden" name="txnId" value={txn.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md bg-sky-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-600"
-                      >
-                        Accept & teach the rule
-                      </button>
-                    </form>
-                    <form action={dismissAiSuggestion}>
-                      <input type="hidden" name="txnId" value={txn.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100"
-                      >
-                        Dismiss
-                      </button>
-                    </form>
-                    <span className="text-[10px] text-zinc-500">
-                      Accepting tags the row and teaches the rule engine, so this party
-                      is matched without AI next time.
-                    </span>
-                  </div>
-                </div>
-              )}
-              {!hasSuggestion && txn.aiSuggestedAt !== null && txn.aiReason && (
-                <p className="mt-2 text-xs text-zinc-400">AI: {txn.aiReason}</p>
-              )}
-
-              <div className="mt-3">
-                <TagForm
-                  txnId={txn.id}
-                  isOutflow={Number(txn.debit) > 0}
-                  heads={heads}
-                  costCentres={costCentres}
-                  action={tagTransaction}
-                  submitLabel="Tag"
-                />
-              </div>
-            </div>
-          )
-        })}
+        {pendingSlice.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <table className="w-full min-w-[68rem] text-left text-sm">
+              {tableHead(true)}
+              <tbody className="divide-y divide-zinc-100">
+                {pendingSlice.map((txn) => {
+                  const confidence = txn.aiConfidence === null ? null : Number(txn.aiConfidence)
+                  const hasSuggestion = Boolean(txn.aiHeadAccountId && txn.aiNature)
+                  const aiTip =
+                    !hasSuggestion && txn.aiSuggestedAt !== null && txn.aiReason
+                      ? `AI: ${txn.aiReason}`
+                      : undefined
+                  return (
+                    <Fragment key={txn.id}>
+                      <tr className="align-top hover:bg-zinc-50/60">
+                        <td className="px-2 py-1.5">
+                          <input
+                            type="checkbox"
+                            name="ids"
+                            value={txn.id}
+                            form="bulk-tag"
+                            className="accent-zinc-900"
+                            aria-label="Select for bulk tagging"
+                          />
+                        </td>
+                        {leadCells(txn, aiTip)}
+                        <TagRowCells
+                          txnId={txn.id}
+                          isOutflow={Number(txn.debit) > 0}
+                          heads={heads}
+                          costCentres={costCentres}
+                          action={tagTransaction}
+                          submitLabel="Tag"
+                        />
+                      </tr>
+                      {/* AI suggestion — advisory, one slim line under the row
+                          (spec §12.8): accept it or ignore it. */}
+                      {hasSuggestion && (
+                        <tr className="border-t-0 bg-sky-50/70">
+                          <td className="px-2 py-1" />
+                          <td colSpan={8} className="px-2 pb-1.5 pt-0.5">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                              <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-800">
+                                AI
+                              </span>
+                              <span
+                                className="font-medium text-zinc-800"
+                                title={txn.aiReason ?? undefined}
+                              >
+                                {headName(txn.aiHeadAccountId)}
+                              </span>
+                              <span className="text-zinc-400">·</span>
+                              <span className="text-zinc-700">{natureLabel(txn.aiNature)}</span>
+                              {ccName(txn.aiCostCentreId) && (
+                                <>
+                                  <span className="text-zinc-400">·</span>
+                                  <span className="text-zinc-700">{ccName(txn.aiCostCentreId)}</span>
+                                </>
+                              )}
+                              {confidence !== null && (
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                                    confidence >= 0.8
+                                      ? 'bg-emerald-100 text-emerald-700'
+                                      : confidence >= 0.5
+                                        ? 'bg-amber-100 text-amber-700'
+                                        : 'bg-zinc-200 text-zinc-600'
+                                  }`}
+                                >
+                                  {Math.round(confidence * 100)}%
+                                </span>
+                              )}
+                              <form action={acceptAiSuggestion}>
+                                <input type="hidden" name="txnId" value={txn.id} />
+                                <button
+                                  type="submit"
+                                  title="Accepting tags the row and teaches the rule engine, so this party is matched without AI next time."
+                                  className="rounded bg-sky-700 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-sky-600"
+                                >
+                                  Accept & teach
+                                </button>
+                              </form>
+                              <form action={dismissAiSuggestion}>
+                                <input type="hidden" name="txnId" value={txn.id} />
+                                <button
+                                  type="submit"
+                                  className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+                                >
+                                  Dismiss
+                                </button>
+                              </form>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
         {pending.length === 0 && (
           <p className="text-sm text-zinc-400">
             {filtered ? 'No pending entries match these filters.' : 'Queue is clear — nothing waiting.'}
@@ -457,144 +490,162 @@ export default async function TaggingPage(props: {
       </div>
       )}
 
-      {/* Tagged, awaiting post */}
+      {/* Tagged, awaiting post — the tag stays editable right in the row */}
       {showTagged && tagged.length > 0 && (
         <div className="space-y-2">
           <h2 className="font-medium text-zinc-900">Tagged — awaiting post ({tagged.length})</h2>
-          {tagged.map((txn) => (
-            <div key={txn.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-              {rowHeader(txn)}
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-                <span>{headName(txn.headAccountId)}</span>
-                <span className="text-zinc-300">·</span>
-                <span>{natureLabel(txn.nature)}</span>
-                {ccName(txn.costCentreId) && (
-                  <>
-                    <span className="text-zinc-300">·</span>
-                    <span>{ccName(txn.costCentreId)}</span>
-                  </>
-                )}
-                {txn.autoTagged ? (
-                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
-                    Verified by System
-                  </span>
-                ) : txn.tagSource === 'ai' ? (
-                  <span className="text-zinc-400">
-                    AI suggestion accepted by {userName(txn.taggedById)}
-                  </span>
-                ) : (
-                  <span className="text-zinc-400">tagged by {userName(txn.taggedById)}</span>
-                )}
-                <form action={untagTransaction} className="ml-auto">
-                  <input type="hidden" name="txnId" value={txn.id} />
-                  <button
-                    type="submit"
-                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
-                  >
-                    Untag
-                  </button>
-                </form>
-              </div>
-              <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
-                  Change tag
-                </summary>
-                <div className="mt-2">
-                  <TagForm
-                    txnId={txn.id}
-                    isOutflow={Number(txn.debit) > 0}
-                    heads={heads}
-                    costCentres={costCentres}
-                    action={tagTransaction}
-                    submitLabel="Save tag"
-                    defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
-                  />
-                </div>
-              </details>
-            </div>
-          ))}
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <table className="w-full min-w-[68rem] text-left text-sm">
+              {tableHead(false)}
+              <tbody className="divide-y divide-zinc-100">
+                {tagged.map((txn) => (
+                  <tr key={txn.id} className="align-top hover:bg-zinc-50/60">
+                    {leadCells(
+                      txn,
+                      txn.tagSource === 'ai'
+                        ? `AI suggestion accepted by ${userName(txn.taggedById)}`
+                        : `tagged by ${userName(txn.taggedById)}`,
+                      txn.autoTagged ? (
+                        <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                          auto
+                        </span>
+                      ) : undefined,
+                    )}
+                    <TagRowCells
+                      txnId={txn.id}
+                      isOutflow={Number(txn.debit) > 0}
+                      heads={heads}
+                      costCentres={costCentres}
+                      action={tagTransaction}
+                      submitLabel="Save"
+                      defaults={{
+                        headAccountId: txn.headAccountId,
+                        nature: txn.nature,
+                        costCentreId: txn.costCentreId,
+                      }}
+                    >
+                      <form action={untagTransaction}>
+                        <input type="hidden" name="txnId" value={txn.id} />
+                        <button
+                          type="submit"
+                          className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                        >
+                          Untag
+                        </button>
+                      </form>
+                    </TagRowCells>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Posted */}
+      {/* Posted — retag lives right in the row; posted rows cannot be
+          deleted one by one, the books only move forward via retag
+          (reversal + new version). */}
       {showPosted && (
       <div className="space-y-2">
         <h2 className="font-medium text-zinc-900">Recently posted</h2>
-        {posted.map((txn) => {
-          const doc = txn.docId ? docById.get(txn.docId) : undefined
-          const deleted = Boolean(doc?.deletedAt)
-          return (
-            <div
-              key={txn.id}
-              className={`rounded-xl border p-4 shadow-sm ${
-                deleted ? 'border-red-100 bg-red-50/40' : 'border-zinc-200 bg-white'
-              }`}
-            >
-              <div className={deleted ? 'opacity-60' : undefined}>{rowHeader(txn)}</div>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-                <span>{headName(txn.headAccountId)}</span>
-                <span className="text-zinc-300">·</span>
-                <span>{natureLabel(txn.nature)}</span>
-                {ccName(txn.costCentreId) && (
-                  <>
-                    <span className="text-zinc-300">·</span>
-                    <span>{ccName(txn.costCentreId)}</span>
-                  </>
-                )}
-                {txn.autoTagged && (
-                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
-                    Verified by System
-                  </span>
-                )}
-                {!txn.docId && (
-                  <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
-                    mirror of own-account transfer
-                  </span>
-                )}
-                {deleted && (
-                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                    deleted
-                  </span>
-                )}
-              </div>
-              {canEditPosted && txn.docId && (
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {/* Posted rows cannot be deleted one by one — the books only
-                      move forward via retag (reversal + new version). */}
-                  {!deleted && (
-                    <details>
-                      <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
-                        Retag
-                      </summary>
-                      <div className="mt-2">
-                        <TagForm
+        {posted.length > 0 && (
+          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+            <table className="w-full min-w-[68rem] text-left text-sm">
+              {tableHead(false)}
+              <tbody className="divide-y divide-zinc-100">
+                {posted.map((txn) => {
+                  const doc = txn.docId ? docById.get(txn.docId) : undefined
+                  const deleted = Boolean(doc?.deletedAt)
+                  const chips = (
+                    <>
+                      {txn.autoTagged && (
+                        <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                          auto
+                        </span>
+                      )}
+                      {!txn.docId && (
+                        <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                          mirror
+                        </span>
+                      )}
+                      {deleted && (
+                        <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                          deleted
+                        </span>
+                      )}
+                    </>
+                  )
+                  const editable = canEditPosted && Boolean(txn.docId) && !deleted
+                  return (
+                    <tr
+                      key={txn.id}
+                      className={deleted ? 'bg-red-50/40 opacity-70' : 'align-top hover:bg-zinc-50/60'}
+                    >
+                      {leadCells(
+                        txn,
+                        !txn.docId ? 'mirror of own-account transfer' : undefined,
+                        chips,
+                      )}
+                      {editable ? (
+                        <TagRowCells
                           txnId={txn.id}
                           isOutflow={Number(txn.debit) > 0}
                           heads={heads}
                           costCentres={costCentres}
                           action={retagPosted}
-                          submitLabel="Save (posts reversal + new version)"
-                          defaults={{ headAccountId: txn.headAccountId, nature: txn.nature, costCentreId: txn.costCentreId }}
-                        />
-                      </div>
-                    </details>
-                  )}
-                  {(deleted || (doc?._count.entries ?? 0) > 1) && (
-                    <form action={undoPosted}>
-                      <input type="hidden" name="txnId" value={txn.id} />
-                      <button
-                        type="submit"
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
-                      >
-                        {deleted ? 'Undo delete' : 'Undo last change'}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+                          submitLabel="Retag"
+                          submitTitle="Posts a reversal + new version with this tag"
+                          defaults={{
+                            headAccountId: txn.headAccountId,
+                            nature: txn.nature,
+                            costCentreId: txn.costCentreId,
+                          }}
+                        >
+                          {(doc?._count.entries ?? 0) > 1 && (
+                            <form action={undoPosted}>
+                              <input type="hidden" name="txnId" value={txn.id} />
+                              <button
+                                type="submit"
+                                className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                              >
+                                Undo
+                              </button>
+                            </form>
+                          )}
+                        </TagRowCells>
+                      ) : (
+                        <>
+                          <td className="px-2 py-1.5 text-xs text-zinc-600">
+                            {headName(txn.headAccountId)}
+                          </td>
+                          <td className="px-2 py-1.5 text-xs text-zinc-600">
+                            {natureLabel(txn.nature)}
+                          </td>
+                          <td className="px-2 py-1.5 text-xs text-zinc-600">
+                            {ccName(txn.costCentreId) ?? '—'}
+                          </td>
+                          <td className="px-2 py-1.5">
+                            {canEditPosted && txn.docId && deleted && (
+                              <form action={undoPosted}>
+                                <input type="hidden" name="txnId" value={txn.id} />
+                                <button
+                                  type="submit"
+                                  className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                                >
+                                  Undo delete
+                                </button>
+                              </form>
+                            )}
+                          </td>
+                        </>
+                      )}
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
         {posted.length === 0 && (
           <p className="text-sm text-zinc-400">
             {filtered ? 'No posted entries match these filters.' : 'Nothing posted yet for these books.'}
