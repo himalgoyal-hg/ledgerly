@@ -39,7 +39,7 @@ export interface InvoiceRowData {
 }
 
 const inputCls = 'w-full min-w-16 rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs'
-const cellCls = 'whitespace-nowrap px-2 py-1.5'
+const cellCls = 'whitespace-nowrap px-1.5 py-1'
 
 export function InvoiceRow(props: {
   data: InvoiceRowData
@@ -56,15 +56,15 @@ export function InvoiceRow(props: {
       <tr className={`align-top ${d.settled ? 'text-zinc-500' : ''} hover:bg-zinc-50/60`}>
         <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
         <td className={`${cellCls} text-xs tabular-nums text-zinc-500`}>{d.dateIso}</td>
-        <td className="px-2 py-1.5 font-medium text-zinc-800">
-          {d.customer}
-          {d.narration && (
-            <span className="block max-w-40 truncate text-[10px] font-normal text-zinc-400" title={d.narration}>
-              {d.narration}
-            </span>
-          )}
+        <td className="px-1.5 py-1">
+          <span
+            className="block max-w-40 truncate font-medium text-zinc-800"
+            title={d.narration ? `${d.customer} — ${d.narration}` : d.customer}
+          >
+            {d.customer}
+          </span>
         </td>
-        <td className="px-2 py-1.5 text-xs text-zinc-600">{d.country || '—'}</td>
+        <td className="px-1.5 py-1 text-xs text-zinc-600">{d.country || '—'}</td>
         <td className={cellCls}>
           <span className="text-xs tabular-nums text-zinc-500">{d.dueIso}</span>{' '}
           {d.badge && (
@@ -89,7 +89,7 @@ export function InvoiceRow(props: {
         <td className={`${cellCls} text-right tabular-nums`}>{d.invDisp}</td>
         <td className={`${cellCls} text-right tabular-nums`}>
           {d.recdDisp || <span className="text-zinc-300">—</span>}
-          {d.shortDisp && <span className="block text-[10px] text-red-500">{d.shortDisp}</span>}
+          {d.shortDisp && <span className="ml-1 text-[10px] text-red-500">{d.shortDisp}</span>}
         </td>
         <td className={`${cellCls} text-right tabular-nums`}>
           {d.inrDisp || <span className="text-zinc-300">—</span>}
@@ -103,10 +103,10 @@ export function InvoiceRow(props: {
         <td className={`${cellCls} text-right font-medium tabular-nums`}>
           {d.effDisp || <span className="text-zinc-300">—</span>}
         </td>
-        <td className="px-2 py-1.5 text-xs">{d.firc || '—'}</td>
+        <td className="px-1.5 py-1 text-xs">{d.firc || '—'}</td>
         <td className={`${cellCls} text-right text-xs tabular-nums`}>{d.daysDisp || '—'}</td>
-        <td className="px-2 py-1.5">
-          <div className="flex items-start justify-end gap-1.5">
+        <td className="px-1.5 py-1">
+          <div className="flex items-start justify-end gap-1">
             <button
               type="button"
               onClick={() => setEditing(true)}
@@ -128,33 +128,36 @@ export function InvoiceRow(props: {
   return (
     <tr className="bg-amber-50/40 align-top">
       <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         <input name="date" type="date" form={formId} defaultValue={d.dateIso} className={inputCls} />
       </td>
-      <td className="px-2 py-1">
-        <input
-          name="customer"
-          form={formId}
-          defaultValue={d.customer}
-          disabled={d.posted}
-          title={d.posted ? 'Posted invoice — client is fixed' : 'Client'}
-          className={`${inputCls} disabled:bg-zinc-100 disabled:text-zinc-400`}
-        />
-        <input
-          name="narration"
-          form={formId}
-          defaultValue={d.narration}
-          placeholder="Description"
-          className={`mt-0.5 ${inputCls}`}
-        />
+      <td className="px-1.5 py-0.5">
+        <div className="flex gap-0.5">
+          <input
+            name="customer"
+            form={formId}
+            defaultValue={d.customer}
+            disabled={d.posted}
+            title={d.posted ? 'Posted invoice — client is fixed' : 'Client'}
+            className={`${inputCls} disabled:bg-zinc-100 disabled:text-zinc-400`}
+          />
+          <input
+            name="narration"
+            form={formId}
+            defaultValue={d.narration}
+            placeholder="Desc"
+            title="Description"
+            className={inputCls}
+          />
+        </div>
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         <input name="country" form={formId} defaultValue={d.country} placeholder="Country" className={inputCls} />
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         <input name="dueDate" type="date" form={formId} defaultValue={d.dueIso} className={inputCls} />
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         {d.fx ? (
           <input
             name="amountFx"
@@ -168,7 +171,7 @@ export function InvoiceRow(props: {
           <span className="block px-1 text-right text-xs tabular-nums">{d.invDisp}</span>
         )}
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         {d.fx ? (
           <input
             name="receivedFx"
@@ -182,7 +185,7 @@ export function InvoiceRow(props: {
           <span className="block text-right text-xs text-zinc-300">—</span>
         )}
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         {d.fx ? (
           <input
             name="realizedInr"
@@ -197,7 +200,7 @@ export function InvoiceRow(props: {
         )}
       </td>
       <td className={`${cellCls} text-right text-[10px] text-zinc-400`}>auto</td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         {d.fx ? (
           <div className="flex gap-0.5">
             <input
@@ -224,7 +227,7 @@ export function InvoiceRow(props: {
         )}
       </td>
       <td className={`${cellCls} text-right text-[10px] text-zinc-400`}>auto</td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         <select name="firc" form={formId} defaultValue={d.firc} className={inputCls}>
           <option value="">FIRC —</option>
           <option>Awaited</option>
@@ -232,7 +235,7 @@ export function InvoiceRow(props: {
           <option>Received</option>
         </select>
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         {d.fx ? (
           <input
             name="creditDate"
@@ -246,7 +249,7 @@ export function InvoiceRow(props: {
           <span className="block text-right text-xs text-zinc-300">—</span>
         )}
       </td>
-      <td className="px-2 py-1">
+      <td className="px-1.5 py-0.5">
         <div className="flex items-start justify-end gap-1.5">
           <form id={formId} action={props.update}>
             <input type="hidden" name="invoiceId" value={d.id} />

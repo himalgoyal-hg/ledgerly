@@ -172,23 +172,23 @@ export default async function InvoicesPage() {
 
       {/* The register — the Excel sheet, computed */}
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[76rem] text-left text-sm">
+        <table className="w-full min-w-[72rem] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
-              <th className="px-2 py-2">#</th>
-              <th className="px-2 py-2">Date</th>
-              <th className="px-2 py-2">Client</th>
-              <th className="px-2 py-2">Country</th>
-              <th className="px-2 py-2">Due</th>
-              <th className="px-2 py-2 text-right">$ invoiced</th>
-              <th className="px-2 py-2 text-right">$ received</th>
-              <th className="px-2 py-2 text-right">₹ credited</th>
-              <th className="px-2 py-2 text-right">Rate</th>
-              <th className="px-2 py-2 text-right">Chg + fees</th>
-              <th className="px-2 py-2 text-right">Effective</th>
-              <th className="px-2 py-2">FIRC</th>
-              <th className="px-2 py-2 text-right">Days</th>
-              <th className="px-2 py-2" />
+              <th className="px-1.5 py-2">#</th>
+              <th className="px-1.5 py-2">Date</th>
+              <th className="px-1.5 py-2">Client</th>
+              <th className="px-1.5 py-2">Country</th>
+              <th className="px-1.5 py-2">Due</th>
+              <th className="px-1.5 py-2 text-right">$ Inv</th>
+              <th className="px-1.5 py-2 text-right">$ Recd</th>
+              <th className="px-1.5 py-2 text-right">₹ Credited</th>
+              <th className="px-1.5 py-2 text-right">Rate</th>
+              <th className="px-1.5 py-2 text-right">Charges</th>
+              <th className="px-1.5 py-2 text-right">Eff.</th>
+              <th className="px-1.5 py-2">FIRC</th>
+              <th className="px-1.5 py-2 text-right">Days</th>
+              <th className="px-1.5 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
