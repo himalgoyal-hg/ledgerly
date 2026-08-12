@@ -41,25 +41,84 @@ export default async function SalaryPage() {
   const personName = (id: string) => people.find((p) => p.id === id)?.name ?? '(archived)'
   const ccName = (id: string | null) => costCentres.find((c) => c.id === id)?.name
 
-  const personForm = (type: 'SALARY' | 'CONSULTANT') => (
+  const personForm = (type: 'SALARY' | 'CONSULTANT', person?: (typeof people)[number]) => (
     <form action={upsertPersonAction} className="mt-2 flex flex-wrap items-center gap-2">
       <input type="hidden" name="entityId" value={entity.id} />
       <input type="hidden" name="type" value={type} />
-      <input name="name" required placeholder="Name" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-      <input name="team" placeholder="Team" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+      {person && <input type="hidden" name="id" value={person.id} />}
+      <input name="name" required placeholder="Name" defaultValue={person?.name} className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+      <input name="team" placeholder="Team" defaultValue={person?.team ?? ''} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <SmartCombobox
         options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
         name="costCentreId"
         createName="costCentreText"
+        defaultId={person?.costCentreId}
         placeholder="Cost centre — type or add"
         className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
-      <input name="monthlyGross" required inputMode="decimal" placeholder="Monthly gross ₹" className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-      <input name="tdsRate" required inputMode="decimal" placeholder={type === 'SALARY' ? 'TDS % (192)' : 'TDS % (194J)'} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+      <input name="monthlyGross" required inputMode="decimal" placeholder="Monthly gross ₹" defaultValue={person ? String(person.monthlyGross) : undefined} className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+      <input name="tdsRate" required inputMode="decimal" placeholder={type === 'SALARY' ? 'TDS % (192)' : 'TDS % (194J)'} defaultValue={person ? String(person.tdsRate) : undefined} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
       <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
-        Add {type === 'SALARY' ? 'employee' : 'consultant'}
+        {person ? 'Save' : `Add ${type === 'SALARY' ? 'employee' : 'consultant'}`}
       </button>
     </form>
+  )
+
+  // The register itself: monthly TDS/net and annual cost per person, then
+  // budgeting rollups by team and by cost centre.
+  const enriched = people.map((p) => {
+    const gross = Number(p.monthlyGross)
+    const tds = (gross * Number(p.tdsRate)) / 100
+    return { p, gross, tds, net: gross - tds, annual: gross * 12 }
+  })
+  const totals = enriched.reduce(
+    (t, r) => ({ gross: t.gross + r.gross, tds: t.tds + r.tds, net: t.net + r.net, annual: t.annual + r.annual }),
+    { gross: 0, tds: 0, net: 0, annual: 0 },
+  )
+  const rollup = (label: (r: (typeof enriched)[number]) => string) => {
+    const map = new Map<string, { count: number; gross: number }>()
+    for (const r of enriched) {
+      const key = label(r)
+      const row = map.get(key) ?? { count: 0, gross: 0 }
+      row.count++
+      row.gross += r.gross
+      map.set(key, row)
+    }
+    return [...map.entries()].sort((a, b) => b[1].gross - a[1].gross)
+  }
+  const byTeam = rollup((r) => r.p.team?.trim() || '— no team —')
+  const byCc = rollup((r) => ccName(r.p.costCentreId) ?? '— no cost centre —')
+
+  const rollupTable = (title: string, rows: [string, { count: number; gross: number }][]) => (
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className="border-b border-zinc-200 px-4 py-2">
+        <h2 className="text-sm font-medium text-zinc-900">{title}</h2>
+        <p className="text-xs text-zinc-400">for cost budgeting — monthly and yearly run rate</p>
+      </div>
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+            <th className="px-4 py-1.5">&nbsp;</th>
+            <th className="px-4 py-1.5 text-right">People</th>
+            <th className="px-4 py-1.5 text-right">₹ / month</th>
+            <th className="px-4 py-1.5 text-right">₹ / year</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-100">
+          {rows.map(([label, r]) => (
+            <tr key={label}>
+              <td className="px-4 py-1.5 text-zinc-800">{label}</td>
+              <td className="px-4 py-1.5 text-right tabular-nums text-zinc-600">{r.count}</td>
+              <td className="px-4 py-1.5 text-right tabular-nums text-zinc-900">{displayINR(r.gross.toFixed(2))}</td>
+              <td className="px-4 py-1.5 text-right tabular-nums text-zinc-900">{displayINR((r.gross * 12).toFixed(2))}</td>
+            </tr>
+          ))}
+          {rows.length === 0 && (
+            <tr><td colSpan={4} className="px-4 py-3 text-center text-sm text-zinc-400">Nobody yet.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   )
 
   return (
@@ -68,31 +127,86 @@ export default async function SalaryPage() {
         Salary register — {entity.name} ({entity.code})
       </h1>
 
-      {/* People: Salary / Consultants sub-tabs (spec §6.4) */}
+      {/* The register (spec §6.4): every person with team, cost centre and
+          the money columns budgeting needs; edit inline. */}
+      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <table className="w-full min-w-[56rem] text-left text-sm">
+          <thead>
+            <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+              <th className="px-3 py-2">Name</th>
+              <th className="px-3 py-2">Type</th>
+              <th className="px-3 py-2">Team</th>
+              <th className="px-3 py-2">Cost centre</th>
+              <th className="px-3 py-2 text-right">Gross / mo</th>
+              <th className="px-3 py-2 text-right">TDS / mo</th>
+              <th className="px-3 py-2 text-right">Net / mo</th>
+              <th className="px-3 py-2 text-right">Annual gross</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100">
+            {enriched.map(({ p, gross, tds, net, annual }) => (
+              <tr key={p.id} className="align-top hover:bg-zinc-50/60">
+                <td className="px-3 py-1.5 font-medium text-zinc-800">{p.name}</td>
+                <td className="px-3 py-1.5">
+                  <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                    p.type === 'SALARY' ? 'bg-sky-100 text-sky-700' : 'bg-violet-100 text-violet-700'
+                  }`}>
+                    {p.type === 'SALARY' ? 'employee' : 'consultant'}
+                  </span>
+                </td>
+                <td className="px-3 py-1.5 text-zinc-600">{p.team || <span className="text-zinc-300">—</span>}</td>
+                <td className="px-3 py-1.5 text-zinc-600">{ccName(p.costCentreId) ?? <span className="text-zinc-300">—</span>}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-zinc-900">{displayINR(gross.toFixed(2))}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-zinc-500">
+                  {displayINR(tds.toFixed(2))}
+                  <span className="block text-[10px] text-zinc-400">{String(p.tdsRate)}% u/s {p.tdsSection}</span>
+                </td>
+                <td className="px-3 py-1.5 text-right tabular-nums text-zinc-900">{displayINR(net.toFixed(2))}</td>
+                <td className="px-3 py-1.5 text-right tabular-nums font-medium text-zinc-900">{displayINR(annual.toFixed(2))}</td>
+                <td className="px-3 py-1.5 text-right">
+                  <details>
+                    <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">edit</summary>
+                    <div className="py-1 text-left">{personForm(p.type, p)}</div>
+                  </details>
+                </td>
+              </tr>
+            ))}
+            {enriched.length === 0 && (
+              <tr><td colSpan={9} className="px-3 py-4 text-center text-sm text-zinc-400">Nobody yet — add people below.</td></tr>
+            )}
+          </tbody>
+          {enriched.length > 0 && (
+            <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+              <tr>
+                <td className="px-3 py-2" colSpan={4}>Total ({enriched.length} people)</td>
+                <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.gross.toFixed(2))}</td>
+                <td className="px-3 py-2 text-right tabular-nums text-zinc-500">{displayINR(totals.tds.toFixed(2))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.net.toFixed(2))}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.annual.toFixed(2))}</td>
+                <td />
+              </tr>
+            </tfoot>
+          )}
+        </table>
+      </div>
+
+      {/* Add people */}
       <div className="grid gap-4 md:grid-cols-2">
         {(['SALARY', 'CONSULTANT'] as const).map((type) => (
           <div key={type} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
             <h2 className="font-medium text-zinc-900">
-              {type === 'SALARY' ? 'Salary (TDS u/s 192)' : 'Consultants (TDS u/s 194J)'}
+              {type === 'SALARY' ? 'Add employee (TDS u/s 192)' : 'Add consultant (TDS u/s 194J)'}
             </h2>
-            <div className="mt-2 space-y-1">
-              {people.filter((p) => p.type === type).map((p) => (
-                <div key={p.id} className="flex flex-wrap items-center gap-2 text-sm text-zinc-700">
-                  <span className="font-medium">{p.name}</span>
-                  {p.team && <span className="text-xs text-zinc-400">{p.team}</span>}
-                  {ccName(p.costCentreId) && <span className="text-xs text-zinc-400">{ccName(p.costCentreId)}</span>}
-                  <span className="ml-auto text-xs text-zinc-500">
-                    {displayINR(String(p.monthlyGross))} · TDS {String(p.tdsRate)}%
-                  </span>
-                </div>
-              ))}
-              {people.filter((p) => p.type === type).length === 0 && (
-                <p className="text-sm text-zinc-400">Nobody yet.</p>
-              )}
-            </div>
             {personForm(type)}
           </div>
         ))}
+      </div>
+
+      {/* Budget rollups */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {rollupTable('Cost by team', byTeam)}
+        {rollupTable('Cost by cost centre', byCc)}
       </div>
 
       {/* Monthly runs */}
