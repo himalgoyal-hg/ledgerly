@@ -5,6 +5,7 @@ import { prisma } from '@/lib/db'
 import { requirePermission, hasPermission, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { audit, auditedTransaction } from '@/lib/audit'
+import { aiConfigured } from '@/lib/ai/client'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
 import {
   parseAnyUpload,
@@ -74,6 +75,7 @@ export async function confirmImport(formData: FormData) {
   const bankAccountId = String(formData.get('bankAccountId') ?? '')
   if (!bankAccountId) throw new Error('Pick a bank account')
 
+  let suggestEntityId: string | null = null
   await auditedTransaction(async (tx) => {
     const imp = await tx.statementImport.findUniqueOrThrow({ where: { id: importId } })
     // Unrecognized statements: Admin maps once, the mapping is remembered.
@@ -95,7 +97,22 @@ export async function confirmImport(formData: FormData) {
       summary: `Confirmed ${imp.fileName}: ${result.created} new (${result.autoTagged} auto-tagged), ${result.duplicates} previously imported`,
       after: result,
     })
+    suggestEntityId = imp.entityId
   })
+
+  // Smart layer, hands-free: the moment an import lands, ask the model to
+  // suggest head/nature/cost centre for the rows no learned rule matched.
+  // Advisory only (accept/dismiss on the queue) and skipped silently when
+  // AI isn't configured — the "Suggest tags with AI" button remains the
+  // manual backstop.
+  if (suggestEntityId && aiConfigured()) {
+    try {
+      const { suggestForPending } = await import('@/lib/ai/tag')
+      await suggestForPending(suggestEntityId)
+    } catch (e) {
+      console.error('post-import AI suggestions failed:', e)
+    }
+  }
   revalidatePath('/statements')
   revalidatePath('/tagging')
 }
