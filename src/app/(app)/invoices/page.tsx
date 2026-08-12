@@ -73,7 +73,8 @@ export default async function InvoicesPage() {
             heads={incomeHeads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
             name="incomeAccountId"
             required
-            placeholder="Income head — type to search"
+            placeholder="Income head — type or add"
+            createName="headText"
             className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
           <SmartCombobox

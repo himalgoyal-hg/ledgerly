@@ -51,6 +51,7 @@ export function SmartCombobox(props: {
     )
   }
   const unresolved = props.createName && !id ? text.trim() : ''
+  const creating = unresolved !== ''
 
   return (
     <>
@@ -73,6 +74,7 @@ export function SmartCombobox(props: {
         }
       />
       <datalist id={listId}>
+        {creating && <option value={text}>➕ create new</option>}
         {options.map((o) => (
           <option key={o.id} value={o.label} />
         ))}
@@ -80,6 +82,11 @@ export function SmartCombobox(props: {
       <input type="hidden" name={props.name} value={id} form={props.formId} />
       {props.createName && (
         <input type="hidden" name={props.createName} value={unresolved} form={props.formId} />
+      )}
+      {creating && (
+        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-emerald-600">
+          ➕ “{unresolved}” — new, created on save
+        </span>
       )}
     </>
   )

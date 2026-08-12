@@ -192,7 +192,8 @@ export default async function ReimbursementsPage(props: {
                     heads={heads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
                     name="expenseAccountId"
                     required
-                    placeholder="Expense head — type to search"
+                    placeholder="Expense head — type or add"
+                    createName="headText"
                     className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
                   />
                   <SmartCombobox

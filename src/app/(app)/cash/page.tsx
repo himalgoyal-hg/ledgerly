@@ -70,6 +70,7 @@ export default async function CashPage() {
         }))}
         required
         placeholder={label}
+        createName="headText"
         className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
     ),

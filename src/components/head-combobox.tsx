@@ -10,7 +10,10 @@ import { useId, useMemo, useState } from 'react'
 //
 // Picking a suggestion (or typing a name outright) sets the hidden id the
 // form submits. Text that matches no head submits an empty id, so the
-// server's "Pick a head" guard catches it.
+// server's "Pick a head" guard catches it — unless `createName` is set, in
+// which case the unmatched text is submitted under that name and the server
+// creates the head on the spot (a "➕ create" option and a green hint appear
+// right where you type).
 
 export interface HeadOpt {
   id: string
@@ -30,6 +33,10 @@ export function HeadCombobox(props: {
   className?: string
   /** Bind to a <form> elsewhere in the page (table-row layouts). */
   formId?: string
+  /** When set, unmatched text is submitted under this name for find-or-create. */
+  createName?: string
+  /** Fires on blur when the text will create a new head (unmatched + createName). */
+  onCreateText?: (text: string) => void
 }) {
   const listId = useId()
 
@@ -61,6 +68,8 @@ export function HeadCombobox(props: {
     return byCombined ?? null
   }
 
+  const creating = Boolean(props.createName) && !id && text.trim() !== ''
+
   return (
     <>
       <input
@@ -77,11 +86,15 @@ export function HeadCombobox(props: {
           setId(head?.id ?? '')
           props.onPick?.(head)
         }}
+        onBlur={() => {
+          if (creating) props.onCreateText?.(text.trim())
+        }}
         className={
           props.className ?? 'min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm'
         }
       />
       <datalist id={listId}>
+        {creating && <option value={text}>➕ create new head</option>}
         {options.map((o) => (
           <option key={o.head.id} value={o.label}>
             {o.head.code}
@@ -89,6 +102,19 @@ export function HeadCombobox(props: {
         ))}
       </datalist>
       <input type="hidden" name={props.name ?? 'headAccountId'} value={id} form={props.formId} />
+      {props.createName && (
+        <input
+          type="hidden"
+          name={props.createName}
+          value={creating ? text.trim() : ''}
+          form={props.formId}
+        />
+      )}
+      {creating && (
+        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-emerald-600">
+          ➕ “{text.trim()}” — new head, created on save
+        </span>
+      )}
     </>
   )
 }

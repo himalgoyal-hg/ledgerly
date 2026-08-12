@@ -5,6 +5,7 @@ import { requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createCashEntry } from '@/lib/ops/cash'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
+import { resolveHeadAccount } from '@/lib/ops/heads'
 import { deleteJournalDocument, undoJournalDocument } from '@/lib/ledger/posting'
 
 // Cash entries (spec §6.2): gated by the "Cash entries" flag. Adjustments
@@ -28,13 +29,26 @@ export async function createCashEntryAction(formData: FormData) {
       costCentreId: String(formData.get('costCentreId') ?? '') || null,
       costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
     })
+    // Creatable head combobox: receipts birth income heads, payments and
+    // outflow adjustments birth expense heads. Transfers carry no head.
+    let headAccountId = String(formData.get('headAccountId') ?? '') || null
+    const headText = String(formData.get('headText') ?? '').trim() || null
+    if (!headAccountId && headText && kind !== 'TRANSFER') {
+      headAccountId = await resolveHeadAccount(tx, {
+        entityId,
+        headText,
+        isOutflow:
+          kind === 'PAYMENT' ||
+          (kind === 'ADJUSTMENT' && String(formData.get('inflow') ?? '') !== 'true'),
+      })
+    }
     const entry = await createCashEntry(tx, {
       entityId,
       kind,
       date,
       locationId: String(formData.get('locationId') ?? ''),
       toLocationId: String(formData.get('toLocationId') ?? '') || null,
-      headAccountId: String(formData.get('headAccountId') ?? '') || null,
+      headAccountId,
       costCentreId,
       inflow: String(formData.get('inflow') ?? '') === 'true',
       amount: String(formData.get('amount') ?? ''),

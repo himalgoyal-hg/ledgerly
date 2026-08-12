@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createInvoice, recordInvoicePayment } from '@/lib/ops/invoices'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
+import { resolveHeadAccount } from '@/lib/ops/heads'
 import { deleteJournalDocument } from '@/lib/ledger/posting'
 
 // Invoices & receivables (spec §6.6) — Admin-only.
@@ -17,7 +18,8 @@ const invoiceSchema = z.object({
   dueDate: z.coerce.date(),
   amount: z.string().trim().min(1, 'Amount is required'),
   narration: z.string().trim().optional(),
-  incomeAccountId: z.string().min(1, 'Pick the income head'),
+  // Empty when the combobox carries new-head text instead (headText).
+  incomeAccountId: z.string().optional(),
   costCentreId: z.string().optional(),
   gstType: z.string().optional(),
   gstRate: z.string().optional(),
@@ -55,6 +57,12 @@ export async function createInvoiceAction(formData: FormData) {
     const invoice = await createInvoice(tx, {
       ...parsed.data,
       narration: parsed.data.narration || null,
+      incomeAccountId: await resolveHeadAccount(tx, {
+        entityId: parsed.data.entityId,
+        headAccountId: parsed.data.incomeAccountId || null,
+        headText: String(formData.get('headText') ?? '').trim() || null,
+        isOutflow: false, // invoices always bill income
+      }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: parsed.data.entityId,
         costCentreId: parsed.data.costCentreId || null,

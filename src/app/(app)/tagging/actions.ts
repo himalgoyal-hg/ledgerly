@@ -13,6 +13,7 @@ import { undoJournalDocument } from '@/lib/ledger/posting'
 import { partyToken } from '@/lib/statements/rules'
 import { suggestNature } from '@/lib/statements/natures'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
+import { resolveHeadAccount } from '@/lib/ops/heads'
 
 // Tagging queue actions (spec §3 steps 5–6). Queue work needs the
 // "Transaction tagging" flag; touching posted rows needs
@@ -22,10 +23,11 @@ function tagFields(formData: FormData) {
   const headAccountId = String(formData.get('headAccountId') ?? '')
   const nature = String(formData.get('nature') ?? '')
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
-  // Creatable combobox: text that matched no cost centre arrives here and is
-  // found-or-created in the books being tagged (resolveCostCentre).
+  // Creatable comboboxes: text that matched no head / cost centre arrives
+  // here and is found-or-created in the books being tagged.
+  const headText = String(formData.get('headText') ?? '').trim() || null
   const costCentreText = String(formData.get('costCentreText') ?? '').trim() || null
-  if (!headAccountId) throw new Error('Pick a head')
+  if (!headAccountId && !headText) throw new Error('Pick a head')
   if (!nature) throw new Error('Pick a nature')
   // Optional tax details (spec §3 step 5 / §7) — validated in the service.
   const field = (name: string) => String(formData.get(name) ?? '').trim() || null
@@ -38,18 +40,24 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  return { headAccountId, nature, costCentreId, costCentreText, tax }
+  return { headAccountId, nature, costCentreId, headText, costCentreText, tax }
 }
 
 export async function tagTransaction(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
     const fields = {
       ...raw,
+      headAccountId: await resolveHeadAccount(tx, {
+        entityId: txn.entityId,
+        headAccountId: raw.headAccountId || null,
+        headText,
+        isOutflow: Number(txn.debit) > 0,
+      }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: txn.entityId,
         costCentreId: raw.costCentreId,
@@ -106,11 +114,20 @@ export async function bulkTag(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const ids = formData.getAll('ids').map(String).filter(Boolean)
   if (ids.length === 0) throw new Error('Tick at least one row first')
-  const headAccountId = String(formData.get('headAccountId') ?? '')
-  if (!headAccountId) throw new Error('Pick a head')
+  const pickedHeadId = String(formData.get('headAccountId') ?? '') || null
+  const headText = String(formData.get('headText') ?? '').trim() || null
+  if (!pickedHeadId && !headText) throw new Error('Pick a head')
   const natureRaw = String(formData.get('nature') ?? '')
 
   await auditedTransaction(async (tx) => {
+    // A brand-new head takes its books and direction from the first ticked row.
+    const first = await tx.statementTransaction.findUniqueOrThrow({ where: { id: ids[0] } })
+    const headAccountId = await resolveHeadAccount(tx, {
+      entityId: first.entityId,
+      headAccountId: pickedHeadId,
+      headText,
+      isOutflow: Number(first.debit) > 0,
+    })
     const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
     const costCentreId = await resolveCostCentre(tx, {
       entityId: head.entityId,
@@ -312,12 +329,18 @@ export async function postAll(formData: FormData) {
 export async function retagPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const before = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
     const fields = {
       ...raw,
+      headAccountId: await resolveHeadAccount(tx, {
+        entityId: before.entityId,
+        headAccountId: raw.headAccountId || null,
+        headText,
+        isOutflow: Number(before.debit) > 0,
+      }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: before.entityId,
         costCentreId: raw.costCentreId,

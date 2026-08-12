@@ -56,13 +56,21 @@ export function TagRowCells(props: {
           required
           formId={formId}
           className={inputCls}
-          placeholder="Head — type to search"
+          placeholder="Head — type or add"
+          createName="headText"
           onPick={(head) => {
             if (head) {
               setNature(suggestNature(head, props.isOutflow))
               setCostCentreId(head.defaultCostCentreId ?? '')
               setSeed((s) => s + 1)
             }
+          }}
+          onCreateText={() => {
+            // A brand-new head lands under Expenses (outflow) or Income
+            // (inflow) on the server — suggest the matching nature here.
+            setNature(props.isOutflow ? 'expense' : 'income')
+            setCostCentreId('')
+            setSeed((s) => s + 1)
           }}
         />
       </td>

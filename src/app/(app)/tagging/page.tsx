@@ -329,7 +329,8 @@ export default async function TaggingPage(props: {
             <HeadCombobox
               heads={heads}
               required
-              placeholder="Head — type to search"
+              placeholder="Head — type or add"
+              createName="headText"
               className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
             />
             <SmartCombobox

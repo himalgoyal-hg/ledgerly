@@ -6,6 +6,7 @@ import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { submitClaim, approveClaim, rejectClaim, settleMember } from '@/lib/ops/reimburse'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
+import { resolveHeadAccount } from '@/lib/ops/heads'
 import { saveUpload } from '@/lib/files'
 
 // Reimbursements (spec §6.1): members submit their own; Approve / Reject /
@@ -61,13 +62,20 @@ export async function submitClaimAction(formData: FormData) {
 export async function approveClaimAction(formData: FormData) {
   const admin = await requireAdmin()
   const claimId = String(formData.get('claimId') ?? '')
-  const expenseAccountId = String(formData.get('expenseAccountId') ?? '')
-  if (!expenseAccountId) throw new Error('Pick the expense head')
+  const pickedHeadId = String(formData.get('expenseAccountId') ?? '') || null
+  const headText = String(formData.get('headText') ?? '').trim() || null
+  if (!pickedHeadId && !headText) throw new Error('Pick the expense head')
 
   await auditedTransaction(async (tx) => {
-    const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: expenseAccountId } })
+    const pending = await tx.reimbursement.findUniqueOrThrow({ where: { id: claimId } })
+    const expenseAccountId = await resolveHeadAccount(tx, {
+      entityId: pending.entityId,
+      headAccountId: pickedHeadId,
+      headText,
+      isOutflow: true, // claims are always expenses
+    })
     const costCentreId = await resolveCostCentre(tx, {
-      entityId: head.entityId,
+      entityId: pending.entityId,
       costCentreId: String(formData.get('costCentreId') ?? '') || null,
       costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
     })
