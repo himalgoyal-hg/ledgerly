@@ -131,6 +131,71 @@ export async function createFxInvoiceAction(formData: FormData) {
   revalidatePath('/invoices')
 }
 
+/**
+ * Edit an invoice in place. FX register invoices (no posting) are fully
+ * editable — client, country, $, dates, and for settled ones the whole
+ * realization (the rate recomputes). Posted INR invoices only allow the
+ * metadata that doesn't touch the ledger (dates, country, narration);
+ * amounts/GST need delete & re-raise, which reverses the posting properly.
+ */
+export async function updateInvoiceAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const invoiceId = String(formData.get('invoiceId') ?? '')
+  const field = (name: string) => String(formData.get(name) ?? '').trim()
+
+  await auditedTransaction(async (tx) => {
+    const invoice = await tx.invoice.findUniqueOrThrow({ where: { id: invoiceId } })
+    const fx = invoice.currency !== 'INR'
+    const posted = Boolean(invoice.docId)
+
+    const data: Record<string, unknown> = {}
+    const date = field('date') ? new Date(field('date')) : null
+    const dueDate = field('dueDate') ? new Date(field('dueDate')) : null
+    if (date && !isNaN(date.getTime())) data.date = date
+    if (dueDate && !isNaN(dueDate.getTime())) data.dueDate = dueDate
+    if (formData.has('country')) data.country = field('country') || null
+    if (formData.has('narration')) data.narration = field('narration') || null
+    if (field('firc')) data.firc = field('firc')
+    if (!posted && field('customer')) data.customer = field('customer')
+    if (fx && field('amountFx')) {
+      if (Number(field('amountFx')) <= 0) throw new Error('Invoiced $ must be positive')
+      data.amountFx = field('amountFx')
+    }
+
+    // Realization edits (settled FX): recompute the rate from what changed.
+    if (fx && invoice.status === 'SETTLED') {
+      const receivedFx = field('receivedFx') || String(invoice.receivedFx ?? '')
+      const realizedInr = field('realizedInr') || String(invoice.realizedInr ?? '')
+      if (Number(receivedFx) <= 0 || Number(realizedInr) <= 0) {
+        throw new Error('Received $ and ₹ must stay positive')
+      }
+      data.receivedFx = receivedFx
+      data.realizedInr = realizedInr
+      data.fxRate = (Number(realizedInr) / Number(receivedFx)).toFixed(4)
+      if (formData.has('bankCharges')) data.bankCharges = field('bankCharges') || '0'
+      if (formData.has('providerFees')) data.providerFees = field('providerFees') || '0'
+      const creditDate = field('creditDate') ? new Date(field('creditDate')) : null
+      if (creditDate && !isNaN(creditDate.getTime())) data.creditDate = creditDate
+    }
+
+    const updated = await tx.invoice.update({ where: { id: invoiceId }, data })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'invoice.edit',
+      targetType: 'Invoice',
+      targetId: invoiceId,
+      summary: `Edited ${updated.number} — ${updated.customer}`,
+      before: {
+        customer: invoice.customer, date: invoice.date, dueDate: invoice.dueDate,
+        amountFx: String(invoice.amountFx ?? ''), receivedFx: String(invoice.receivedFx ?? ''),
+        realizedInr: String(invoice.realizedInr ?? ''), firc: invoice.firc,
+      },
+      after: data,
+    })
+  })
+  revalidatePath('/invoices')
+}
+
 /** The realization: $ received, INR credited, charges & fees — rate computed. */
 export async function recordFxReceiptAction(formData: FormData) {
   const admin = await requireAdmin()

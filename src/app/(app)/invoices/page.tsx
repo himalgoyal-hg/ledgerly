@@ -10,6 +10,7 @@ import {
   createFxInvoiceAction,
   recordPaymentAction,
   recordFxReceiptAction,
+  updateInvoiceAction,
   deleteInvoiceAction,
 } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
@@ -316,6 +317,50 @@ export default async function InvoicesPage() {
                             </form>
                           </details>
                         )}
+                        <details>
+                          <summary className="cursor-pointer whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                            edit
+                          </summary>
+                          <form action={updateInvoiceAction} className="mt-1 w-44 space-y-1 text-left">
+                            <input type="hidden" name="invoiceId" value={invoice.id} />
+                            {!invoice.docId && (
+                              <input name="customer" defaultValue={invoice.customer} placeholder="Client" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            )}
+                            <input name="country" defaultValue={invoice.country ?? ''} placeholder="Country" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            {m.fx && (
+                              <input name="amountFx" defaultValue={m.invoicedFx ?? undefined} inputMode="decimal" placeholder="Invoiced $" title="Invoiced $" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            )}
+                            <label className="block text-[10px] text-zinc-400">invoice date</label>
+                            <input name="date" type="date" defaultValue={invoice.date.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            <label className="block text-[10px] text-zinc-400">due date</label>
+                            <input name="dueDate" type="date" defaultValue={invoice.dueDate.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            {m.fx && settled && (
+                              <>
+                                <input name="receivedFx" defaultValue={m.receivedFx ?? undefined} inputMode="decimal" placeholder="$ received" title="$ received" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                                <input name="realizedInr" defaultValue={m.inr ?? undefined} inputMode="decimal" placeholder="₹ credited" title="₹ credited" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                                <input name="bankCharges" defaultValue={String(invoice.bankCharges)} inputMode="decimal" placeholder="Bank charges ₹" title="Bank charges" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                                <input name="providerFees" defaultValue={String(invoice.providerFees)} inputMode="decimal" placeholder="Skydo fees ₹" title="Skydo/platform fees" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                                <label className="block text-[10px] text-zinc-400">credit date</label>
+                                <input name="creditDate" type="date" defaultValue={invoice.creditDate?.toISOString().slice(0, 10)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                              </>
+                            )}
+                            <select name="firc" defaultValue={invoice.firc ?? ''} className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
+                              <option value="">FIRC —</option>
+                              <option>Awaited</option>
+                              <option>Partial</option>
+                              <option>Received</option>
+                            </select>
+                            <input name="narration" defaultValue={invoice.narration ?? ''} placeholder="Description" className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+                            <button type="submit" className="w-full rounded bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700">
+                              Save{m.fx && settled ? ' — rate recomputes' : ''}
+                            </button>
+                            {invoice.docId && (
+                              <p className="text-[10px] leading-tight text-zinc-400">
+                                Posted invoice: amounts/GST change via delete &amp; re-raise.
+                              </p>
+                            )}
+                          </form>
+                        </details>
                         <form action={deleteInvoiceAction}>
                           <input type="hidden" name="invoiceId" value={invoice.id} />
                           <ConfirmButton
