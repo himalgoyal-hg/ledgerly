@@ -57,6 +57,30 @@ export function TagRowCells(props: {
   const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
   const [seed, setSeed] = useState(0)
 
+  // GST and TDS are mutually exclusive on a row (the server refuses both).
+  // The panel prefills stored values, so switching sides must CLEAR the
+  // other side — controlled inputs make starting to type on one side wipe
+  // the other automatically.
+  const [gst, setGst] = useState({
+    type: props.defaults?.gstType ?? '',
+    rate: props.defaults?.gstRate ?? '',
+    hsn: props.defaults?.hsn ?? '',
+    gstin: props.defaults?.counterpartyGstin ?? '',
+  })
+  const [tds, setTds] = useState({
+    section: props.defaults?.tdsSection ?? '',
+    rate: props.defaults?.tdsRate ?? '',
+    pan: props.defaults?.deducteePan ?? '',
+  })
+  const setGstField = (field: keyof typeof gst) => (value: string) => {
+    setGst((g) => ({ ...g, [field]: value }))
+    if (value) setTds({ section: '', rate: '', pan: '' })
+  }
+  const setTdsField = (field: keyof typeof tds) => (value: string) => {
+    setTds((t) => ({ ...t, [field]: value }))
+    if (value) setGst({ type: '', rate: '', hsn: '', gstin: '' })
+  }
+
   return (
     <>
       {/* The three tiers are identical twins: equal 18% columns (they share
@@ -133,39 +157,46 @@ export function TagRowCells(props: {
           <details>
             <summary
               className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
-                props.defaults?.gstRate || props.defaults?.tdsRate
+                gst.rate || tds.rate
                   ? 'font-semibold text-amber-600 hover:text-amber-800'
                   : 'text-zinc-400 hover:text-zinc-700'
               }`}
             >
-              {props.defaults?.gstRate
-                ? `GST ${props.defaults.gstRate}%`
-                : props.defaults?.tdsRate
-                  ? `TDS ${props.defaults.tdsRate}%${props.defaults.tdsSection ? ` ${props.defaults.tdsSection}` : ''}`
+              {gst.rate
+                ? `GST ${gst.rate}%`
+                : tds.rate
+                  ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}`
                   : 'GST/TDS'}
             </summary>
             <div className="mt-1 w-44 space-y-1 rounded-md bg-zinc-50 p-1.5">
-              <select name="gstType" form={formId} defaultValue={props.defaults?.gstType ?? ''} className={inputCls}>
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+                GST — filling this clears TDS
+              </p>
+              <select name="gstType" form={formId} value={gst.type} onChange={(e) => setGstField('type')(e.target.value)} className={inputCls}>
                 <option value="">GST type</option>
                 {GST_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-              <select name="gstRate" form={formId} defaultValue={props.defaults?.gstRate ?? ''} className={inputCls}>
+              <select name="gstRate" form={formId} value={gst.rate} onChange={(e) => setGstField('rate')(e.target.value)} className={inputCls}>
                 <option value="">GST rate %</option>
                 {GST_RATES.map((r) => (
                   <option key={r} value={r}>{r}%</option>
                 ))}
               </select>
-              <input name="hsn" form={formId} defaultValue={props.defaults?.hsn ?? ''} placeholder="HSN/SAC" className={inputCls} />
+              <input name="hsn" form={formId} value={gst.hsn} onChange={(e) => setGstField('hsn')(e.target.value)} placeholder="HSN/SAC" className={inputCls} />
               <input
                 name="counterpartyGstin"
                 form={formId}
-                defaultValue={props.defaults?.counterpartyGstin ?? ''}
+                value={gst.gstin}
+                onChange={(e) => setGstField('gstin')(e.target.value)}
                 placeholder="Party GSTIN"
                 className={inputCls}
               />
-              <select name="tdsSection" form={formId} defaultValue={props.defaults?.tdsSection ?? ''} className={inputCls}>
+              <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+                or TDS — filling this clears GST
+              </p>
+              <select name="tdsSection" form={formId} value={tds.section} onChange={(e) => setTdsField('section')(e.target.value)} className={inputCls}>
                 <option value="">TDS section</option>
                 {TDS_SECTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -174,12 +205,13 @@ export function TagRowCells(props: {
               <input
                 name="tdsRate"
                 form={formId}
-                defaultValue={props.defaults?.tdsRate ?? ''}
+                value={tds.rate}
+                onChange={(e) => setTdsField('rate')(e.target.value)}
                 placeholder="TDS rate %"
                 inputMode="decimal"
                 className={inputCls}
               />
-              <input name="deducteePan" form={formId} defaultValue={props.defaults?.deducteePan ?? ''} placeholder="Deductee PAN" className={inputCls} />
+              <input name="deducteePan" form={formId} value={tds.pan} onChange={(e) => setTdsField('pan')(e.target.value)} placeholder="Deductee PAN" className={inputCls} />
             </div>
           </details>
         </div>
