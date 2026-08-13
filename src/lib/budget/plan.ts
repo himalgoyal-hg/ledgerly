@@ -84,10 +84,27 @@ export async function poolBalances(): Promise<Map<Pool, number>> {
   return balances
 }
 
+/** A line's planned amount for one month (monthly equivalent, or the ONCE hit). */
+function planForMonth(
+  line: { amount: Prisma.Decimal; frequency: string; onMonth: string | null },
+  month: string,
+): number {
+  return line.frequency === 'ONCE'
+    ? line.onMonth === month
+      ? Number(line.amount)
+      : 0
+    : monthlyEquivalent(Number(line.amount), line.frequency)
+}
+
 /**
  * Project each pool `count` months ahead, starting this month: opening is
  * the live balance today, then budgeted monthly equivalents (+ ONCE lines
  * in their month) roll it forward.
+ *
+ * The CURRENT month is interlinked with the books: what already moved on a
+ * line's head (bank rows, cash payments — anything posted) nets off its
+ * plan, so only the REMAINING expected money rolls forward. Heads shared
+ * by several pool-split lines share the actual in proportion to their plan.
  */
 export async function projectPools(today: Date, count = 6): Promise<PoolProjection[]> {
   const [lines, balances] = await Promise.all([
@@ -95,6 +112,34 @@ export async function projectPools(today: Date, count = 6): Promise<PoolProjecti
     poolBalances(),
   ])
   const months = monthKeysFrom(today, count)
+  const currentMonth = months[0]
+
+  // Per-head: total plan this month vs actual, → remaining fraction each
+  // split line keeps for the current month.
+  const actuals = await actualByHead(
+    [...new Set(lines.map((l) => l.headAccountId).filter((x): x is string => x !== null))],
+    currentMonth,
+  )
+  const planByHead = new Map<string, number>()
+  for (const l of lines) {
+    if (!l.headAccountId) continue
+    planByHead.set(
+      l.headAccountId,
+      (planByHead.get(l.headAccountId) ?? 0) + planForMonth(l, currentMonth),
+    )
+  }
+  const remainingFraction = (headId: string | null): number => {
+    if (!headId) return 1
+    const plan = planByHead.get(headId) ?? 0
+    if (plan === 0) return 1
+    const actual = actuals.get(headId) ?? 0
+    if (plan > 0) {
+      const remaining = Math.max(0, plan - Math.max(0, actual))
+      return remaining / plan
+    }
+    const remaining = Math.min(0, plan - Math.min(0, actual))
+    return remaining / plan
+  }
 
   return POOLS.map((pool) => {
     const mine = lines.filter((l) => l.source === pool)
@@ -104,12 +149,8 @@ export async function projectPools(today: Date, count = 6): Promise<PoolProjecti
       let inflow = 0
       let outflow = 0
       for (const line of mine) {
-        const amount =
-          line.frequency === 'ONCE'
-            ? line.onMonth === month
-              ? Number(line.amount)
-              : 0
-            : monthlyEquivalent(Number(line.amount), line.frequency)
+        let amount = planForMonth(line, month)
+        if (month === currentMonth) amount *= remainingFraction(line.headAccountId)
         if (amount > 0) outflow += amount
         if (amount < 0) inflow -= amount
       }

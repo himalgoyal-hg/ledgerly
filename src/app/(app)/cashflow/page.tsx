@@ -73,6 +73,32 @@ export default async function CashFlowPage() {
   }
   const dueLines = lines.filter(isDue)
 
+  // This month's schedule: every line with money planned this month, sorted
+  // by payment day, with the head's actual netted off — the same numbers
+  // the projection's current month uses.
+  const planByHead = new Map<string, number>()
+  for (const l of lines) {
+    if (!l.headAccountId) continue
+    planByHead.set(l.headAccountId, (planByHead.get(l.headAccountId) ?? 0) + planFor(l))
+  }
+  const remainingFor = (l: (typeof lines)[number]) => {
+    const plan = planFor(l)
+    if (!l.headAccountId || plan === 0) return plan
+    const headPlan = planByHead.get(l.headAccountId) ?? 0
+    if (headPlan === 0) return plan
+    const actual = actuals.get(l.headAccountId) ?? 0
+    const headRemaining =
+      headPlan > 0
+        ? Math.max(0, headPlan - Math.max(0, actual))
+        : Math.min(0, headPlan - Math.min(0, actual))
+    return plan * (headRemaining / headPlan)
+  }
+  const dayOf = (l: (typeof lines)[number]) =>
+    l.dayNote && /^\d{1,2}$/.test(l.dayNote.trim()) ? Number(l.dayNote.trim()) : 99
+  const schedule = lines
+    .filter((l) => planFor(l) !== 0)
+    .sort((a, b) => dayOf(a) - dayOf(b) || a.label.localeCompare(b.label))
+
   const lineRow = (line: (typeof lines)[number] | null) => {
     const formId = line ? `bl-${line.id}` : 'bl-new'
     return (
@@ -270,6 +296,58 @@ export default async function CashFlowPage() {
           )}
         </table>
       </div>
+
+      {/* This month's schedule: which money goes where, day by day, with
+          what already happened netted off (linked to bank + cash actuals). */}
+      {admin && schedule.length > 0 && (
+        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+            {monthLabel(monthKey)} schedule — where how much, day by day ({schedule.length} lines)
+          </summary>
+          <div className="overflow-x-auto border-t border-zinc-100">
+            <table className="w-full min-w-[44rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+                  <th className="px-2 py-1.5">Day</th>
+                  <th className="px-2 py-1.5">Line</th>
+                  <th className="px-2 py-1.5">Pool</th>
+                  <th className="px-2 py-1.5 text-right">Planned</th>
+                  <th className="px-2 py-1.5 text-right">Head actual</th>
+                  <th className="px-2 py-1.5 text-right">Still to come</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-50">
+                {schedule.map((l) => {
+                  const plan = planFor(l)
+                  const actual = actualFor(l)
+                  const remaining = remainingFor(l)
+                  const inflow = plan < 0
+                  return (
+                    <tr key={l.id} className={remaining === 0 ? 'text-zinc-300' : undefined}>
+                      <td className="px-2 py-1 text-xs tabular-nums text-zinc-500">
+                        {dayOf(l) === 99 ? (l.dayNote || '—') : dayOf(l)}
+                      </td>
+                      <td className="px-2 py-1">{l.label}</td>
+                      <td className="px-2 py-1 text-xs text-zinc-500">{l.source}</td>
+                      <td className={`whitespace-nowrap px-2 py-1 text-right tabular-nums ${inflow ? 'text-emerald-600' : ''}`}>
+                        {displayINR(plan.toFixed(2))}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1 text-right tabular-nums text-zinc-500">
+                        {actual === null ? '—' : displayINR(actual.toFixed(2))}
+                      </td>
+                      <td className={`whitespace-nowrap px-2 py-1 text-right font-medium tabular-nums ${
+                        remaining === 0 ? '' : inflow ? 'text-emerald-600' : 'text-zinc-900'
+                      }`}>
+                        {remaining === 0 ? 'done ✓' : displayINR(remaining.toFixed(2))}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
 
       {/* Planned by now, nothing on the head yet this month */}
       {admin && dueLines.length > 0 && (
