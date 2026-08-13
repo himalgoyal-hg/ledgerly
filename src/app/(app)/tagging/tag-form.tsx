@@ -57,10 +57,9 @@ export function TagRowCells(props: {
   const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
   const [seed, setSeed] = useState(0)
 
-  // GST and TDS are mutually exclusive on a row (the server refuses both).
-  // The panel prefills stored values, so switching sides must CLEAR the
-  // other side — controlled inputs make starting to type on one side wipe
-  // the other automatically.
+  // GST and TDS can ride together on a row (professional fees: taxable +
+  // GST − TDS; the server splits with TDS on the taxable value). The panel
+  // prefills stored values so a re-save or retag never blanks them.
   const [gst, setGst] = useState({
     type: props.defaults?.gstType ?? '',
     rate: props.defaults?.gstRate ?? '',
@@ -74,11 +73,9 @@ export function TagRowCells(props: {
   })
   const setGstField = (field: keyof typeof gst) => (value: string) => {
     setGst((g) => ({ ...g, [field]: value }))
-    if (value) setTds({ section: '', rate: '', pan: '' })
   }
   const setTdsField = (field: keyof typeof tds) => (value: string) => {
     setTds((t) => ({ ...t, [field]: value }))
-    if (value) setGst({ type: '', rate: '', hsn: '', gstin: '' })
   }
 
   return (
@@ -162,15 +159,16 @@ export function TagRowCells(props: {
                   : 'text-zinc-400 hover:text-zinc-700'
               }`}
             >
-              {gst.rate
-                ? `GST ${gst.rate}%`
-                : tds.rate
-                  ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}`
-                  : 'GST/TDS'}
+              {[
+                gst.rate ? `GST ${gst.rate}%` : '',
+                tds.rate ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}` : '',
+              ]
+                .filter(Boolean)
+                .join(' + ') || 'GST/TDS'}
             </summary>
             <div className="mt-1 w-44 space-y-1 rounded-md bg-zinc-50 p-1.5">
               <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                GST — filling this clears TDS
+                GST
               </p>
               <select name="gstType" form={formId} value={gst.type} onChange={(e) => setGstField('type')(e.target.value)} className={inputCls}>
                 <option value="">GST type</option>
@@ -194,7 +192,7 @@ export function TagRowCells(props: {
                 className={inputCls}
               />
               <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
-                or TDS — filling this clears GST
+                TDS — on the taxable value, both may apply
               </p>
               <select name="tdsSection" form={formId} value={tds.section} onChange={(e) => setTdsField('section')(e.target.value)} className={inputCls}>
                 <option value="">TDS section</option>

@@ -38,3 +38,22 @@ export function grossFromNetTds(netPaise: bigint, bp: bigint): { gross: bigint; 
   const gross = divRound(netPaise * 10000n, 10000n - bp)
   return { gross, tds: gross - netPaise }
 }
+
+/**
+ * GST + TDS on one row (professional fees etc.): the bank amount is
+ * taxable + GST − TDS, with TDS computed on the TAXABLE value, never on
+ * the GST (CBDT circular 23/2017 — GST shown separately is not income).
+ *   net = taxable × (1 + gst% − tds%)  →  taxable = net / (1 + gst% − tds%)
+ */
+export function splitNetGstTds(
+  netPaise: bigint,
+  gstBp: bigint,
+  tdsBp: bigint,
+): { taxable: bigint; gst: bigint; tds: bigint } {
+  const taxable = divRound(netPaise * 10000n, 10000n + gstBp - tdsBp)
+  const tds = divRound(taxable * tdsBp, 10000n)
+  // GST takes the rounding remainder so the three parts rebuild the bank
+  // amount exactly: taxable + gst − tds = net.
+  const gst = netPaise + tds - taxable
+  return { taxable, gst, tds }
+}

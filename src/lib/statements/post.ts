@@ -8,7 +8,7 @@ import {
 } from '@/lib/ledger/posting'
 import { getSystemAccount, COA } from '@/lib/ledger/coa'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
-import { rateBp, splitGrossGst, grossFromNetTds, TDS_SECTIONS } from '@/lib/tax/calc'
+import { rateBp, splitGrossGst, grossFromNetTds, splitNetGstTds, TDS_SECTIONS } from '@/lib/tax/calc'
 import { writeTaxLine } from '@/lib/tax/register'
 import { learnRule, partyToken } from './rules'
 import { isNature } from './natures'
@@ -33,7 +33,8 @@ function validateTax(tax: TagTaxInput, nature: string) {
   if (nature !== 'expense' && nature !== 'income') {
     throw new TagError('Tax details apply only to expense / income rows')
   }
-  if (hasGst && hasTds) throw new TagError('Use GST or TDS on a row, not both')
+  // GST and TDS may ride together (professional fees: taxable + GST − TDS);
+  // the split then computes TDS on the taxable value, never on the GST.
   if (hasGst) rateBp(tax.gstRate!) // throws on junk
   if (hasTds) {
     rateBp(tax.tdsRate!)
@@ -186,6 +187,53 @@ async function buildLines(
   const outflow = Number(txn.debit) > 0
   const bankAmount = parsePaise(outflow ? String(txn.debit) : String(txn.credit))
   const cc = txn.costCentreId ?? undefined
+
+  // Both taxes on one row: bank amount = taxable + GST − TDS.
+  if (txn.gstRate && txn.tdsRate) {
+    const { taxable, gst, tds } = splitNetGstTds(
+      bankAmount,
+      rateBp(String(txn.gstRate)),
+      rateBp(String(txn.tdsRate)),
+    )
+    if (outflow) {
+      const inputCredit = await getSystemAccount(tx, txn.entityId, '1500')
+      const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
+      return {
+        lines: [
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc },
+          { accountId: inputCredit.id, debit: formatPaise(gst) },
+          { accountId: tdsPayable.id, credit: formatPaise(tds) },
+          { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
+        ],
+        tax: {
+          direction: 'input',
+          taxableValue: formatPaise(taxable),
+          gstAmount: formatPaise(gst),
+          tdsAmount: formatPaise(tds),
+          withholdsTds: true,
+        },
+      }
+    }
+    // Income: we charged GST, the payer withheld TDS on the taxable value.
+    const output = await getSystemAccount(tx, txn.entityId, '2210')
+    const tdsReceivable = await getSystemAccount(tx, txn.entityId, '1600')
+    return {
+      lines: [
+        { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
+        { accountId: tdsReceivable.id, debit: formatPaise(tds) },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc },
+        { accountId: output.id, credit: formatPaise(gst) },
+      ],
+      // Register the GST side (GSTR); their TDS deduction isn't our register.
+      tax: {
+        direction: 'output',
+        taxableValue: formatPaise(taxable),
+        gstAmount: formatPaise(gst),
+        tdsAmount: '0',
+        withholdsTds: false,
+      },
+    }
+  }
 
   if (txn.gstRate) {
     const { taxable, gst } = splitGrossGst(bankAmount, rateBp(String(txn.gstRate)))
