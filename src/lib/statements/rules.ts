@@ -95,7 +95,21 @@ export async function matchRule(
   }
 }
 
-/** Learn (or correct) a rule from a manual tag (spec §3 step 4). */
+export interface RuleTax {
+  gstType?: string | null
+  gstRate?: string | null
+  hsn?: string | null
+  counterpartyGstin?: string | null
+  tdsSection?: string | null
+  tdsRate?: string | null
+  deducteePan?: string | null
+}
+
+/**
+ * Learn (or correct) a rule from a manual tag (spec §3 step 4). The tax
+ * details ride along: a party billed with GST/TDS once is billed that way
+ * every time, so the next import auto-tags with the same split.
+ */
 export async function learnRule(
   tx: Prisma.TransactionClient,
   args: {
@@ -104,10 +118,20 @@ export async function learnRule(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    tax?: RuleTax
   },
 ) {
   const token = partyToken(args.narration)
   if (!token) return null
+  const tax = {
+    gstType: args.tax?.gstType ?? null,
+    gstRate: args.tax?.gstRate ?? null,
+    hsn: args.tax?.hsn ?? null,
+    counterpartyGstin: args.tax?.counterpartyGstin ?? null,
+    tdsSection: args.tax?.tdsSection ?? null,
+    tdsRate: args.tax?.tdsRate ?? null,
+    deducteePan: args.tax?.deducteePan ?? null,
+  }
   return tx.tagRule.upsert({
     where: { entityId_pattern: { entityId: args.entityId, pattern: token } },
     create: {
@@ -116,12 +140,14 @@ export async function learnRule(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId: args.costCentreId ?? null,
+      ...tax,
     },
-    // A correction retrains the rule to the newest choice.
+    // A correction retrains the rule to the newest choice, tax included.
     update: {
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId: args.costCentreId ?? null,
+      ...tax,
     },
   })
 }

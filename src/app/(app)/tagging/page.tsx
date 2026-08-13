@@ -5,6 +5,7 @@ import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES } from '@/lib/statements/natures'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells } from './tag-form'
@@ -349,6 +350,33 @@ export default async function TaggingPage(props: {
               placeholder="Cost centre — type or add"
               className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
             />
+            {/* Same GST/TDS for every ticked row (spec §7) */}
+            <details>
+              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">GST/TDS</summary>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                  <option value="">GST type</option>
+                  {GST_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                  <option value="">GST rate %</option>
+                  {GST_RATES.map((r) => (
+                    <option key={r} value={r}>{r}%</option>
+                  ))}
+                </select>
+                <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+                <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                  <option value="">TDS section</option>
+                  {TDS_SECTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <input name="tdsRate" placeholder="TDS rate %" inputMode="decimal" className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+                <input name="deducteePan" placeholder="Deductee PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              </div>
+            </details>
             <button
               type="submit"
               className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"

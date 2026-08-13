@@ -30,7 +30,7 @@ export default async function TaxPage(props: {
   const [year, month] = period.split('-').map(Number)
   const range = monthRange(year, month)
 
-  const [gstr1, gstr3b, tds, lock, gstSuggestion] = await Promise.all([
+  const [gstr1, gstr3b, tds, lock, gstSuggestion, entryMonths] = await Promise.all([
     gstr1Summary(entity.id, range),
     gstr3bView(entity.id, range),
     tdsRegister(entity.id, range),
@@ -38,6 +38,13 @@ export default async function TaxPage(props: {
       where: { entityId_year_month: { entityId: entity.id, year, month } },
     }),
     suggestPaymentSource({ entityId: entity.id, module: 'gst', taskKind: 'gst' }),
+    // Which months actually hold register entries — so an empty period never
+    // looks like a missing entry (it's usually just the wrong month).
+    prisma.$queryRaw<{ m: string; n: number }[]>`
+      SELECT to_char(date, 'YYYY-MM') AS m, COUNT(*)::int AS n
+      FROM "TaxLine" WHERE "entityId" = ${entity.id}
+      GROUP BY 1 ORDER BY 1 DESC
+    `,
   ])
   const tdsTotal = tds.reduce((sum, s) => sum + Number(s.total), 0)
 
@@ -70,6 +77,31 @@ export default async function TaxPage(props: {
           </span>
         )}
       </div>
+
+      {/* Where the entries live — one click to the right month */}
+      {entryMonths.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Entries in
+          </span>
+          {entryMonths.map((row) => (
+            <a
+              key={row.m}
+              href={`/tax?period=${row.m}`}
+              className={`rounded px-1.5 py-0.5 font-medium ${
+                row.m === period
+                  ? 'bg-zinc-900 text-white'
+                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+              }`}
+            >
+              {row.m} ({row.n})
+            </a>
+          ))}
+          {!entryMonths.some((r) => r.m === period) && (
+            <span className="text-zinc-400">— {period} has none; pick a month above</span>
+          )}
+        </div>
+      )}
 
       {/* GSTR-3B with ITC tracker (spec §7.1) */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">

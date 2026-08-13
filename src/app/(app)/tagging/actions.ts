@@ -118,6 +118,16 @@ export async function bulkTag(formData: FormData) {
   const headText = String(formData.get('headText') ?? '').trim() || null
   if (!pickedHeadId && !headText) throw new Error('Pick a head')
   const natureRaw = String(formData.get('nature') ?? '')
+  const field = (name: string) => String(formData.get(name) ?? '').trim() || null
+  const tax = {
+    gstType: field('gstType'),
+    gstRate: field('gstRate'),
+    hsn: field('hsn'),
+    counterpartyGstin: field('counterpartyGstin'),
+    tdsSection: field('tdsSection'),
+    tdsRate: field('tdsRate'),
+    deducteePan: field('deducteePan'),
+  }
 
   await auditedTransaction(async (tx) => {
     // A brand-new head takes its books and direction from the first ticked row.
@@ -139,7 +149,7 @@ export async function bulkTag(formData: FormData) {
       const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
       if (txn.status !== 'PENDING' || txn.entityId !== head.entityId) continue
       const nature = natureRaw || suggestNature(head, Number(txn.debit) > 0)
-      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, actorId: user.id })
+      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, tax, actorId: user.id })
       await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
       tagged++
     }

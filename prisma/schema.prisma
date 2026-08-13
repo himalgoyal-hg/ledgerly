@@ -405,6 +405,15 @@ model TagRule {
   headAccountId String
   nature        String
   costCentreId  String?
+  // Tax rides on the rule too — a party billed with GST/TDS once is billed
+  // that way every time, so auto-tagged rows carry the same split.
+  gstType           String?
+  gstRate           Decimal? @db.Decimal(5, 2)
+  hsn               String?
+  counterpartyGstin String?
+  tdsSection        String?
+  tdsRate           Decimal? @db.Decimal(5, 2)
+  deducteePan       String?
   hits          Int      @default(0)
   source        String   @default("learned") // learned | manual
   createdAt     DateTime @default(now())

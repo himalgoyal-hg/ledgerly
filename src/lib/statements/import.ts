@@ -209,6 +209,15 @@ export async function confirmStatementImport(
         headAccountId: rule?.headAccountId,
         nature: rule?.nature,
         costCentreId: rule?.costCentreId,
+        // The rule's GST/TDS ride along — the split posts exactly like the
+        // manual tag it was learned from.
+        gstType: rule?.gstType,
+        gstRate: rule?.gstRate,
+        hsn: rule?.hsn,
+        counterpartyGstin: rule?.counterpartyGstin,
+        tdsSection: rule?.tdsSection,
+        tdsRate: rule?.tdsRate,
+        deducteePan: rule?.deducteePan,
         autoTagged: Boolean(rule), // "Verified by System"
         taggedAt: rule ? new Date() : undefined,
       },

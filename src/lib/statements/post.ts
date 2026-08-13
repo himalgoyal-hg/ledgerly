@@ -128,6 +128,15 @@ export async function applyTag(
     headAccountId: args.headAccountId,
     nature: args.nature,
     costCentreId,
+    tax: {
+      gstType: hasGst ? (tax.gstType ?? 'intra') : null,
+      gstRate: hasGst ? tax.gstRate : null,
+      hsn: hasGst ? tax.hsn ?? null : null,
+      counterpartyGstin: hasGst ? tax.counterpartyGstin ?? null : null,
+      tdsSection: hasTds ? tax.tdsSection : null,
+      tdsRate: hasTds ? tax.tdsRate : null,
+      deducteePan: hasTds ? tax.deducteePan ?? null : null,
+    },
   })
 }
 
@@ -561,5 +570,6 @@ export async function retagPostedTransaction(
     headAccountId: args.headAccountId,
     nature: args.nature,
     costCentreId,
+    tax: taxFields,
   })
 }
