@@ -169,6 +169,54 @@ export function lineMonthly(line: { amount: Prisma.Decimal; frequency: string })
 }
 
 /**
+ * Keep the Budget-vs-Actual report's rows (Budget model, head × month) in
+ * step with the plan for ONE head — called whenever a budget line touching
+ * that head is saved or archived. FY 2026-27 months; abs() because the
+ * report wants the target on the account's normal side.
+ */
+export async function syncBudgetForHead(
+  tx: Prisma.TransactionClient,
+  headAccountId: string,
+) {
+  const FY: { year: number; month: number }[] = [
+    ...Array.from({ length: 9 }, (_, i) => ({ year: 2026, month: i + 4 })),
+    ...Array.from({ length: 3 }, (_, i) => ({ year: 2027, month: i + 1 })),
+  ]
+  const lines = await tx.budgetLine.findMany({
+    where: { headAccountId, archivedAt: null },
+  })
+  await tx.budget.deleteMany({
+    where: { accountId: headAccountId, OR: [{ year: 2026 }, { year: 2027, month: { lte: 3 } }] },
+  })
+  if (lines.length === 0) return
+  const monthly = lines
+    .filter((l) => l.frequency !== 'ONCE')
+    .reduce((t, l) => t + monthlyEquivalent(Number(l.amount), l.frequency), 0)
+  const once = new Map<string, number>()
+  for (const l of lines) {
+    if (l.frequency === 'ONCE' && l.onMonth) {
+      once.set(l.onMonth, (once.get(l.onMonth) ?? 0) + Number(l.amount))
+    }
+  }
+  const freqs = new Set(lines.filter((l) => l.frequency !== 'ONCE').map((l) => l.frequency))
+  for (const { year, month } of FY) {
+    const key = `${year}-${String(month).padStart(2, '0')}`
+    const amount = Math.abs(monthly) + Math.abs(once.get(key) ?? 0)
+    if (amount === 0) continue
+    await tx.budget.create({
+      data: {
+        entityId: lines[0].entityId,
+        accountId: headAccountId,
+        year,
+        month,
+        amount: amount.toFixed(2),
+        frequency: freqs.size === 1 ? [...freqs][0] : 'MONTHLY',
+      },
+    })
+  }
+}
+
+/**
  * Actual movement per head for one month, signed like the plan: expense
  * heads spend positive (Dr − Cr), income heads receive negative — so a
  * line's actual compares straight against its planned amount.

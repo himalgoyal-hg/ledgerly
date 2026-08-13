@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { prisma } from '@/lib/db'
-import { FREQUENCIES, POOLS } from '@/lib/budget/plan'
+import { FREQUENCIES, POOLS, syncBudgetForHead } from '@/lib/budget/plan'
 
 // Budget lines of the cash-flow plan. Rows are Excel-style always-editable;
 // save re-matches the head by label so a renamed line finds its account.
@@ -52,9 +52,16 @@ export async function saveBudgetLineAction(formData: FormData) {
       taxTreatment: String(formData.get('taxTreatment') ?? '').trim() || null,
       dayNote: String(formData.get('dayNote') ?? '').trim() || null,
     }
+    const before = id ? await tx.budgetLine.findUnique({ where: { id } }) : null
     const line = id
       ? await tx.budgetLine.update({ where: { id }, data })
       : await tx.budgetLine.create({ data })
+    // Keep Budget vs Actual in step — the head just saved, and the one the
+    // line moved away from, if it changed.
+    if (line.headAccountId) await syncBudgetForHead(tx, line.headAccountId)
+    if (before?.headAccountId && before.headAccountId !== line.headAccountId) {
+      await syncBudgetForHead(tx, before.headAccountId)
+    }
     await audit(tx, {
       actorId: admin.id,
       action: id ? 'budget.line_update' : 'budget.line_create',
@@ -72,6 +79,7 @@ export async function archiveBudgetLineAction(formData: FormData) {
   const id = String(formData.get('id') ?? '')
   await auditedTransaction(async (tx) => {
     const line = await tx.budgetLine.update({ where: { id }, data: { archivedAt: new Date() } })
+    if (line.headAccountId) await syncBudgetForHead(tx, line.headAccountId)
     await audit(tx, {
       actorId: admin.id,
       action: 'budget.line_archive',
