@@ -6,7 +6,7 @@ import { cashBalances } from '@/lib/ops/cash'
 // equivalents and projected forward from LIVE ledger balances — the same
 // numbers the Cash tab and dashboard show, so plan and books stay linked.
 
-export const POOLS = ['AC', 'ACPL', 'HG', 'MG', 'PG', 'CASH'] as const
+export const POOLS = ['ACPL', 'HG', 'MG', 'PG', 'CASH'] as const
 export type Pool = (typeof POOLS)[number]
 
 export const FREQUENCIES = [

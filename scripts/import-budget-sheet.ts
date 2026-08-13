@@ -53,14 +53,14 @@ async function main() {
       ['ACPL', num(r[9])],
       ['MG', num(r[10])],
       ['CASH', num(r[11])],
-      [String(r[0] ?? '').includes('2762') ? 'AC' : 'HG', num(r[12])],
+      ['HG', num(r[12])], // 2762 merged into HG books (13 Aug 2026)
     ]
     const total = num(r[4])
     const active = splits.filter(([, v]) => v !== 0)
     // No split but a budget → one line on the row's own paying account.
     if (active.length === 0 && total !== 0) {
       const mode = String(r[0] ?? '')
-      const pool = mode.includes('7838') ? 'ACPL' : mode.includes('2762') ? 'AC'
+      const pool = mode.includes('7838') ? 'ACPL'
         : /meena|mg/i.test(mode) ? 'MG' : /cash/i.test(mode) ? 'CASH' : 'HG'
       active.push([pool, total])
     }
