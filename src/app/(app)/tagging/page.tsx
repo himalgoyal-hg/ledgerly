@@ -56,6 +56,37 @@ export default async function TaggingPage(props: {
   const monthTo = monthFrom
     ? new Date(Date.UTC(monthFrom.getUTCFullYear(), monthFrom.getUTCMonth() + 1, 1))
     : null
+
+  // Search reaches the whole tag, not just the narration: matching heads and
+  // cost centres resolve to ids first (no relation on the txn row), natures
+  // match by label or value.
+  const [qHeads, qCcs] = q
+    ? await Promise.all([
+        prisma.ledgerAccount.findMany({
+          where: {
+            entityId: entity.id,
+            isGroup: false,
+            OR: [
+              { name: { contains: q, mode: 'insensitive' } },
+              { code: { startsWith: q } },
+            ],
+          },
+          select: { id: true },
+        }),
+        prisma.costCentre.findMany({
+          where: { entityId: entity.id, name: { contains: q, mode: 'insensitive' } },
+          select: { id: true },
+        }),
+      ])
+    : [[], []]
+  const qNatures = q
+    ? NATURES.filter(
+        (n) =>
+          n.label.toLowerCase().includes(q.toLowerCase()) ||
+          n.value.toLowerCase().includes(q.toLowerCase()),
+      ).map((n) => n.value)
+    : []
+
   // One filter, three status lists — mirrors the prototype's single filtered
   // table split into our Pending / Tagged / Posted sections.
   const filter = {
@@ -66,6 +97,9 @@ export default async function TaggingPage(props: {
           OR: [
             { narration: { contains: q, mode: 'insensitive' as const } },
             { reference: { contains: q, mode: 'insensitive' as const } },
+            ...(qHeads.length ? [{ headAccountId: { in: qHeads.map((h) => h.id) } }] : []),
+            ...(qCcs.length ? [{ costCentreId: { in: qCcs.map((c) => c.id) } }] : []),
+            ...(qNatures.length ? [{ nature: { in: qNatures } }] : []),
           ],
         }
       : {}),
@@ -288,8 +322,8 @@ export default async function TaggingPage(props: {
         <input
           name="q"
           defaultValue={q}
-          placeholder="Search narration…"
-          className="w-60 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+          placeholder="Search — narration / head / nature / cost centre"
+          className="w-72 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
         />
         <select name="bank" defaultValue={bank} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
           <option value="">All accounts</option>
