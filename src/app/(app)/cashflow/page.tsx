@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireUser, isAdmin, hasPermission } from '@/lib/auth'
 import { displayINR } from '@/lib/ledger/money'
-import { projectPools, lineMonthly, POOLS, FREQUENCIES } from '@/lib/budget/plan'
+import { projectPools, lineMonthly, actualByHead, POOLS, FREQUENCIES } from '@/lib/budget/plan'
 import { saveBudgetLineAction, archiveBudgetLineAction } from './actions'
 
 // Cash flow plan (the user's FY sheet, alive): every budget line per head ×
@@ -51,12 +51,44 @@ export default async function CashFlowPage() {
   const monthlyOut = lines.reduce((t, l) => t + Math.max(0, lineMonthly(l)), 0)
   const monthlyIn = lines.reduce((t, l) => t + Math.max(0, -lineMonthly(l)), 0)
 
+  // Plan vs actual for THIS month, straight from the ledger (same sign
+  // convention: spend +, receipts −), plus "due & not seen" — the payment
+  // day has passed and the head hasn't moved this month.
+  const now = new Date()
+  const monthKey = now.toISOString().slice(0, 7)
+  const today = now.getUTCDate()
+  const actuals = await actualByHead(
+    lines.map((l) => l.headAccountId).filter((x): x is string => x !== null),
+    monthKey,
+  )
+  const planFor = (l: (typeof lines)[number]) =>
+    l.frequency === 'ONCE' ? (l.onMonth === monthKey ? Number(l.amount) : 0) : lineMonthly(l)
+  const actualFor = (l: (typeof lines)[number]) =>
+    l.headAccountId != null ? actuals.get(l.headAccountId) ?? 0 : null
+  const isDue = (l: (typeof lines)[number]) => {
+    if (l.frequency !== 'MONTHLY' || !l.dayNote || !/^\d{1,2}$/.test(l.dayNote.trim())) return false
+    const day = Number(l.dayNote.trim())
+    const actual = actualFor(l)
+    return today > day && actual !== null && actual === 0
+  }
+  const dueLines = lines.filter(isDue)
+
   const lineRow = (line: (typeof lines)[number] | null) => {
     const formId = line ? `bl-${line.id}` : 'bl-new'
     return (
       <tr key={line?.id ?? 'new'} className={line ? 'align-top hover:bg-zinc-50/60' : 'bg-emerald-50/40 align-top'}>
         <td className="px-1.5 py-0.5">
-          <input name="label" form={formId} required defaultValue={line?.label ?? ''} placeholder="Head / name" className={inputCls} />
+          <div className="flex items-center gap-1">
+            <input name="label" form={formId} required defaultValue={line?.label ?? ''} placeholder="Head / name" className={inputCls} />
+            {line && isDue(line) && (
+              <span
+                className="shrink-0 rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700"
+                title={`Planned by day ${line.dayNote}, nothing on this head yet this month`}
+              >
+                due
+              </span>
+            )}
+          </div>
         </td>
         <td className="px-1.5 py-1 text-center">
           {line?.headAccountId ? (
@@ -103,6 +135,32 @@ export default async function CashFlowPage() {
         </td>
         <td className="whitespace-nowrap px-1.5 py-1 text-right text-xs tabular-nums text-zinc-500">
           {line && line.frequency !== 'ONCE' ? displayINR(lineMonthly(line).toFixed(2)) : line ? '—' : ''}
+        </td>
+        <td className="whitespace-nowrap px-1.5 py-1 text-right text-xs tabular-nums">
+          {(() => {
+            if (!line) return null
+            const actual = actualFor(line)
+            if (actual === null) return <span className="text-zinc-300" title="No matched head — actuals unknown">—</span>
+            const plan = planFor(line)
+            const over = actual - plan // spent more / received less = bad
+            return (
+              <>
+                <span className={actual === 0 ? 'text-zinc-300' : 'text-zinc-700'}>
+                  {displayINR(actual.toFixed(2))}
+                </span>
+                {plan !== 0 && actual !== 0 && (
+                  <span
+                    className={`ml-1 rounded px-1 text-[10px] font-medium ${
+                      over > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                    title={`Plan ${displayINR(plan.toFixed(0))} · actual ${displayINR(actual.toFixed(0))}`}
+                  >
+                    {over > 0 ? '+' : ''}{displayINR(over.toFixed(0))}
+                  </span>
+                )}
+              </>
+            )
+          })()}
         </td>
         <td className="px-1.5 py-0.5">
           <input
@@ -213,6 +271,18 @@ export default async function CashFlowPage() {
         </table>
       </div>
 
+      {/* Planned by now, nothing on the head yet this month */}
+      {admin && dueLines.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-1.5 text-xs text-amber-800">
+          <span className="font-semibold uppercase tracking-wider text-[10px]">Due, not seen yet</span>
+          {dueLines.map((l) => (
+            <span key={l.id} className="rounded bg-white/70 px-1.5 py-0.5">
+              {l.label} <span className="text-amber-600">(day {l.dayNote} · {displayINR(Math.abs(lineMonthly(l)).toFixed(0))})</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* The plan itself — Excel-style always-editable register */}
       {admin && (
         <div className="space-y-2">
@@ -233,6 +303,7 @@ export default async function CashFlowPage() {
                   <th className="px-1.5 py-2">Frequency</th>
                   <th className="px-1.5 py-2 text-right">Amount / period</th>
                   <th className="px-1.5 py-2 text-right">₹ / month</th>
+                  <th className="px-1.5 py-2 text-right">Actual ({monthLabel(monthKey)})</th>
                   <th className="px-1.5 py-2">Month (one-off)</th>
                   <th className="px-1.5 py-2">Day</th>
                   <th className="px-1.5 py-2" />

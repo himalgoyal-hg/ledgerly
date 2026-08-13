@@ -126,3 +126,26 @@ export async function projectPools(today: Date, count = 6): Promise<PoolProjecti
 export function lineMonthly(line: { amount: Prisma.Decimal; frequency: string }): number {
   return line.frequency === 'ONCE' ? 0 : monthlyEquivalent(Number(line.amount), line.frequency)
 }
+
+/**
+ * Actual movement per head for one month, signed like the plan: expense
+ * heads spend positive (Dr − Cr), income heads receive negative — so a
+ * line's actual compares straight against its planned amount.
+ */
+export async function actualByHead(
+  headIds: string[],
+  monthKey: string, // YYYY-MM
+): Promise<Map<string, number>> {
+  if (headIds.length === 0) return new Map()
+  const from = new Date(`${monthKey}-01T00:00:00Z`)
+  const to = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1))
+  const rows = await prisma.$queryRaw<{ accountId: string; net: string }[]>`
+    SELECT l."accountId", SUM(l.debit - l.credit)::text AS net
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    WHERE l."accountId" IN (${Prisma.join(headIds)})
+      AND e.date >= ${from}::date AND e.date < ${to}::date
+    GROUP BY l."accountId"
+  `
+  return new Map(rows.map((r) => [r.accountId, Number(r.net)]))
+}
