@@ -35,7 +35,20 @@ export function TagRowCells(props: {
   action: (formData: FormData) => Promise<void>
   submitLabel: string
   submitTitle?: string
-  defaults?: { headAccountId?: string | null; nature?: string | null; costCentreId?: string | null }
+  defaults?: {
+    headAccountId?: string | null
+    nature?: string | null
+    costCentreId?: string | null
+    // Stored GST/TDS details — prefilled into the panel so a re-save or
+    // retag carries them forward instead of silently blanking them.
+    gstType?: string | null
+    gstRate?: string | null
+    hsn?: string | null
+    counterpartyGstin?: string | null
+    tdsSection?: string | null
+    tdsRate?: string | null
+    deducteePan?: string | null
+  }
   /** Extra row actions (Untag / Undo forms) rendered next to the submit. */
   children?: ReactNode
 }) {
@@ -114,32 +127,45 @@ export function TagRowCells(props: {
           </form>
           {props.children}
           {/* Optional GST / TDS details (spec §3 step 5 / §7) — expands the
-              row inline; absolute popovers would clip inside the scroll box. */}
+              row inline; absolute popovers would clip inside the scroll box.
+              Prefilled from the stored tag, and the toggle shows what's set
+              so a filled row is visible without opening it. */}
           <details>
-            <summary className="cursor-pointer whitespace-nowrap py-1 text-[10px] text-zinc-400 hover:text-zinc-700">
-              GST/TDS
+            <summary
+              className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
+                props.defaults?.gstRate || props.defaults?.tdsRate
+                  ? 'font-semibold text-amber-600 hover:text-amber-800'
+                  : 'text-zinc-400 hover:text-zinc-700'
+              }`}
+            >
+              {props.defaults?.gstRate
+                ? `GST ${props.defaults.gstRate}%`
+                : props.defaults?.tdsRate
+                  ? `TDS ${props.defaults.tdsRate}%${props.defaults.tdsSection ? ` ${props.defaults.tdsSection}` : ''}`
+                  : 'GST/TDS'}
             </summary>
             <div className="mt-1 w-44 space-y-1 rounded-md bg-zinc-50 p-1.5">
-              <select name="gstType" form={formId} className={inputCls}>
+              <select name="gstType" form={formId} defaultValue={props.defaults?.gstType ?? ''} className={inputCls}>
                 <option value="">GST type</option>
                 {GST_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-              <select name="gstRate" form={formId} className={inputCls}>
+              <select name="gstRate" form={formId} defaultValue={props.defaults?.gstRate ?? ''} className={inputCls}>
                 <option value="">GST rate %</option>
                 {GST_RATES.map((r) => (
                   <option key={r} value={r}>{r}%</option>
                 ))}
               </select>
-              <input name="hsn" form={formId} placeholder="HSN/SAC" className={inputCls} />
+              <input name="hsn" form={formId} defaultValue={props.defaults?.hsn ?? ''} placeholder="HSN/SAC" className={inputCls} />
               <input
                 name="counterpartyGstin"
                 form={formId}
+                defaultValue={props.defaults?.counterpartyGstin ?? ''}
                 placeholder="Party GSTIN"
                 className={inputCls}
               />
-              <select name="tdsSection" form={formId} className={inputCls}>
+              <select name="tdsSection" form={formId} defaultValue={props.defaults?.tdsSection ?? ''} className={inputCls}>
                 <option value="">TDS section</option>
                 {TDS_SECTIONS.map((s) => (
                   <option key={s} value={s}>{s}</option>
@@ -148,11 +174,12 @@ export function TagRowCells(props: {
               <input
                 name="tdsRate"
                 form={formId}
+                defaultValue={props.defaults?.tdsRate ?? ''}
                 placeholder="TDS rate %"
                 inputMode="decimal"
                 className={inputCls}
               />
-              <input name="deducteePan" form={formId} placeholder="Deductee PAN" className={inputCls} />
+              <input name="deducteePan" form={formId} defaultValue={props.defaults?.deducteePan ?? ''} placeholder="Deductee PAN" className={inputCls} />
             </div>
           </details>
         </div>

@@ -382,7 +382,10 @@ export async function postAllConfirmed(entityId: string, actorId: string) {
 
 /**
  * Retag a posted row (spec §5 edit): reversal of the original journal + post
- * of the new version, tag fields updated, rule retrained.
+ * of the new version, tag fields updated, rule retrained. The GST/TDS
+ * details ride along like on a first-time tag — the split lines rebuild
+ * with the new values and the tax register row (the GST/TDS reports'
+ * source) is rewritten for the doc.
  */
 export async function retagPostedTransaction(
   tx: Prisma.TransactionClient,
@@ -391,6 +394,7 @@ export async function retagPostedTransaction(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    tax?: TagTaxInput
     actorId: string
   },
 ) {
@@ -406,6 +410,21 @@ export async function retagPostedTransaction(
   const bank = await tx.bankAccount.findUniqueOrThrow({ where: { id: txn.bankAccountId } })
   if (!bank.ledgerAccountId) throw new TagError(`${bank.nickname} has no ledger account`)
 
+  // The form's GST/TDS panel is the source of truth (it arrives prefilled
+  // with the stored values); no tax arg falls back to what's stored.
+  const tax: TagTaxInput = args.tax ?? {
+    gstType: txn.gstType,
+    gstRate: txn.gstRate === null ? null : String(txn.gstRate),
+    hsn: txn.hsn,
+    counterpartyGstin: txn.counterpartyGstin,
+    tdsSection: txn.tdsSection,
+    tdsRate: txn.tdsRate === null ? null : String(txn.tdsRate),
+    deducteePan: txn.deducteePan,
+  }
+  validateTax(tax, args.nature)
+  const hasGst = Boolean(tax.gstRate)
+  const hasTds = Boolean(tax.tdsRate)
+
   // Same default-cost-centre fallback as a first-time tag: a blank cost
   // centre lands in the new head's default, never in the old tag's.
   let costCentreId = args.costCentreId ?? null
@@ -414,11 +433,28 @@ export async function retagPostedTransaction(
     if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
   }
 
-  // Rebuild with the stored tax details — retag changes head/nature/cost
-  // centre, never the tax split.
+  const taxFields = {
+    gstType: hasGst ? (tax.gstType ?? 'intra') : null,
+    gstRate: hasGst ? tax.gstRate : null,
+    hsn: hasGst ? tax.hsn ?? null : null,
+    counterpartyGstin: hasGst ? tax.counterpartyGstin ?? null : null,
+    tdsSection: hasTds ? tax.tdsSection : null,
+    tdsRate: hasTds ? tax.tdsRate : null,
+    deducteePan: hasTds ? tax.deducteePan ?? null : null,
+  }
+  // buildLines types the rates as Prisma.Decimal, but only ever stringifies
+  // them — the form's plain strings are fine.
   const built = await buildLines(
     tx,
-    { ...txn, costCentreId },
+    {
+      entityId: txn.entityId,
+      debit: txn.debit,
+      credit: txn.credit,
+      costCentreId,
+      gstRate: taxFields.gstRate,
+      tdsRate: taxFields.tdsRate,
+      tdsSection: taxFields.tdsSection,
+    } as Parameters<typeof buildLines>[1],
     args.headAccountId,
     bank.ledgerAccountId,
   )
@@ -438,11 +474,39 @@ export async function retagPostedTransaction(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId,
+      ...taxFields,
       autoTagged: false,
       taggedById: args.actorId,
       taggedAt: new Date(),
     },
   })
+
+  // Keep the tax register in step with the new version — the GST/TDS
+  // reports read TaxLine, so the retagged row must show up (or drop out)
+  // there immediately.
+  await tx.taxLine.deleteMany({ where: { docId: txn.docId } })
+  if (built.tax) {
+    await writeTaxLine(tx, {
+      entityId: txn.entityId,
+      docId: txn.docId,
+      date: txn.date,
+      direction: built.tax.direction,
+      party: partyToken(txn.narration) ?? txn.narration.slice(0, 40),
+      gstType: taxFields.gstType,
+      gstRate: taxFields.gstRate,
+      hsn: taxFields.hsn,
+      counterpartyGstin: taxFields.counterpartyGstin,
+      taxableValue: built.tax.taxableValue,
+      gstAmount: built.tax.gstAmount,
+      tdsSection: taxFields.tdsSection,
+      tdsRate: taxFields.tdsRate,
+      deducteePan: taxFields.deducteePan,
+      tdsAmount: built.tax.tdsAmount,
+      sourceType: 'statement_txn',
+      sourceId: txn.id,
+    })
+  }
+
   await learnRule(tx, {
     entityId: txn.entityId,
     narration: txn.narration,

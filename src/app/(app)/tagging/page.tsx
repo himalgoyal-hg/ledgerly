@@ -535,6 +535,13 @@ export default async function TaggingPage(props: {
                         headAccountId: txn.headAccountId,
                         nature: txn.nature,
                         costCentreId: txn.costCentreId,
+                        gstType: txn.gstType,
+                        gstRate: txn.gstRate === null ? null : String(txn.gstRate),
+                        hsn: txn.hsn,
+                        counterpartyGstin: txn.counterpartyGstin,
+                        tdsSection: txn.tdsSection,
+                        tdsRate: txn.tdsRate === null ? null : String(txn.tdsRate),
+                        deducteePan: txn.deducteePan,
                       }}
                     >
                       <form action={untagTransaction}>
@@ -612,6 +619,13 @@ export default async function TaggingPage(props: {
                             headAccountId: txn.headAccountId,
                             nature: txn.nature,
                             costCentreId: txn.costCentreId,
+                            gstType: txn.gstType,
+                            gstRate: txn.gstRate === null ? null : String(txn.gstRate),
+                            hsn: txn.hsn,
+                            counterpartyGstin: txn.counterpartyGstin,
+                            tdsSection: txn.tdsSection,
+                            tdsRate: txn.tdsRate === null ? null : String(txn.tdsRate),
+                            deducteePan: txn.deducteePan,
                           }}
                         >
                           {(doc?._count.entries ?? 0) > 1 && (
