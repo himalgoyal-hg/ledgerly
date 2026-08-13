@@ -3,9 +3,10 @@ import { hasPermission, isAdmin, type CurrentUser } from '@/lib/auth'
 
 // Navigation mirrors the Ledgerly v2 HTML prototype (docs/requirements.md —
 // the prototype is the feature spec): Overview · Books · Statements ·
-// Operations · Setup & masters. Screens the prototype doesn't have (GST/TDS,
-// journal, trial balance, ledgers, periods, automation, audit) stay built and
-// URL-reachable but are hidden from the sidebar per Himal's instruction.
+// Operations · Setup & masters. Screens the prototype doesn't have (journal,
+// trial balance, ledgers, periods, automation, audit) stay built and
+// URL-reachable but are hidden from the sidebar per Himal's instruction —
+// except GST & TDS, which he asked to surface (13 Aug 2026).
 // Filtering happens HERE, server-side, before anything crosses to the client —
 // a hidden item must never appear in the HTML or the RSC payload
 // (verify-phase1 greps for exactly that). The filter is still cosmetic: every
@@ -44,6 +45,7 @@ export function buildNav(user: CurrentUser): NavGroup[] {
         { href: '/reports/balance-sheet', label: 'Balance sheet', icon: 'trialBalance', show: hasPermission(user, 'viewFinancialReports') },
         { href: '/reports/cash-flow', label: 'Cash flow', icon: 'banking', show: hasPermission(user, 'viewFinancialReports') },
         { href: '/loans', label: 'Loans & advances', icon: 'ledgers', show: admin || hasPermission(user, 'viewFinancialReports') },
+        { href: '/tax', label: 'GST & TDS', icon: 'tax', show: admin || hasPermission(user, 'viewTaxRegisters') },
         { href: '/reports/budget', label: 'Reports', icon: 'journal', show: hasPermission(user, 'viewFinancialReports') },
         { href: '/family', label: 'Family view', icon: 'entities', show: admin },
       ],
