@@ -746,6 +746,32 @@ model TaxLine {
 // input, not derived data.
 // ---------------------------------------------------------------------------
 
+// The cash-flow plan (user's "Cash flow FY 2026-27" sheet): one line per
+// head × paying pool. Positive amount = money going OUT, negative = coming
+// IN (the sheet's "enter receipt in -ve"). Periodic lines repeat by
+// frequency; ONCE lines land in a single future month (`onMonth`) — that's
+// how a known upcoming value is added to the future budget.
+model BudgetLine {
+  id       String  @id @default(cuid())
+  entityId String // books of the matched head (falls back to the pool's books)
+  headAccountId String? // matched ledger head, when one exists
+  label    String // the sheet's "Account tagging" name, shown as-is
+  // Which pool pays/receives: AC | ACPL | HG | MG | PG | CASH
+  source   String
+  // DAILY | WEEKLY | MONTHLY | QUARTERLY | HALF_YEARLY | ANNUAL | ONCE
+  frequency String
+  amount    Decimal @db.Decimal(14, 2) // per frequency period; − = receipt
+  onMonth   String? // "YYYY-MM", ONCE lines only
+  expenseType  String? // Compulsory | Optional-Lifestyle | Optional-growth | Optional-Investment
+  taxTreatment String? // Drawing | HG Business Expense | Investment | ACPL expense
+  dayNote      String? // "10", "Friday date", "End of quarter" …
+  archivedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([source, archivedAt])
+}
+
 model Budget {
   id        String   @id @default(cuid())
   entityId  String

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireUser, isAdmin, hasPermission, visibleEntityFilter } from '@/lib/auth'
 import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
+import { projectPools } from '@/lib/budget/plan'
 import type { HeadOpt } from '@/components/head-combobox'
 import { CashQuickRow, type QuickLocation } from './quick-row'
 import { createCashEntryAction, quickCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
@@ -127,6 +128,10 @@ export default async function CashPage(props: {
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
   }
 
+  // The cash-flow plan's CASH pool, projected 3 months ahead from the same
+  // live balance this page shows — the budget and the cash book stay linked.
+  const cashPlan = (await projectPools(new Date(), 3)).find((p) => p.pool === 'CASH')
+
   const signedAmount = (e: (typeof entries)[number]) => {
     const a = Number(e.amount)
     if (e.kind === 'TRANSFER') {
@@ -173,6 +178,28 @@ export default async function CashPage(props: {
           <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(total)}</span>
         </div>
       </div>
+
+      {/* Budget ahead — the plan's CASH pool (linked to /cashflow) */}
+      {cashPlan && cashPlan.months.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-dashed border-zinc-300 bg-zinc-50/60 px-3 py-1.5 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            Budget ahead
+          </span>
+          {cashPlan.months.map((m) => (
+            <span key={m.month} className="flex items-baseline gap-1" title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}>
+              <span className="text-zinc-400">
+                {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(m.month.slice(5, 7)) - 1]}
+              </span>
+              <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-800'}`}>
+                {displayINR(m.closing.toFixed(2))}
+              </span>
+            </span>
+          ))}
+          <Link href="/cashflow" className="ml-auto text-zinc-500 underline hover:text-zinc-800">
+            Cash flow plan →
+          </Link>
+        </div>
+      )}
 
       {/* Quick entry — the Excel row */}
       {canEnter && locations.length > 0 && (
