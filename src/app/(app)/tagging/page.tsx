@@ -162,6 +162,16 @@ export default async function TaggingPage(props: {
   const aiReady = aiConfigured()
   const awaitingSuggestion = pending.filter((t) => t.aiSuggestedAt === null).length
 
+  // Search auto-suggest: the parties the rule engine knows, busiest first.
+  const topParties = (
+    await prisma.tagRule.findMany({
+      where: { entityId: entity.id },
+      orderBy: { hits: 'desc' },
+      take: 60,
+      select: { pattern: true },
+    })
+  ).map((r) => r.pattern)
+
   // v2-prototype chrome: KPIs, filter summary, pagination.
   const entityBanks = banks.filter((b) => b.entityId === entity.id)
   const suggestionCount = pending.filter((t) => t.aiHeadAccountId && t.aiNature).length
@@ -322,9 +332,27 @@ export default async function TaggingPage(props: {
         <input
           name="q"
           defaultValue={q}
+          list="tag-search-suggest"
+          autoComplete="off"
           placeholder="Search — narration / head / nature / cost centre"
           className="w-72 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
         />
+        {/* Auto-suggest: first letters filter heads, natures, cost centres
+            and the parties the rule engine knows (native datalist). */}
+        <datalist id="tag-search-suggest">
+          {heads.map((h) => (
+            <option key={`h-${h.id}`} value={h.name}>head</option>
+          ))}
+          {NATURES.map((n) => (
+            <option key={`n-${n.value}`} value={n.label}>nature</option>
+          ))}
+          {costCentres.map((c) => (
+            <option key={`c-${c.id}`} value={c.name}>cost centre</option>
+          ))}
+          {topParties.map((p) => (
+            <option key={`p-${p}`} value={p}>party</option>
+          ))}
+        </datalist>
         <select name="bank" defaultValue={bank} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
           <option value="">All accounts</option>
           {entityBanks.map((b) => (
