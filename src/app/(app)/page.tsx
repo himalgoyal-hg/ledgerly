@@ -33,7 +33,6 @@ import {
   statTrends,
   pendingBills,
 } from '@/lib/reports/series'
-import { projectPools } from '@/lib/budget/plan'
 import { Card, CardHeader, StatCard, Badge, EmptyState, Avatar, type BadgeTone } from '@/components/ui'
 import { PairedBars, DivergingBars, TrendLine, CategoryBars } from '@/components/charts'
 
@@ -86,7 +85,7 @@ export default async function OverviewPage() {
   }
 
   // Fetch only what this viewer is allowed to see.
-  const [balances, queues, receivables, alerts, activity, trends, flows, categories, bills, runway] =
+  const [balances, queues, receivables, alerts, activity, trends, flows, categories, bills] =
     await Promise.all([
       can.financials || can.cash ? balanceTiles(entity.id) : null,
       can.tagging || can.upload || can.claims ? queueTiles(entity.id) : null,
@@ -97,21 +96,8 @@ export default async function OverviewPage() {
       admin || can.financials ? monthlyFlows(entity.id, 12) : null,
       admin || can.financials ? expenseCategories(entity.id, 12, 6) : null,
       admin ? pendingBills(entity.id) : null,
-      admin || can.financials ? projectPools(new Date(), 12) : null,
     ])
 
-  // Cash runway from the budget plan: the first month any pool's projected
-  // closing dips below zero. Cross-books by design — money is one household.
-  const breaches = (runway ?? [])
-    .flatMap((p) => {
-      const month = p.months.find((m) => m.closing < 0)?.month
-      return month ? [{ pool: p.pool as string, month }] : []
-    })
-    .sort((a, b) => a.month.localeCompare(b.month))
-  const monthName = (m: string) => {
-    const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
-  }
 
   const hasPostings = Boolean(flows?.some((m) => m.income || m.expense || m.cashNet))
   const today = new Date().toISOString().slice(0, 10)
@@ -214,20 +200,6 @@ export default async function OverviewPage() {
             deltaBasis="vs 30 days ago"
             upIsGood={false}
             href="/bills"
-          />
-        )}
-        {runway && runway.length > 0 && (
-          <StatCard
-            label="Cash runway"
-            value={breaches.length === 0 ? '12+ months' : `${breaches[0].pool} · ${monthName(breaches[0].month)}`}
-            icon={Landmark}
-            iconClass={breaches.length === 0 ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'}
-            hint={
-              breaches.length === 0
-                ? 'no pool goes negative on the current plan'
-                : breaches.map((b) => `${b.pool} ${monthName(b.month)}`).join(' · ')
-            }
-            href="/cashflow"
           />
         )}
         {admin && bills && (
