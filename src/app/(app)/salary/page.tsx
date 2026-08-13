@@ -57,7 +57,9 @@ export default async function SalaryPage() {
         className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
       />
       <input name="monthlyGross" required inputMode="decimal" placeholder="Monthly gross ₹" defaultValue={person ? String(person.monthlyGross) : undefined} className="w-32 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-      <input name="tdsRate" required inputMode="decimal" placeholder={type === 'SALARY' ? 'TDS % (192)' : 'TDS % (194J)'} defaultValue={person ? String(person.tdsRate) : undefined} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+      {/* TDS removed from the salary flow per Himal (13 Aug 2026) — the
+          machinery stays; people simply carry 0%. */}
+      <input type="hidden" name="tdsRate" value={person ? String(person.tdsRate) : '0'} />
       <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
         {person ? 'Save' : `Add ${type === 'SALARY' ? 'employee' : 'consultant'}`}
       </button>
@@ -138,14 +140,12 @@ export default async function SalaryPage() {
               <th className="px-3 py-2">Team</th>
               <th className="px-3 py-2">Cost centre</th>
               <th className="px-3 py-2 text-right">Gross / mo</th>
-              <th className="px-3 py-2 text-right">TDS / mo</th>
-              <th className="px-3 py-2 text-right">Net / mo</th>
               <th className="px-3 py-2 text-right">Annual gross</th>
               <th className="px-3 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {enriched.map(({ p, gross, tds, net, annual }) => (
+            {enriched.map(({ p, gross, annual }) => (
               <tr key={p.id} className="align-top hover:bg-zinc-50/60">
                 <td className="px-3 py-1.5 font-medium text-zinc-800">{p.name}</td>
                 <td className="px-3 py-1.5">
@@ -158,11 +158,6 @@ export default async function SalaryPage() {
                 <td className="px-3 py-1.5 text-zinc-600">{p.team || <span className="text-zinc-300">—</span>}</td>
                 <td className="px-3 py-1.5 text-zinc-600">{ccName(p.costCentreId) ?? <span className="text-zinc-300">—</span>}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums text-zinc-900">{displayINR(gross.toFixed(2))}</td>
-                <td className="px-3 py-1.5 text-right tabular-nums text-zinc-500">
-                  {displayINR(tds.toFixed(2))}
-                  <span className="block text-[10px] text-zinc-400">{String(p.tdsRate)}% u/s {p.tdsSection}</span>
-                </td>
-                <td className="px-3 py-1.5 text-right tabular-nums text-zinc-900">{displayINR(net.toFixed(2))}</td>
                 <td className="px-3 py-1.5 text-right tabular-nums font-medium text-zinc-900">{displayINR(annual.toFixed(2))}</td>
                 <td className="px-3 py-1.5 text-right">
                   <details>
@@ -181,8 +176,6 @@ export default async function SalaryPage() {
               <tr>
                 <td className="px-3 py-2" colSpan={4}>Total ({enriched.length} people)</td>
                 <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.gross.toFixed(2))}</td>
-                <td className="px-3 py-2 text-right tabular-nums text-zinc-500">{displayINR(totals.tds.toFixed(2))}</td>
-                <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.net.toFixed(2))}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{displayINR(totals.annual.toFixed(2))}</td>
                 <td />
               </tr>
@@ -196,7 +189,7 @@ export default async function SalaryPage() {
         {(['SALARY', 'CONSULTANT'] as const).map((type) => (
           <div key={type} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
             <h2 className="font-medium text-zinc-900">
-              {type === 'SALARY' ? 'Add employee (TDS u/s 192)' : 'Add consultant (TDS u/s 194J)'}
+              {type === 'SALARY' ? 'Add employee' : 'Add consultant'}
             </h2>
             {personForm(type)}
           </div>
@@ -250,7 +243,7 @@ export default async function SalaryPage() {
                     {run.status.toLowerCase()}
                   </span>
                   <span className="ml-auto text-xs text-zinc-500">
-                    gross {displayINR(totals.gross)} · TDS {displayINR(totals.tds)} · net {displayINR(totals.net)}
+                    total {displayINR(totals.gross)}
                   </span>
                 </div>
 
@@ -263,20 +256,17 @@ export default async function SalaryPage() {
                           <td colSpan={3} className="py-1">
                             <form action={updateRunLineAction} className="flex items-center justify-end gap-2">
                               <input type="hidden" name="lineId" value={line.id} />
+                              <input type="hidden" name="tds" value={String(line.tds)} />
                               <input name="gross" defaultValue={String(line.gross)} inputMode="decimal" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-right text-sm" />
-                              <input name="tds" defaultValue={String(line.tds)} inputMode="decimal" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-right text-sm" />
-                              <span className="w-28 text-right text-zinc-500">{displayINR(String(line.net))}</span>
                               <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
                                 Save
                               </button>
                             </form>
                           </td>
                         ) : (
-                          <>
-                            <td className="w-28 py-1 text-right text-zinc-600">{displayINR(String(line.gross))}</td>
-                            <td className="w-24 py-1 text-right text-zinc-500">− {displayINR(String(line.tds))}</td>
-                            <td className="w-28 py-1 text-right font-medium text-zinc-800">{displayINR(String(line.net))}</td>
-                          </>
+                          <td className="w-28 py-1 text-right font-medium text-zinc-800" colSpan={3}>
+                            {displayINR(String(line.net))}
+                          </td>
                         )}
                       </tr>
                     ))}
@@ -288,7 +278,7 @@ export default async function SalaryPage() {
                     <form action={approveRunAction}>
                       <input type="hidden" name="runId" value={run.id} />
                       <button type="submit" className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600">
-                        Approve (posts expense, payables & TDS)
+                        Approve (posts expense & payables)
                       </button>
                     </form>
                   )}
