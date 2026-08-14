@@ -179,6 +179,29 @@ export default async function CashFlowPage(props: {
       {view === 'ahead' && cashProjection && cashProjection.months.length > 0 && (
         <div className="flex flex-wrap gap-3 print:hidden">
           <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-xs text-zinc-500">Bank today</div>
+            <div className="text-lg font-semibold text-zinc-900">
+              {displayINR(
+                pools
+                  .filter((p) => p.pool !== 'CASH')
+                  .reduce((t, p) => t + p.balanceNow, 0)
+                  .toFixed(2),
+              )}
+            </div>
+            <div className="mt-0.5 text-[10px] text-zinc-400">
+              {pools
+                .filter((p) => p.pool !== 'CASH' && p.balanceNow !== 0)
+                .map((p) => `${p.pool} ${displayINR(p.balanceNow.toFixed(0))}`)
+                .join(' · ')}
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-xs text-zinc-500">Cash today</div>
+            <div className="text-lg font-semibold text-zinc-900">
+              {displayINR((pools.find((p) => p.pool === 'CASH')?.balanceNow ?? 0).toFixed(2))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
             <div className="text-xs text-zinc-500">Bank + cash today</div>
             <div className="text-lg font-semibold text-zinc-900">
               {displayINR(cashProjection.balanceNow.toFixed(2))}
