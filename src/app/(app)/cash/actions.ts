@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createCashEntry } from '@/lib/ops/cash'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
@@ -176,6 +176,84 @@ export async function undoCashEntryAction(formData: FormData) {
       targetType: 'CashEntry',
       targetId: entryId,
       summary: 'Undid last operation on cash entry',
+    })
+  })
+  revalidatePath('/cash')
+}
+
+// --- Cash flow (CASH pool only): planned future receipts/payments ---------
+// Lines live in BudgetLine with source 'CASH'; the projection on the Cash
+// tab rolls the live balance forward with them (current month netted by
+// actuals). Saving re-syncs Budget vs Actual for the matched head.
+
+export async function saveCashPlanAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '') || null
+  const label = String(formData.get('label') ?? '').trim()
+  const frequency = String(formData.get('frequency') ?? 'ONCE')
+  const amountRaw = String(formData.get('amount') ?? '').replace(/[,₹\s]/g, '')
+  const amount = Number(amountRaw)
+  const onMonth = String(formData.get('onMonth') ?? '').trim() || null
+
+  if (!label) throw new Error('Name the payment')
+  if (!['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'ANNUAL', 'ONCE'].includes(frequency)) {
+    throw new Error('Pick the frequency')
+  }
+  if (!Number.isFinite(amount) || amount === 0) throw new Error('Amount: + = cash out, − = cash in')
+  if (frequency === 'ONCE' && !/^\d{4}-\d{2}$/.test(onMonth ?? '')) {
+    throw new Error('A one-off needs its month')
+  }
+
+  await auditedTransaction(async (tx) => {
+    const head = await tx.ledgerAccount.findFirst({
+      where: { isGroup: false, archivedAt: null, name: { equals: label, mode: 'insensitive' } },
+      orderBy: { entityId: 'asc' },
+    })
+    const entity = head
+      ? await tx.entity.findUniqueOrThrow({ where: { id: head.entityId } })
+      : await tx.entity.findFirstOrThrow({ where: { code: 'HG' } })
+    const data = {
+      entityId: entity.id,
+      headAccountId: head?.id ?? null,
+      label,
+      source: 'CASH',
+      frequency,
+      amount: amount.toFixed(2),
+      onMonth: frequency === 'ONCE' ? onMonth : null,
+    }
+    const line = id
+      ? await tx.budgetLine.update({ where: { id }, data })
+      : await tx.budgetLine.create({ data })
+    if (line.headAccountId) {
+      const { syncBudgetForHead } = await import('@/lib/budget/plan')
+      await syncBudgetForHead(tx, line.headAccountId)
+    }
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'cash.plan_save',
+      targetType: 'BudgetLine',
+      targetId: line.id,
+      summary: `Cash plan: ${label} ${frequency.toLowerCase()} ₹${amount.toFixed(2)}${onMonth ? ` in ${onMonth}` : ''}`,
+    })
+  })
+  revalidatePath('/cash')
+}
+
+export async function archiveCashPlanAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '')
+  await auditedTransaction(async (tx) => {
+    const line = await tx.budgetLine.update({ where: { id }, data: { archivedAt: new Date() } })
+    if (line.headAccountId) {
+      const { syncBudgetForHead } = await import('@/lib/budget/plan')
+      await syncBudgetForHead(tx, line.headAccountId)
+    }
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'cash.plan_archive',
+      targetType: 'BudgetLine',
+      targetId: id,
+      summary: `Cash plan line removed: ${line.label}`,
     })
   })
   revalidatePath('/cash')
