@@ -54,7 +54,27 @@ export default async function BillsPage() {
 
       {/* New bill */}
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">New bill — document &amp; reminder only, books post from the statement</h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="font-medium text-zinc-900">New bill — document &amp; reminder only, books post from the statement</h2>
+          {/* Himal's document homes (from the EMI sheet) — the per-bill links
+              below point at individual files inside this folder. */}
+          <a
+            href="https://drive.google.com/drive/folders/1tVDXx-URABNCn_gUjPQpmMRX_5PYx8Dz"
+            target="_blank"
+            rel="noreferrer"
+            className="ml-auto text-xs text-sky-600 hover:underline"
+          >
+            📁 Documents folder
+          </a>
+          <a
+            href="https://www.sihub.in/managesi/hdfcbank"
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-sky-600 hover:underline"
+          >
+            HDFC standing instructions
+          </a>
+        </div>
         <form action={createBillAction} className="mt-3 flex flex-wrap items-center gap-2">
           <input type="hidden" name="entityId" value={entity.id} />
           <input name="vendor" required placeholder="Vendor" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
