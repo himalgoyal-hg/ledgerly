@@ -78,6 +78,7 @@ export default async function BillsPage() {
             <input type="file" name="file" accept="application/pdf,image/*" className="w-40 text-xs" />
           </label>
           <input name="link" placeholder="…or Drive link" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+          <input name="payFrom" placeholder="Pay from (bank / card / GPay)" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <input name="remarks" placeholder="Remarks" className="w-36 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
           <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
             Add bill
@@ -135,10 +136,29 @@ export default async function BillsPage() {
         </form>
       </div>
 
-      {/* Pending */}
-      <div className="space-y-2">
+      {/* Pending — grouped by type, most urgent group first */}
+      <div className="space-y-4">
         <h2 className="font-medium text-zinc-900">Pending ({pending.length})</h2>
-        {pending.map((bill) => {
+        {[...new Set(pending.map((b) => b.billType))]
+          .sort((a, b) => {
+            const due = (t: string) =>
+              Math.min(...pending.filter((x) => x.billType === t).map((x) => x.dueDate.getTime()))
+            return due(a) - due(b)
+          })
+          .map((type) => {
+            const group = pending
+              .filter((b) => b.billType === type)
+              .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime())
+            const groupTotal = group.reduce((t, b) => t + Number(b.amount), 0)
+            return (
+              <div key={type} className="space-y-2">
+                <div className="flex items-baseline gap-2">
+                  <h3 className="text-sm font-semibold text-zinc-700">{type}</h3>
+                  <span className="text-xs text-zinc-400">
+                    {group.length} · {displayINR(groupTotal.toFixed(2))}
+                  </span>
+                </div>
+                {group.map((bill) => {
           const overdue = bill.dueDate.toISOString().slice(0, 10) < today
           const files = fileLinks(bill.link)
           return (
@@ -146,6 +166,11 @@ export default async function BillsPage() {
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <span className="font-medium text-zinc-800">{bill.vendor}</span>
                 <span className="text-zinc-500">{bill.billType}</span>
+                {bill.payFrom && (
+                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                    via {bill.payFrom}
+                  </span>
+                )}
                 <form action={deleteBillAction} className="order-last ml-auto">
                   <input type="hidden" name="billId" value={bill.id} />
                   <ConfirmButton
@@ -222,7 +247,10 @@ export default async function BillsPage() {
               </form>
             </div>
           )
-        })}
+                })}
+              </div>
+            )
+          })}
         {pending.length === 0 && <p className="text-sm text-zinc-400">Nothing pending.</p>}
       </div>
 

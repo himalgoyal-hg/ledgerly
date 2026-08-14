@@ -38,6 +38,7 @@ export async function createBill(
     insuredFor?: string | null
     link?: string | null
     remarks?: string | null
+    payFrom?: string | null
     recurrence?: 'NONE' | 'MONTHLY' | 'QUARTERLY' | 'HALF_YEARLY' | 'YEARLY'
     expenseAccountId?: string | null
     costCentreId?: string | null
@@ -76,6 +77,7 @@ export async function createBill(
       insuredFor: args.insuredFor ?? null,
       link: args.link ?? null,
       remarks: args.remarks ?? null,
+      payFrom: args.payFrom ?? null,
       recurrence: args.recurrence ?? 'NONE',
       expenseAccountId: args.expenseAccountId ?? null,
       costCentreId: args.costCentreId ?? null,

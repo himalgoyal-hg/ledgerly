@@ -556,6 +556,7 @@ model Bill {
   insuredFor   String? // who the policy covers
   link             String? // Drive link
   remarks          String?
+  payFrom          String? // which bank / card / UPI the payment goes from
   recurrence       Recurrence @default(NONE)
   // Legacy — bills are a document store now; the expense posts from the
   // tagged statement row, so no head is chosen here.
