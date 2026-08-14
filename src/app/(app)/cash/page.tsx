@@ -3,17 +3,9 @@ import { prisma } from '@/lib/db'
 import { requireUser, isAdmin, hasPermission, visibleEntityFilter } from '@/lib/auth'
 import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
-import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import type { HeadOpt } from '@/components/head-combobox'
 import { CashQuickRow, type QuickLocation } from './quick-row'
-import {
-  createCashEntryAction,
-  quickCashEntryAction,
-  deleteCashEntryAction,
-  undoCashEntryAction,
-  saveCashPlanAction,
-  archiveCashPlanAction,
-} from './actions'
+import { createCashEntryAction, quickCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
 
 // Cash (spec §6.2) — ONE physical pool across all books, never split by the
 // "Books of" switcher: every location of every visible books shows here,
@@ -135,24 +127,6 @@ export default async function CashPage(props: {
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
   }
 
-  // Cash flow for the CASH pool: live balance rolled forward with the
-  // planned lines below (current month netted by what already posted).
-  const cashProjection = isAdmin(user)
-    ? (await projectPools(new Date(), 6)).find((p) => p.pool === 'CASH')
-    : null
-  const planLines = isAdmin(user)
-    ? await prisma.budgetLine.findMany({
-        where: { source: 'CASH', archivedAt: null },
-        orderBy: [{ frequency: 'asc' }, { label: 'asc' }],
-      })
-    : []
-  const shortMonth = (m: string) =>
-    `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
-  const freqLabel: Record<string, string> = {
-    DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
-    HALF_YEARLY: 'Half yearly', ANNUAL: 'Annual', ONCE: 'One-off',
-  }
-
   const signedAmount = (e: (typeof entries)[number]) => {
     const a = Number(e.amount)
     if (e.kind === 'TRANSFER') {
@@ -199,128 +173,6 @@ export default async function CashPage(props: {
           <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(total)}</span>
         </div>
       </div>
-
-      {/* Cash flow — the CASH pool projected, planned payments editable */}
-      {cashProjection && (
-        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <summary className="flex cursor-pointer flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs hover:bg-zinc-50">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
-              Cash flow
-            </span>
-            {cashProjection.months.map((m) => (
-              <span
-                key={m.month}
-                className="flex items-baseline gap-1"
-                title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
-              >
-                <span className="text-zinc-400">{shortMonth(m.month)}</span>
-                <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-800'}`}>
-                  {displayINR(m.closing.toFixed(2))}
-                </span>
-              </span>
-            ))}
-            <span className="ml-auto text-zinc-400">planned payments ({planLines.length}) ▾</span>
-          </summary>
-          <div className="overflow-x-auto border-t border-zinc-100">
-            <table className="w-full min-w-[44rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
-                  <th className="w-[30%] px-2 py-1.5">Payment / receipt</th>
-                  <th className="px-2 py-1.5">Frequency</th>
-                  <th className="px-2 py-1.5 text-right">₹ +out / −in</th>
-                  <th className="px-2 py-1.5">Month (one-off)</th>
-                  <th className="px-2 py-1.5 text-right">₹ / month</th>
-                  <th className="px-2 py-1.5" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {[null, ...planLines].map((line) => {
-                  const formId = line ? `cp-${line.id}` : 'cp-new'
-                  return (
-                    <tr key={line?.id ?? 'new'} className={line ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
-                      <td className="px-2 py-0.5">
-                        <input
-                          name="label"
-                          form={formId}
-                          required
-                          defaultValue={line?.label ?? ''}
-                          placeholder="e.g. Diwali gifts / Maid salary"
-                          className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-0.5">
-                        <select
-                          name="frequency"
-                          form={formId}
-                          defaultValue={line?.frequency ?? 'ONCE'}
-                          className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
-                        >
-                          {FREQUENCIES.map((f) => (
-                            <option key={f} value={f}>{freqLabel[f]}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-2 py-0.5">
-                        <input
-                          name="amount"
-                          form={formId}
-                          required
-                          inputMode="decimal"
-                          defaultValue={line ? String(line.amount) : ''}
-                          placeholder="₹"
-                          title="Positive = cash goes out, negative = comes in"
-                          className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs"
-                        />
-                      </td>
-                      <td className="px-2 py-0.5">
-                        <input
-                          name="onMonth"
-                          form={formId}
-                          type="month"
-                          defaultValue={line?.onMonth ?? ''}
-                          className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
-                        />
-                      </td>
-                      <td className="whitespace-nowrap px-2 py-1 text-right text-xs tabular-nums text-zinc-500">
-                        {line && line.frequency !== 'ONCE' ? displayINR(lineMonthly(line).toFixed(2)) : line ? '—' : ''}
-                      </td>
-                      <td className="px-2 py-0.5">
-                        <div className="flex items-center justify-end gap-1">
-                          <form id={formId} action={saveCashPlanAction}>
-                            {line && <input type="hidden" name="id" value={line.id} />}
-                            <button
-                              type="submit"
-                              className={`whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium ${
-                                line
-                                  ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100'
-                                  : 'bg-emerald-700 text-white hover:bg-emerald-600'
-                              }`}
-                            >
-                              {line ? 'Save' : 'Add'}
-                            </button>
-                          </form>
-                          {line && (
-                            <form action={archiveCashPlanAction}>
-                              <input type="hidden" name="id" value={line.id} />
-                              <button
-                                type="submit"
-                                title="Remove from the plan"
-                                className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
-                              >
-                                ✕
-                              </button>
-                            </form>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </details>
-      )}
 
       {/* Quick entry — the Excel row */}
       {canEnter && locations.length > 0 && (

@@ -237,6 +237,7 @@ export async function saveCashPlanAction(formData: FormData) {
     })
   })
   revalidatePath('/cash')
+  revalidatePath('/reports/cash-flow')
 }
 
 export async function archiveCashPlanAction(formData: FormData) {
@@ -257,4 +258,5 @@ export async function archiveCashPlanAction(formData: FormData) {
     })
   })
   revalidatePath('/cash')
+  revalidatePath('/reports/cash-flow')
 }
