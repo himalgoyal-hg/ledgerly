@@ -13,13 +13,14 @@ import { ReportHeader, DateRangeFilters } from '../report-chrome'
 // counter-line, so they self-eliminate.
 
 export default async function CashFlowPage(props: {
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; view?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
   const params = await props.searchParams
+  const view = params.view === 'ahead' ? 'ahead' : 'history'
   const from = params.from ? new Date(params.from) : undefined
   const to = params.to ? new Date(params.to) : undefined
   const cf = await cashFlow(entity.id, { from, to })
@@ -112,6 +113,27 @@ export default async function CashFlowPage(props: {
         exportHref={`/reports/export?report=cash-flow&${query}`}
       />
 
+      {/* Two views, one screen: what happened, and what the plan says next */}
+      <div className="flex gap-1 border-b border-zinc-200 pb-2 print:hidden">
+        <Link
+          href={`/reports/cash-flow${query.toString() ? `?${query}` : ''}`}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            view === 'history' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          History
+        </Link>
+        <Link
+          href={`/reports/cash-flow?view=ahead${query.toString() ? `&${query}` : ''}`}
+          className={`rounded-md px-3 py-1.5 text-sm ${
+            view === 'ahead' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
+          }`}
+        >
+          Cash ahead
+        </Link>
+      </div>
+
+      {view === 'history' && (
       <div className="flex flex-wrap gap-3">
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
           <div className="text-xs text-zinc-500">Opening cash & bank</div>
@@ -137,10 +159,11 @@ export default async function CashFlowPage(props: {
           </div>
         )}
       </div>
+      )}
 
       {/* Cash ahead — same three tiles as the history below, but forward:
           today's cash, the plan's net movement, the projected closing. */}
-      {cashProjection && cashProjection.months.length > 0 && (
+      {view === 'ahead' && cashProjection && cashProjection.months.length > 0 && (
         <div className="flex flex-wrap gap-3 print:hidden">
           <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
             <div className="text-xs text-zinc-500">Cash today</div>
@@ -180,7 +203,7 @@ export default async function CashFlowPage(props: {
         </div>
       )}
 
-      {cashProjection && (
+      {view === 'ahead' && cashProjection && (
         <details className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden" open>
           <summary className="flex cursor-pointer flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs hover:bg-zinc-50">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -301,11 +324,13 @@ export default async function CashFlowPage(props: {
         </details>
       )}
 
+      {view === 'history' && (
       <div className="space-y-4">
         {bucket('Operating', cf.operating)}
         {bucket('Investing', cf.investing)}
         {bucket('Financing', cf.financing)}
       </div>
+      )}
     </div>
   )
 }
