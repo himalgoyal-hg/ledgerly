@@ -3,8 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-// The reports tab strip. Hidden on Cash Flow per Himal — that page has its
-// own History / Cash-ahead tabs and the sidebar already reaches it.
+// The reports tab strip. Hidden on the pages the sidebar already reaches
+// directly (P&L, Balance Sheet, Cash Flow) per Himal — it shows only on the
+// "Reports" hub (budget) and the deeper reports it is the sole way into.
 
 const TABS = [
   { href: '/reports', label: 'P&L' },
@@ -23,7 +24,13 @@ const TABS = [
 
 export function ReportsNav() {
   const pathname = usePathname()
-  if (pathname.startsWith('/reports/cash-flow')) return null
+  if (
+    pathname === '/reports' || // P&L
+    pathname.startsWith('/reports/balance-sheet') ||
+    pathname.startsWith('/reports/cash-flow')
+  ) {
+    return null
+  }
   return (
     <nav className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2 print:hidden">
       {TABS.map((t) => (
