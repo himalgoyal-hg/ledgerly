@@ -48,6 +48,32 @@ export default async function TaxPage(props: {
   ])
   const tdsTotal = tds.reduce((sum, s) => sum + Number(s.total), 0)
 
+  // Every register entry of the period, transaction by transaction — with
+  // the underlying narration so "which payment was this" needs no digging.
+  const entries = await prisma.taxLine.findMany({
+    where: { entityId: entity.id, date: { gte: range.from, lte: range.to } },
+    orderBy: [{ date: 'asc' }, { createdAt: 'asc' }],
+  })
+  const stmtIds = entries.filter((e) => e.sourceType === 'statement_txn').map((e) => e.sourceId)
+  const stmtNarrations = stmtIds.length
+    ? new Map(
+        (
+          await prisma.statementTransaction.findMany({
+            where: { id: { in: stmtIds } },
+            select: { id: true, narration: true },
+          })
+        ).map((s) => [s.id, s.narration]),
+      )
+    : new Map<string, string>()
+  const entryTotals = entries.reduce(
+    (t, e) => ({
+      taxable: t.taxable + Number(e.taxableValue),
+      gst: t.gst + Number(e.gstAmount),
+      tds: t.tds + Number(e.tdsAmount),
+    }),
+    { taxable: 0, gst: 0, tds: 0 },
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-4">
@@ -241,6 +267,94 @@ export default async function TaxPage(props: {
           <p className="mt-2 text-sm text-zinc-400">No TDS deducted in {period}.</p>
         )}
 
+      </div>
+
+      {/* Full transaction detail — every register entry of the period */}
+      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <div className="border-b border-zinc-200 px-4 py-2">
+          <h2 className="font-medium text-zinc-900">All entries — {period}</h2>
+          <p className="text-xs text-zinc-400">
+            transaction by transaction: what was taxed, at which rate, how much GST and TDS
+          </p>
+        </div>
+        {entries.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[64rem] text-left text-sm">
+              <thead>
+                <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+                  <th className="px-3 py-2">Date</th>
+                  <th className="px-3 py-2">Party</th>
+                  <th className="px-3 py-2">Transaction</th>
+                  <th className="px-3 py-2">Type</th>
+                  <th className="px-3 py-2 text-right">Taxable ₹</th>
+                  <th className="px-3 py-2 text-right">GST</th>
+                  <th className="px-3 py-2 text-right">GST ₹</th>
+                  <th className="px-3 py-2">HSN</th>
+                  <th className="px-3 py-2 text-right">TDS</th>
+                  <th className="px-3 py-2 text-right">TDS ₹</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {entries.map((e) => (
+                  <tr key={e.id} className="align-top hover:bg-zinc-50/60">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-xs tabular-nums text-zinc-500">
+                      {e.date.toISOString().slice(0, 10)}
+                    </td>
+                    <td className="px-3 py-1.5 font-medium text-zinc-800">{e.party ?? '—'}</td>
+                    <td className="max-w-56 px-3 py-1.5">
+                      <span
+                        className="block truncate text-xs text-zinc-500"
+                        title={stmtNarrations.get(e.sourceId) ?? e.sourceType}
+                      >
+                        {stmtNarrations.get(e.sourceId) ?? e.sourceType.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5">
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                          e.direction === 'output'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : 'bg-sky-100 text-sky-700'
+                        }`}
+                      >
+                        {e.direction === 'output' ? 'sale / income' : 'purchase / expense'}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
+                      {displayINR(String(e.taxableValue))}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-zinc-500">
+                      {e.gstRate ? `${Number(e.gstRate)}% ${e.gstType ?? ''}` : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
+                      {Number(e.gstAmount) > 0 ? displayINR(String(e.gstAmount)) : <span className="text-zinc-300">—</span>}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs text-zinc-500">{e.hsn ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-zinc-500">
+                      {e.tdsRate ? `${Number(e.tdsRate)}% u/s ${e.tdsSection}` : '—'}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
+                      {Number(e.tdsAmount) > 0 ? displayINR(String(e.tdsAmount)) : <span className="text-zinc-300">—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+                <tr>
+                  <td className="px-3 py-2" colSpan={4}>Total ({entries.length} entries)</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{displayINR(entryTotals.taxable.toFixed(2))}</td>
+                  <td />
+                  <td className="px-3 py-2 text-right tabular-nums">{displayINR(entryTotals.gst.toFixed(2))}</td>
+                  <td />
+                  <td />
+                  <td className="px-3 py-2 text-right tabular-nums">{displayINR(entryTotals.tds.toFixed(2))}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        ) : (
+          <p className="px-4 py-3 text-sm text-zinc-400">No tax entries in {period}.</p>
+        )}
       </div>
     </div>
   )
