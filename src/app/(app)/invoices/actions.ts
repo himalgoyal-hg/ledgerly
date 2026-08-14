@@ -106,6 +106,13 @@ export async function createFxInvoiceAction(formData: FormData) {
   const dueRaw = String(formData.get('dueDate') ?? '')
   const dueDate = dueRaw ? new Date(dueRaw) : new Date(date.getTime() + 7 * 86_400_000)
 
+  // Whatever is already known comes along: FIRC/FC-disposal now, and if the
+  // credit has landed too (₹ + credit date), the invoice is born settled
+  // with the rate computed — fill what you have, submit.
+  const field = (name: string) => String(formData.get(name) ?? '').trim()
+  const realizedInr = field('realizedInr').replace(/[,₹\s]/g, '')
+  const creditDateRaw = field('creditDate')
+
   await auditedTransaction(async (tx) => {
     const invoice = await createInvoice(tx, {
       entityId,
@@ -113,19 +120,41 @@ export async function createFxInvoiceAction(formData: FormData) {
       date,
       dueDate,
       amount: '0', // register-only: INR unknown until the credit lands
-      narration: String(formData.get('narration') ?? '').trim() || null,
+      narration: field('narration') || null,
       actorId: admin.id,
     })
     await tx.invoice.update({
       where: { id: invoice.id },
-      data: { currency, amountFx, country, firc: 'Awaited' },
+      data: {
+        currency,
+        amountFx,
+        country,
+        firc: field('firc') || 'Awaited',
+        fcDisposal: field('fcDisposal') || null,
+      },
     })
+    let settled = false
+    if (realizedInr && creditDateRaw) {
+      const creditDate = new Date(creditDateRaw)
+      if (isNaN(creditDate.getTime())) throw new Error('Credit date is invalid')
+      await recordFxReceipt(tx, {
+        invoiceId: invoice.id,
+        receivedFx: field('receivedFx').replace(/[,$\s]/g, '') || amountFx,
+        realizedInr,
+        bankCharges: field('bankCharges').replace(/[,₹\s]/g, '') || null,
+        providerFees: field('providerFees').replace(/[,₹\s]/g, '') || null,
+        creditDate,
+        firc: field('firc') || null,
+        actorId: admin.id,
+      })
+      settled = true
+    }
     await audit(tx, {
       actorId: admin.id,
       action: 'invoice.create',
       targetType: 'Invoice',
       targetId: invoice.id,
-      summary: `Export invoice ${invoice.number} — ${customer} ${currency} ${amountFx} (due ${dueDate.toISOString().slice(0, 10)})`,
+      summary: `Export invoice ${invoice.number} — ${customer} ${currency} ${amountFx} (due ${dueDate.toISOString().slice(0, 10)})${settled ? ` — settled ₹${realizedInr}` : ''}`,
     })
   })
   revalidatePath('/invoices')

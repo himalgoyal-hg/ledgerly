@@ -103,32 +103,109 @@ export default async function InvoicesPage() {
         </p>
       </div>
 
-      {/* New export invoice — only what is known at billing time */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-        <h2 className="text-sm font-medium text-zinc-900">
-          New export invoice (next: {entity.invoicePrefix}-{String(entity.nextInvoiceNumber).padStart(4, '0')})
-        </h2>
-        <form action={createFxInvoiceAction} className="mt-2 flex flex-wrap items-center gap-2">
+      {/* New export invoice — structured like the register; fill what is known,
+          the rest comes later via Record / edit on the row */}
+      <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+          ＋ New export invoice — into {entity.code} books (next: {entity.invoicePrefix}-{String(entity.nextInvoiceNumber).padStart(4, '0')})
+        </summary>
+        <form action={createFxInvoiceAction} className="border-t border-zinc-100 p-4">
           <input type="hidden" name="entityId" value={entity.id} />
-          <input name="customer" required placeholder="Client" className={inputCls} />
-          <input name="country" placeholder="Country" className={`w-28 ${inputCls}`} />
-          <select name="currency" className={`bg-white ${inputCls}`}>
-            {CURRENCIES.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-          <input name="amountFx" required inputMode="decimal" placeholder="Amount $" className={`w-28 ${inputCls}`} />
-          <label className="text-xs text-zinc-400">date</label>
-          <input name="date" type="date" required className={inputCls} />
-          <label className="text-xs text-zinc-400">due</label>
-          <input name="dueDate" type="date" title="Blank = invoice date + 7 days" className={inputCls} />
-          <span className="text-[10px] text-zinc-400">blank = +7 days</span>
-          <input name="narration" placeholder="Description" className={`w-44 ${inputCls}`} />
-          <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
-            Raise invoice
-          </button>
+          {/* What is billed — mirrors Books / Client / Country / $ Inv */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Books</span>
+              <div className="mt-1 flex h-8 items-center">
+                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">{entity.code}</span>
+                <span className="ml-2 text-[10px] text-zinc-400">via Books of ↑</span>
+              </div>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Client *</span>
+              <input name="customer" required placeholder="Noria / Neat Method…" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Country</span>
+              <input name="country" placeholder="US" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Currency</span>
+              <select name="currency" className={`mt-1 w-full bg-white ${inputCls}`}>
+                {CURRENCIES.map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount $ *</span>
+              <input name="amountFx" required inputMode="decimal" placeholder="2018" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Description</span>
+              <input name="narration" placeholder="What the bill is for" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+          </div>
+
+          {/* Dates & docs — Invoice date / Due / FIRC / FC disposal */}
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Invoice date *</span>
+              <input name="date" type="date" required className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due date</span>
+              <input name="dueDate" type="date" title="Blank = invoice date + 7 days" className={`mt-1 w-full ${inputCls}`} />
+              <span className="text-[10px] text-zinc-400">blank = +7 days</span>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">FIRC</span>
+              <input name="firc" placeholder="Awaited / Received" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">FC disposal</span>
+              <input name="fcDisposal" placeholder="Yes / Skydo" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+          </div>
+
+          {/* Credit already landed? Fill these too and the invoice is born settled */}
+          <div className="mt-3 rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              Credit already received? (optional — ₹ credited + credit date settles it, rate computed)
+            </p>
+            <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-5">
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">$ received</span>
+                <input name="receivedFx" inputMode="decimal" placeholder="blank = full $" className={`mt-1 w-full ${inputCls}`} />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">₹ credited</span>
+                <input name="realizedInr" inputMode="decimal" placeholder="187394" className={`mt-1 w-full ${inputCls}`} />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bank charges ₹</span>
+                <input name="bankCharges" inputMode="decimal" placeholder="258.66" className={`mt-1 w-full ${inputCls}`} />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Skydo / provider fees ₹</span>
+                <input name="providerFees" inputMode="decimal" className={`mt-1 w-full ${inputCls}`} />
+              </label>
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Credit date</span>
+                <input name="creditDate" type="date" className={`mt-1 w-full ${inputCls}`} />
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-3 flex items-center gap-3">
+            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+              Save invoice
+            </button>
+            <span className="text-[11px] text-zinc-400">
+              Fill what you have — everything stays editable in the row later.
+            </span>
+          </div>
         </form>
-        <details className="mt-2">
+        <details className="mx-4 mb-3">
           <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
             Domestic INR invoice (posts to books, GST)
           </summary>
@@ -176,7 +253,7 @@ export default async function InvoicesPage() {
             </button>
           </form>
         </details>
-      </div>
+      </details>
 
       {/* The register — the Excel sheet, computed */}
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
