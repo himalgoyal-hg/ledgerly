@@ -275,7 +275,7 @@ export default async function CashFlowPage(props: {
                 <input
                   name="label"
                   required
-                  placeholder="Cash lagnaar — kashasathi"
+                  placeholder="Cash needed — what for"
                   className="w-40 rounded border border-zinc-300 px-1.5 py-1 text-xs"
                 />
                 <input
