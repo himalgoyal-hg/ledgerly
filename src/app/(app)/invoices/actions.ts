@@ -156,6 +156,7 @@ export async function updateInvoiceAction(formData: FormData) {
     if (formData.has('country')) data.country = field('country') || null
     if (formData.has('narration')) data.narration = field('narration') || null
     if (field('firc')) data.firc = field('firc')
+    if (formData.has('fcDisposal')) data.fcDisposal = field('fcDisposal') || null
     if (!posted && field('customer')) data.customer = field('customer')
     if (fx && field('amountFx')) {
       if (Number(field('amountFx')) <= 0) throw new Error('Invoiced $ must be positive')

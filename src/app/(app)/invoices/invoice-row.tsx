@@ -11,6 +11,7 @@ import { useState, type ReactNode } from 'react'
 export interface InvoiceRowData {
   id: string
   number: string
+  books: string
   dateIso: string
   dueIso: string
   customer: string
@@ -26,6 +27,7 @@ export interface InvoiceRowData {
   providerFees: string
   creditDateIso: string
   firc: string
+  fcDisposal: string
   // Preformatted display strings (server-side formatting stays the truth)
   invDisp: string
   recdDisp: string
@@ -34,7 +36,7 @@ export interface InvoiceRowData {
   rateDisp: string
   chargesDisp: string
   effDisp: string
-  daysDisp: string
+  creditDisp: string // "10-Jun (7d)" — date of credit + days to receive
   badge: { label: string; tone: 'red' | 'amber' | 'zinc' } | null
 }
 
@@ -55,6 +57,9 @@ export function InvoiceRow(props: {
     return (
       <tr className={`align-top ${d.settled ? 'text-zinc-500' : ''} hover:bg-zinc-50/60`}>
         <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
+        <td className={cellCls}>
+          <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{d.books}</span>
+        </td>
         <td className={`${cellCls} text-xs tabular-nums text-zinc-500`}>{d.dateIso}</td>
         <td className="px-1.5 py-1">
           <span
@@ -104,7 +109,8 @@ export function InvoiceRow(props: {
           {d.effDisp || <span className="text-zinc-300">—</span>}
         </td>
         <td className="px-1.5 py-1 text-xs">{d.firc || '—'}</td>
-        <td className={`${cellCls} text-right text-xs tabular-nums`}>{d.daysDisp || '—'}</td>
+        <td className="px-1.5 py-1 text-xs">{d.fcDisposal || '—'}</td>
+        <td className={`${cellCls} text-xs tabular-nums`}>{d.creditDisp || '—'}</td>
         <td className="px-1.5 py-1">
           <div className="flex items-start justify-end gap-1">
             <button
@@ -128,6 +134,9 @@ export function InvoiceRow(props: {
   return (
     <tr className="bg-amber-50/40 align-top">
       <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
+      <td className={cellCls}>
+        <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{d.books}</span>
+      </td>
       <td className="px-1.5 py-0.5">
         <input name="date" type="date" form={formId} defaultValue={d.dateIso} className={inputCls} />
       </td>
@@ -234,6 +243,16 @@ export function InvoiceRow(props: {
           <option>Partial</option>
           <option>Received</option>
         </select>
+      </td>
+      <td className="px-1.5 py-0.5">
+        <input
+          name="fcDisposal"
+          form={formId}
+          defaultValue={d.fcDisposal}
+          placeholder="Yes / Skydo"
+          title="FC disposal instruction given?"
+          className={inputCls}
+        />
       </td>
       <td className="px-1.5 py-0.5">
         {d.fx ? (

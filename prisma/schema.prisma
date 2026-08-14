@@ -690,6 +690,7 @@ model Invoice {
   providerFees Decimal  @default(0) @db.Decimal(14, 2) // Skydo / platform fees
   creditDate   DateTime? @db.Date
   firc         String? // Awaited | Partial | Received
+  fcDisposal   String? // FC disposal instruction — Yes | Skydo | …
 
   status          InvoiceStatus @default(OPEN)
   docId           String?       @unique // Dr Debtor / Cr Income

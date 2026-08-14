@@ -1,5 +1,6 @@
+import { Fragment } from 'react'
 import { prisma } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAdmin, visibleEntityFilter } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { outstandingOf } from '@/lib/ops/invoices'
@@ -31,12 +32,19 @@ export default async function InvoicesPage() {
   if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
 
   const today = new Date()
+  // Like the sheet: every books' invoices in ONE register, with a Books
+  // column — the switcher only decides where a NEW invoice lands.
+  const entities = await prisma.entity.findMany({
+    where: { archivedAt: null, ...visibleEntityFilter(admin) },
+    select: { id: true, code: true },
+  })
+  const entityCode = new Map(entities.map((e) => [e.id, e.code]))
   const [invoices, incomeHeads, costCentres, banks, cashLocations] = await Promise.all([
     prisma.invoice.findMany({
-      where: { entityId: entity.id },
+      where: { entityId: { in: entities.map((e) => e.id) } },
       include: { payments: true },
-      orderBy: [{ date: 'desc' }, { number: 'desc' }],
-      take: 100,
+      orderBy: [{ date: 'asc' }, { number: 'asc' }],
+      take: 200,
     }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null, kind: 'INCOME' },
@@ -176,6 +184,7 @@ export default async function InvoicesPage() {
           <thead>
             <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
               <th className="px-1.5 py-2">#</th>
+              <th className="px-1.5 py-2">Books</th>
               <th className="px-1.5 py-2">Date</th>
               <th className="px-1.5 py-2">Client</th>
               <th className="px-1.5 py-2">Country</th>
@@ -187,12 +196,20 @@ export default async function InvoicesPage() {
               <th className="px-1.5 py-2 text-right">Charges</th>
               <th className="px-1.5 py-2 text-right">Eff.</th>
               <th className="px-1.5 py-2">FIRC</th>
-              <th className="px-1.5 py-2 text-right">Days</th>
+              <th className="px-1.5 py-2">FC disposal</th>
+              <th className="px-1.5 py-2">Credit date</th>
               <th className="px-1.5 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {invoices.map((invoice) => {
+            {[...new Set(invoices.map((i) => i.date.toISOString().slice(0, 7)))].map((monthKey) => (
+              <Fragment key={monthKey}>
+                <tr className="bg-zinc-50">
+                  <td colSpan={16} className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(monthKey.slice(5,7)) - 1]} {monthKey.slice(0,4)}
+                  </td>
+                </tr>
+                {invoices.filter((i) => i.date.toISOString().slice(0, 7) === monthKey).map((invoice) => {
               const m = money(invoice)
               const settled = invoice.status === 'SETTLED'
               const overdueDays = Math.floor((today.getTime() - invoice.dueDate.getTime()) / 86_400_000)
@@ -211,6 +228,7 @@ export default async function InvoicesPage() {
                   data={{
                     id: invoice.id,
                     number: invoice.number,
+                    books: entityCode.get(invoice.entityId) ?? '?',
                     dateIso: invoice.date.toISOString().slice(0, 10),
                     dueIso: invoice.dueDate.toISOString().slice(0, 10),
                     customer: invoice.customer,
@@ -226,6 +244,7 @@ export default async function InvoicesPage() {
                     providerFees: Number(invoice.providerFees) > 0 ? String(invoice.providerFees) : '',
                     creditDateIso: invoice.creditDate?.toISOString().slice(0, 10) ?? '',
                     firc: invoice.firc ?? '',
+                    fcDisposal: invoice.fcDisposal ?? '',
                     invDisp: m.fx
                       ? `$${m.invoicedFx?.toLocaleString('en-US')}`
                       : displayINR(String(invoice.amount)),
@@ -238,7 +257,9 @@ export default async function InvoicesPage() {
                     rateDisp: invoice.fxRate ? Number(invoice.fxRate).toFixed(2) : '',
                     chargesDisp: m.charges > 0 ? displayINR(m.charges.toFixed(2)) : '',
                     effDisp: m.effective !== null ? m.effective.toFixed(2) : '',
-                    daysDisp: m.days !== null ? String(m.days) : '',
+                    creditDisp: invoice.creditDate
+                      ? `${invoice.creditDate.toISOString().slice(0, 10)}${m.days !== null ? ` (${m.days}d)` : ''}`
+                      : '',
                     badge,
                   }}
                 >
@@ -274,10 +295,12 @@ export default async function InvoicesPage() {
                   </form>
                 </InvoiceRow>
               )
-            })}
+                })}
+              </Fragment>
+            ))}
             {invoices.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-2 py-4 text-center text-sm text-zinc-400">
+                <td colSpan={16} className="px-2 py-4 text-center text-sm text-zinc-400">
                   No invoices yet — raise the first one above.
                 </td>
               </tr>
@@ -286,7 +309,7 @@ export default async function InvoicesPage() {
           {invoices.length > 0 && (
             <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
               <tr>
-                <td className="px-2 py-2" colSpan={5}>
+                <td className="px-2 py-2" colSpan={6}>
                   Total ({invoices.length} invoices)
                 </td>
                 <td className="px-2 py-2 text-right tabular-nums">${totals.invoicedFx.toLocaleString('en-US')}</td>
@@ -294,7 +317,7 @@ export default async function InvoicesPage() {
                 <td className="px-2 py-2 text-right tabular-nums">{displayINR(totals.inr.toFixed(2))}</td>
                 <td />
                 <td className="px-2 py-2 text-right tabular-nums text-zinc-500">{displayINR(totals.charges.toFixed(2))}</td>
-                <td colSpan={4} />
+                <td colSpan={5} />
               </tr>
             </tfoot>
           )}
