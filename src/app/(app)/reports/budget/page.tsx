@@ -119,7 +119,40 @@ export default async function BudgetPage(props: {
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right text-zinc-500">{displayINR(row.budget)}</td>
+                  <td className="px-4 py-2 text-right text-zinc-500">
+                    {admin ? (
+                      // Excel-style: the number IS the input — type, Enter,
+                      // saved (blank clears). Year view spreads the annual
+                      // figure over twelve months; month view sets that month.
+                      <form action={setBudget} className="flex items-center justify-end gap-1">
+                        <input type="hidden" name="entityId" value={entity.id} />
+                        <input type="hidden" name="accountId" value={row.accountId} />
+                        <input type="hidden" name="year" value={year} />
+                        <input type="hidden" name="month" value={monthFilter ? String(monthFilter) : ''} />
+                        <input type="hidden" name="frequency" value="ANNUAL" />
+                        <input
+                          name="amount"
+                          inputMode="decimal"
+                          defaultValue={Number(row.budget) ? String(Math.round(Number(row.budget))) : ''}
+                          title={
+                            monthFilter
+                              ? 'Target for this month — Enter to save, blank clears'
+                              : 'Whole-year target, spread over 12 months — Enter to save, blank clears'
+                          }
+                          className="w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right tabular-nums text-zinc-700 hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none"
+                        />
+                        <button
+                          type="submit"
+                          title="Save"
+                          className="rounded border border-zinc-200 px-1 text-[10px] text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                        >
+                          ✓
+                        </button>
+                      </form>
+                    ) : (
+                      displayINR(row.budget)
+                    )}
+                  </td>
                   <td className="px-4 py-2 text-right text-zinc-800">{displayINR(row.actual)}</td>
                   <td
                     className={`px-4 py-2 text-right font-medium ${
