@@ -138,7 +138,48 @@ export default async function CashFlowPage(props: {
         )}
       </div>
 
-      {/* Cash ahead — the CASH pool projected, planned payments editable */}
+      {/* Cash ahead — same three tiles as the history below, but forward:
+          today's cash, the plan's net movement, the projected closing. */}
+      {cashProjection && cashProjection.months.length > 0 && (
+        <div className="flex flex-wrap gap-3 print:hidden">
+          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-xs text-zinc-500">Cash today</div>
+            <div className="text-lg font-semibold text-zinc-900">
+              {displayINR(cashProjection.balanceNow.toFixed(2))}
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+            <div className="text-xs text-zinc-500">
+              Planned net movement (next {cashProjection.months.length} mo)
+            </div>
+            {(() => {
+              const net =
+                cashProjection.months[cashProjection.months.length - 1].closing -
+                cashProjection.balanceNow
+              return (
+                <div className={`text-lg font-semibold ${net >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                  {displayINR(net.toFixed(2))}
+                </div>
+              )
+            })()}
+          </div>
+          <div className="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-3 shadow-sm">
+            <div className="text-xs text-zinc-400">
+              Projected closing ({shortMonth(cashProjection.months[cashProjection.months.length - 1].month)})
+            </div>
+            <div
+              className={`text-lg font-semibold ${
+                cashProjection.months[cashProjection.months.length - 1].closing < 0
+                  ? 'text-red-400'
+                  : 'text-white'
+              }`}
+            >
+              {displayINR(cashProjection.months[cashProjection.months.length - 1].closing.toFixed(2))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {cashProjection && (
         <details className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden" open>
           <summary className="flex cursor-pointer flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs hover:bg-zinc-50">
