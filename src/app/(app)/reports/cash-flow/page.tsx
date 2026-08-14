@@ -243,8 +243,12 @@ export default async function CashFlowPage(props: {
       {view === 'ahead' && (() => {
         const cashPool = pools.find((p) => p.pool === 'CASH')
         if (!cashPool) return null
+        const upcoming = planLines
+          .filter((l) => l.source === 'CASH' && l.frequency === 'ONCE' && l.onMonth)
+          .sort((a, b) => (a.onMonth! < b.onMonth! ? -1 : 1))
         return (
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs shadow-sm print:hidden">
+          <div className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs">
             <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
               Cash only
             </span>
@@ -300,6 +304,37 @@ export default async function CashFlowPage(props: {
                 </button>
               </form>
             )}
+          </div>
+          {/* The added future needs, visible — not just baked into the numbers */}
+          {upcoming.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-3 py-1.5 text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Upcoming
+              </span>
+              {upcoming.map((l) => (
+                <span
+                  key={l.id}
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                    Number(l.amount) < 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <span className="font-medium">{l.label}</span>
+                  <span className="tabular-nums">
+                    {Number(l.amount) < 0 ? '+' : ''}{displayINR(Math.abs(Number(l.amount)).toFixed(0))}
+                  </span>
+                  <span className="text-[10px] opacity-70">({shortMonth(l.onMonth!)})</span>
+                  {admin && (
+                    <form action={archiveCashPlanAction} className="flex">
+                      <input type="hidden" name="id" value={l.id} />
+                      <button type="submit" title="Remove" className="ml-0.5 text-[10px] opacity-50 hover:opacity-100">
+                        ✕
+                      </button>
+                    </form>
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
           </div>
         )
       })()}
