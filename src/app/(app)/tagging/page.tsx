@@ -10,6 +10,7 @@ import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells } from './tag-form'
 import { SelectAll } from './select-all'
+import { TxnDetails } from './txn-details'
 import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 import {
@@ -148,7 +149,25 @@ export default async function TaggingPage(props: {
 
   const docs = await prisma.journalDoc.findMany({
     where: { id: { in: posted.map((t) => t.docId).filter((d): d is string => d !== null) } },
-    select: { id: true, deletedAt: true, _count: { select: { entries: true } } },
+    select: {
+      id: true,
+      deletedAt: true,
+      _count: { select: { entries: true } },
+      // The current version's lines — the "show me the transaction" popup
+      // renders the journal underneath a posted row.
+      currentEntry: {
+        select: {
+          lines: {
+            select: {
+              debit: true,
+              credit: true,
+              account: { select: { code: true, name: true } },
+              costCentre: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
   })
   const docById = new Map(docs.map((d) => [d.id, d]))
   const headName = (id: string | null) => {
@@ -212,11 +231,41 @@ export default async function TaggingPage(props: {
   ]
 
   // Leading cells of every row (date / account / narration / amount) — one
-  // line per transaction, Excel-style; the full narration rides in the
-  // tooltip so the line can stay short.
+  // line per transaction, Excel-style. Clicking the narration opens the
+  // full-transaction popup (every field + the journal for posted rows).
   const leadCells = (txn: (typeof pending)[number], tip?: string, chips?: ReactNode) => {
     const outflow = Number(txn.debit) > 0
     const desc = describeNarration(txn.narration)
+    const doc = txn.docId ? docById.get(txn.docId) : undefined
+    const taxBits = [
+      txn.gstRate ? `GST ${Number(txn.gstRate)}%${txn.gstType ? ` ${txn.gstType}` : ''}${txn.hsn ? ` · HSN ${txn.hsn}` : ''}` : '',
+      txn.tdsRate ? `TDS ${Number(txn.tdsRate)}% u/s ${txn.tdsSection}` : '',
+    ].filter(Boolean)
+    const detail = {
+      title: desc.title,
+      narration: txn.narration,
+      fields: [
+        ['Date', txn.date.toISOString().slice(0, 10)],
+        ['Account', bankName(txn.bankAccountId)],
+        ...(txn.reference ? [['Reference', txn.reference] as [string, string]] : []),
+        [outflow ? 'Paid out' : 'Received', displayINR(String(outflow ? txn.debit : txn.credit))],
+        ...(txn.balance !== null ? [['Balance after', displayINR(String(txn.balance))] as [string, string]] : []),
+        ['Status', txn.status.toLowerCase()],
+        ...(txn.headAccountId ? [['Head', headName(txn.headAccountId)] as [string, string]] : []),
+        ...(txn.nature ? [['Nature', natureLabel(txn.nature)] as [string, string]] : []),
+        ...(ccName(txn.costCentreId) ? [['Cost centre', ccName(txn.costCentreId)!] as [string, string]] : []),
+        ...(txn.taggedById || txn.autoTagged
+          ? [['Tagged', txn.autoTagged ? 'Verified by System' : `${txn.tagSource ?? 'manual'} — ${userName(txn.taggedById)}`] as [string, string]]
+          : []),
+      ] as [string, string][],
+      tax: taxBits.length ? taxBits.join(' + ') : null,
+      journal: doc?.currentEntry?.lines.map((l) => ({
+        account: `${l.account.code} · ${l.account.name}`,
+        costCentre: l.costCentre?.name ?? null,
+        debit: String(l.debit),
+        credit: String(l.credit),
+      })),
+    }
     const title = [txn.narration, txn.reference ? `ref ${txn.reference}` : '', tip ?? '']
       .filter(Boolean)
       .join('\n')
@@ -234,8 +283,8 @@ export default async function TaggingPage(props: {
             table's slack goes to the head column instead. */}
         <td className="px-2 py-1.5">
           <span className="flex max-w-[22rem] items-center gap-1.5">
-            <span className="truncate font-medium text-zinc-800" title={title}>
-              {desc.title}
+            <span className="min-w-0" title={title}>
+              <TxnDetails data={detail} />
             </span>
             {desc.kind && (
               <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
