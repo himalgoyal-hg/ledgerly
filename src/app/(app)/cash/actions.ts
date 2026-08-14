@@ -190,12 +190,14 @@ export async function saveCashPlanAction(formData: FormData) {
   const admin = await requireAdmin()
   const id = String(formData.get('id') ?? '') || null
   const label = String(formData.get('label') ?? '').trim()
+  const source = String(formData.get('source') ?? 'CASH')
   const frequency = String(formData.get('frequency') ?? 'ONCE')
   const amountRaw = String(formData.get('amount') ?? '').replace(/[,₹\s]/g, '')
   const amount = Number(amountRaw)
   const onMonth = String(formData.get('onMonth') ?? '').trim() || null
 
   if (!label) throw new Error('Name the payment')
+  if (!['ACPL', 'HG', 'MG', 'PG', 'CASH'].includes(source)) throw new Error('Pick the source')
   if (!['DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'ANNUAL', 'ONCE'].includes(frequency)) {
     throw new Error('Pick the frequency')
   }
@@ -205,18 +207,24 @@ export async function saveCashPlanAction(formData: FormData) {
   }
 
   await auditedTransaction(async (tx) => {
-    const head = await tx.ledgerAccount.findFirst({
+    const heads = await tx.ledgerAccount.findMany({
       where: { isGroup: false, archivedAt: null, name: { equals: label, mode: 'insensitive' } },
-      orderBy: { entityId: 'asc' },
+      include: { entity: { select: { code: true } } },
     })
+    // Prefer the head living in the paying pool's own books.
+    const head =
+      heads.find((h) => h.entity.code === source) ??
+      heads.find((h) => h.entity.code === 'HG') ??
+      heads[0] ??
+      null
     const entity = head
       ? await tx.entity.findUniqueOrThrow({ where: { id: head.entityId } })
-      : await tx.entity.findFirstOrThrow({ where: { code: 'HG' } })
+      : await tx.entity.findFirstOrThrow({ where: { code: source === 'CASH' ? 'HG' : source } })
     const data = {
       entityId: entity.id,
       headAccountId: head?.id ?? null,
       label,
-      source: 'CASH',
+      source,
       frequency,
       amount: amount.toFixed(2),
       onMonth: frequency === 'ONCE' ? onMonth : null,
@@ -233,7 +241,7 @@ export async function saveCashPlanAction(formData: FormData) {
       action: 'cash.plan_save',
       targetType: 'BudgetLine',
       targetId: line.id,
-      summary: `Cash plan: ${label} ${frequency.toLowerCase()} ₹${amount.toFixed(2)}${onMonth ? ` in ${onMonth}` : ''}`,
+      summary: `Plan (${source}): ${label} ${frequency.toLowerCase()} ₹${amount.toFixed(2)}${onMonth ? ` in ${onMonth}` : ''}`,
     })
   })
   revalidatePath('/cash')

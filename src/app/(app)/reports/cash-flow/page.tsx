@@ -29,15 +29,28 @@ export default async function CashFlowPage(props: {
   // planned future payments editable right here (admin only). Lines live in
   // BudgetLine (source CASH); the current month nets what already posted.
   const admin = isAdmin(user)
-  const cashProjection = admin
-    ? (await projectPools(new Date(), 6)).find((p) => p.pool === 'CASH')
-    : null
+  const pools = admin ? await projectPools(new Date(), 6) : []
+  // Bank + cash TOGETHER: every pool (each books' banks, plus the cash
+  // pool) summed per month — the same live rupees the dashboard totals.
+  const cashProjection =
+    pools.length > 0
+      ? {
+          balanceNow: pools.reduce((t, p) => t + p.balanceNow, 0),
+          months: pools[0].months.map((m, i) => ({
+            month: m.month,
+            inflow: pools.reduce((t, p) => t + p.months[i].inflow, 0),
+            outflow: pools.reduce((t, p) => t + p.months[i].outflow, 0),
+            closing: pools.reduce((t, p) => t + p.months[i].closing, 0),
+          })),
+        }
+      : null
   const planLines = admin
     ? await prisma.budgetLine.findMany({
-        where: { source: 'CASH', archivedAt: null },
-        orderBy: [{ frequency: 'asc' }, { label: 'asc' }],
+        where: { archivedAt: null },
+        orderBy: [{ source: 'asc' }, { label: 'asc' }],
       })
     : []
+  const POOL_OPTIONS = ['ACPL', 'HG', 'MG', 'PG', 'CASH']
   const shortMonth = (m: string) =>
     `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
   const freqLabel: Record<string, string> = {
@@ -166,7 +179,7 @@ export default async function CashFlowPage(props: {
       {view === 'ahead' && cashProjection && cashProjection.months.length > 0 && (
         <div className="flex flex-wrap gap-3 print:hidden">
           <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-500">Cash today</div>
+            <div className="text-xs text-zinc-500">Bank + cash today</div>
             <div className="text-lg font-semibold text-zinc-900">
               {displayINR(cashProjection.balanceNow.toFixed(2))}
             </div>
@@ -221,13 +234,47 @@ export default async function CashFlowPage(props: {
                 </span>
               </span>
             ))}
-            <span className="ml-auto text-zinc-400">planned payments ({planLines.length}) ▾</span>
+            <span className="ml-auto text-zinc-400">planned lines ({planLines.length}) ▾</span>
           </summary>
+          <div className="overflow-x-auto border-t border-zinc-100 px-3 py-2">
+            {/* Where the money sits, pool by pool */}
+            <table className="w-full min-w-[40rem] text-left text-xs">
+              <thead>
+                <tr className="text-[10px] uppercase tracking-wider text-zinc-400">
+                  <th className="px-2 py-1">Pool</th>
+                  <th className="px-2 py-1 text-right">Today</th>
+                  {pools[0]?.months.map((m) => (
+                    <th key={m.month} className="px-2 py-1 text-right">{shortMonth(m.month)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-50">
+                {pools.map((p) => (
+                  <tr key={p.pool}>
+                    <td className="px-2 py-1 font-medium text-zinc-700">{p.pool}</td>
+                    <td className="px-2 py-1 text-right tabular-nums text-zinc-600">
+                      {displayINR(p.balanceNow.toFixed(0))}
+                    </td>
+                    {p.months.map((m) => (
+                      <td
+                        key={m.month}
+                        className={`px-2 py-1 text-right tabular-nums ${m.closing < 0 ? 'font-semibold text-red-600' : 'text-zinc-600'}`}
+                        title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
+                      >
+                        {displayINR(m.closing.toFixed(0))}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           <div className="overflow-x-auto border-t border-zinc-100">
-            <table className="w-full min-w-[44rem] text-left text-sm">
+            <table className="w-full min-w-[48rem] text-left text-sm">
               <thead>
                 <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
-                  <th className="w-[30%] px-2 py-1.5">Payment / receipt</th>
+                  <th className="w-[26%] px-2 py-1.5">Payment / receipt</th>
+                  <th className="px-2 py-1.5">Source</th>
                   <th className="px-2 py-1.5">Frequency</th>
                   <th className="px-2 py-1.5 text-right">₹ +out / −in</th>
                   <th className="px-2 py-1.5">Month (one-off)</th>
@@ -249,6 +296,18 @@ export default async function CashFlowPage(props: {
                           placeholder="e.g. Diwali gifts / Maid salary"
                           className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                         />
+                      </td>
+                      <td className="px-2 py-0.5">
+                        <select
+                          name="source"
+                          form={formId}
+                          defaultValue={line?.source ?? 'CASH'}
+                          className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        >
+                          {POOL_OPTIONS.map((o) => (
+                            <option key={o}>{o}</option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-2 py-0.5">
                         <select
