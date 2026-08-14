@@ -3,9 +3,17 @@ import { prisma } from '@/lib/db'
 import { requireUser, isAdmin, hasPermission, visibleEntityFilter } from '@/lib/auth'
 import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
+import { projectPools } from '@/lib/budget/plan'
 import type { HeadOpt } from '@/components/head-combobox'
 import { CashQuickRow, type QuickLocation } from './quick-row'
-import { createCashEntryAction, quickCashEntryAction, deleteCashEntryAction, undoCashEntryAction } from './actions'
+import {
+  createCashEntryAction,
+  quickCashEntryAction,
+  deleteCashEntryAction,
+  undoCashEntryAction,
+  saveCashPlanAction,
+  archiveCashPlanAction,
+} from './actions'
 
 // Cash (spec §6.2) — ONE physical pool across all books, never split by the
 // "Books of" switcher: every location of every visible books shows here,
@@ -127,6 +135,22 @@ export default async function CashPage(props: {
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
   }
 
+  // The physical pool's own cash flow: live balance rolled forward with the
+  // planned CASH lines (current month netted by actuals), plus the one-off
+  // future needs as visible chips. The combined bank+cash view lives on the
+  // Cash flow report's "Cash ahead" tab.
+  const cashPool = isAdmin(user)
+    ? (await projectPools(new Date(), 6)).find((p) => p.pool === 'CASH')
+    : null
+  const upcoming = isAdmin(user)
+    ? await prisma.budgetLine.findMany({
+        where: { source: 'CASH', frequency: 'ONCE', archivedAt: null, onMonth: { not: null } },
+        orderBy: { onMonth: 'asc' },
+      })
+    : []
+  const shortMonth = (m: string) =>
+    `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
+
   const signedAmount = (e: (typeof entries)[number]) => {
     const a = Number(e.amount)
     if (e.kind === 'TRANSFER') {
@@ -173,6 +197,81 @@ export default async function CashPage(props: {
           <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(total)}</span>
         </div>
       </div>
+
+      {/* Cash flow — the pool projected, future needs added & visible here */}
+      {cashPool && (
+        <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              Cash flow
+            </span>
+            {cashPool.months.map((m) => (
+              <span
+                key={m.month}
+                className="flex items-baseline gap-1"
+                title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
+              >
+                <span className="text-zinc-400">{shortMonth(m.month)}</span>
+                <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-800'}`}>
+                  {displayINR(m.closing.toFixed(2))}
+                </span>
+              </span>
+            ))}
+            <form action={saveCashPlanAction} className="ml-auto flex items-center gap-1">
+              <input type="hidden" name="frequency" value="ONCE" />
+              <input type="hidden" name="source" value="CASH" />
+              <input
+                name="label"
+                required
+                placeholder="Cash needed — what for"
+                className="w-40 rounded border border-zinc-300 px-1.5 py-1 text-xs"
+              />
+              <input
+                name="amount"
+                required
+                inputMode="decimal"
+                placeholder="₹"
+                title="Positive = cash needed (out), negative = coming in"
+                className="w-20 rounded border border-zinc-300 px-1.5 py-1 text-right text-xs"
+              />
+              <input name="onMonth" type="month" required className="rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+              <button
+                type="submit"
+                className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
+              >
+                + Add
+              </button>
+            </form>
+          </div>
+          {upcoming.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-3 py-1.5 text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+                Upcoming
+              </span>
+              {upcoming.map((l) => (
+                <span
+                  key={l.id}
+                  className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
+                    Number(l.amount) < 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                  }`}
+                >
+                  <span className="font-medium">{l.label}</span>
+                  <span className="tabular-nums">
+                    {Number(l.amount) < 0 ? '+' : ''}{displayINR(Math.abs(Number(l.amount)).toFixed(0))}
+                  </span>
+                  <span className="text-[10px] opacity-70">({shortMonth(l.onMonth!)})</span>
+                  <form action={archiveCashPlanAction} className="flex">
+                    <input type="hidden" name="id" value={l.id} />
+                    <button type="submit" title="Remove" className="ml-0.5 text-[10px] opacity-50 hover:opacity-100">
+                      ✕
+                    </button>
+                  </form>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick entry — the Excel row */}
       {canEnter && locations.length > 0 && (
