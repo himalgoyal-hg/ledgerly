@@ -149,3 +149,67 @@ export async function deleteBillAction(formData: FormData) {
   revalidatePath('/bills')
   revalidatePath('/')
 }
+
+/**
+ * Edit a bill in place. Bills post nothing, so every field is free to
+ * change; the GST/TDS amounts recompute from the stored rates against the
+ * new taxable amount.
+ */
+export async function updateBillAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const billId = String(formData.get('billId') ?? '')
+  const field = (name: string) => String(formData.get(name) ?? '').trim()
+  const vendor = field('vendor')
+  const billType = field('billType')
+  const amountRaw = field('amount').replace(/[,₹\s]/g, '')
+  const dueDate = new Date(field('dueDate'))
+  if (!vendor || !billType) throw new Error('Vendor and type are required')
+  if (!Number.isFinite(Number(amountRaw)) || Number(amountRaw) <= 0) {
+    throw new Error('Amount must be positive')
+  }
+  if (isNaN(dueDate.getTime())) throw new Error('Pick the due date')
+  const recurrence = field('recurrence')
+  if (!['NONE', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY'].includes(recurrence)) {
+    throw new Error('Unknown recurrence')
+  }
+
+  const { parsePaise, formatPaise } = await import('@/lib/ledger/money')
+  const { gstOnNet, tdsOnGross, rateBp } = await import('@/lib/tax/calc')
+
+  await auditedTransaction(async (tx) => {
+    const before = await tx.bill.findUniqueOrThrow({ where: { id: billId } })
+    const taxable = parsePaise(amountRaw)
+    const gst = before.gstRate ? gstOnNet(taxable, rateBp(String(before.gstRate))) : 0n
+    const tds = before.tdsRate ? tdsOnGross(taxable, rateBp(String(before.tdsRate))) : 0n
+    const bill = await tx.bill.update({
+      where: { id: billId },
+      data: {
+        vendor,
+        billType,
+        amount: formatPaise(taxable),
+        gstAmount: formatPaise(gst),
+        tdsAmount: formatPaise(tds),
+        dueDate,
+        recurrence: recurrence as never,
+        insuredFor: field('insuredFor') || null,
+        policyNumber: field('policyNumber') || null,
+        insuredValue: field('insuredValue').replace(/[,₹\s]/g, '') || null,
+        payFrom: field('payFrom') || null,
+        // A cleared link only clears external links — an uploaded file's
+        // /files/ path is preserved unless replaced.
+        link: field('link') || (before.link?.startsWith('/files/') ? before.link : null),
+        remarks: field('remarks') || null,
+      },
+    })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'bill.edit',
+      targetType: 'Bill',
+      targetId: billId,
+      summary: `Edited bill ${vendor} (${billType}) ₹${amountRaw} due ${dueDate.toISOString().slice(0, 10)}`,
+      before: { vendor: before.vendor, amount: String(before.amount), dueDate: before.dueDate },
+      after: { vendor: bill.vendor, amount: String(bill.amount), dueDate: bill.dueDate },
+    })
+  })
+  revalidatePath('/bills')
+}

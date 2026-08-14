@@ -4,8 +4,9 @@ import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
-import { createBillAction, payBillAction, deleteBillAction } from './actions'
+import { createBillAction, payBillAction, deleteBillAction, updateBillAction } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
+import { BillRow } from './bill-row'
 
 // Bills & insurance (spec §6.3): a document store + reminder list. Nothing
 // posts from here — the expense reaches the books when the bank-statement
@@ -208,102 +209,59 @@ export default async function BillsPage() {
                     const overdue = bill.dueDate.toISOString().slice(0, 10) < today
                     const files = fileLinks(bill.link)
                     return (
-                      <tr key={bill.id} className="align-top hover:bg-zinc-50/60">
-                        <td className="px-3 py-1.5">
-                          <span className="font-medium text-zinc-800" title={bill.remarks ?? undefined}>
-                            {bill.vendor}
-                          </span>
-                        </td>
-                        <td className="max-w-64 px-3 py-1.5">
-                          <span className="block truncate text-xs text-zinc-600" title={[bill.insuredFor, bill.policyNumber, bill.remarks].filter(Boolean).join(' · ')}>
-                            {bill.insuredFor ?? <span className="text-zinc-300">—</span>}
-                            {bill.policyNumber && (
-                              <span className="ml-1 font-mono text-[10px] text-zinc-400">{bill.policyNumber}</span>
-                            )}
-                          </span>
-                          {bill.insuredValue && (
-                            <span className="block text-[10px] text-zinc-400">
-                              covers {displayINR(String(bill.insuredValue))}
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-1.5">
-                          <span className={`text-xs tabular-nums ${overdue ? 'font-semibold text-red-600' : 'text-zinc-600'}`}>
-                            {bill.dueDate.toISOString().slice(0, 10)}
-                          </span>
-                          {overdue && (
-                            <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
-                              overdue
-                            </span>
-                          )}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-1.5">
-                          {bill.recurrence !== 'NONE' ? (
-                            <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
-                              {freqLabel(bill.recurrence)}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-zinc-300">once</span>
-                          )}
-                        </td>
-                        <td className="max-w-44 truncate px-3 py-1.5 text-xs text-zinc-500" title={bill.payFrom ?? ''}>
-                          {bill.payFrom ?? '—'}
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-1.5 text-right">
-                          <span
-                            className="font-semibold tabular-nums text-zinc-900"
-                            title={
-                              Number(bill.gstAmount) > 0 || Number(bill.tdsAmount) > 0
-                                ? `taxable ${displayINR(String(bill.amount))} · GST ${displayINR(String(bill.gstAmount))} · TDS ${displayINR(String(bill.tdsAmount))}`
-                                : undefined
-                            }
+                      <BillRow
+                        key={bill.id}
+                        update={updateBillAction}
+                        data={{
+                          id: bill.id,
+                          vendor: bill.vendor,
+                          billType: bill.billType,
+                          insuredFor: bill.insuredFor ?? '',
+                          policyNumber: bill.policyNumber ?? '',
+                          insuredValue: bill.insuredValue ? String(bill.insuredValue) : '',
+                          dueIso: bill.dueDate.toISOString().slice(0, 10),
+                          recurrence: bill.recurrence,
+                          payFrom: bill.payFrom ?? '',
+                          amount: String(bill.amount),
+                          link: bill.link && !bill.link.startsWith('/files/') ? bill.link : '',
+                          remarks: bill.remarks ?? '',
+                          overdue,
+                          payableDisp: displayINR(payable(bill).toFixed(2)),
+                          insuredDisp: bill.insuredValue ? displayINR(String(bill.insuredValue)) : '',
+                          taxTip:
+                            Number(bill.gstAmount) > 0 || Number(bill.tdsAmount) > 0
+                              ? `taxable ${displayINR(String(bill.amount))} · GST ${displayINR(String(bill.gstAmount))} · TDS ${displayINR(String(bill.tdsAmount))}`
+                              : undefined,
+                          files,
+                        }}
+                      >
+                        <form action={payBillAction} className="flex items-center gap-1">
+                          <input type="hidden" name="billId" value={bill.id} />
+                          <input
+                            name="date"
+                            type="date"
+                            required
+                            defaultValue={today}
+                            className="rounded border border-zinc-300 px-1.5 py-0.5 text-xs"
+                          />
+                          <button
+                            type="submit"
+                            title="Mark paid — posting happens when the statement row is tagged; recurring bills spawn the next instance"
+                            className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
                           >
-                            {displayINR(payable(bill).toFixed(2))}
-                          </span>
-                        </td>
-                        <td className="whitespace-nowrap px-3 py-1.5 text-xs">
-                          {files ? (
-                            <>
-                              <a href={files.view} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">view</a>{' '}
-                              <a href={files.download} className="text-sky-600 hover:underline">download</a>
-                            </>
-                          ) : bill.link ? (
-                            <a href={bill.link} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">document</a>
-                          ) : (
-                            <span className="text-zinc-300">—</span>
-                          )}
-                        </td>
-                        <td className="px-3 py-1">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <form action={payBillAction} className="flex items-center gap-1">
-                              <input type="hidden" name="billId" value={bill.id} />
-                              <input
-                                name="date"
-                                type="date"
-                                required
-                                defaultValue={today}
-                                className="rounded border border-zinc-300 px-1.5 py-0.5 text-xs"
-                              />
-                              <button
-                                type="submit"
-                                title="Mark paid — posting happens when the statement row is tagged; recurring bills spawn the next instance"
-                                className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
-                              >
-                                ✓ Paid
-                              </button>
-                            </form>
-                            <form action={deleteBillAction}>
-                              <input type="hidden" name="billId" value={bill.id} />
-                              <ConfirmButton
-                                message={`Delete this ${bill.vendor} bill and its stored document?`}
-                                className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
-                              >
-                                ✕
-                              </ConfirmButton>
-                            </form>
-                          </div>
-                        </td>
-                      </tr>
+                            ✓ Paid
+                          </button>
+                        </form>
+                        <form action={deleteBillAction}>
+                          <input type="hidden" name="billId" value={bill.id} />
+                          <ConfirmButton
+                            message={`Delete this ${bill.vendor} bill and its stored document?`}
+                            className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
+                          >
+                            ✕
+                          </ConfirmButton>
+                        </form>
+                      </BillRow>
                     )
                   })}
                 </Fragment>
