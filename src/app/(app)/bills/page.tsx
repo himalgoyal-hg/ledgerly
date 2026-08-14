@@ -95,37 +95,84 @@ export default async function BillsPage() {
         <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
           ＋ New bill
         </summary>
-        <form action={createBillAction} className="flex flex-wrap items-center gap-2 border-t border-zinc-100 p-4">
+        <form action={createBillAction} className="border-t border-zinc-100 p-4">
           <input type="hidden" name="entityId" value={entity.id} />
-          <input name="vendor" required placeholder="Vendor" className={inputCls} />
-          <input name="billType" required placeholder="Type (EMI, Insurance, Subscription…)" className={inputCls} />
-          <input name="amount" required inputMode="decimal" placeholder="Taxable ₹" className={`w-28 ${inputCls}`} />
-          <label className="text-xs text-zinc-400">bill date</label>
-          <input name="billDate" type="date" required className={inputCls} />
-          <label className="text-xs text-zinc-400">due</label>
-          <input name="dueDate" type="date" required className={inputCls} />
-          <label className="text-xs text-zinc-400">renewal</label>
-          <input name="renewalDate" type="date" className={inputCls} />
-          <select name="recurrence" className={`bg-white ${inputCls}`}>
-            <option value="NONE">One-time</option>
-            <option value="MONTHLY">Monthly</option>
-            <option value="QUARTERLY">Quarterly</option>
-            <option value="HALF_YEARLY">Half-yearly</option>
-            <option value="YEARLY">Yearly</option>
-          </select>
-          <input name="payFrom" placeholder="Pay from (bank / card / GPay)" className={`w-44 ${inputCls}`} />
-          <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-zinc-300 px-2 py-1.5 text-xs text-zinc-500 hover:border-zinc-400">
-            📎 attach bill
-            <input type="file" name="file" accept="application/pdf,image/*" className="w-40 text-xs" />
-          </label>
-          <input name="link" placeholder="…or Drive link" className={`w-36 ${inputCls}`} />
-          <input name="remarks" placeholder="Remarks" className={`w-36 ${inputCls}`} />
-          <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
-            Add bill
-          </button>
+          {/* What is it — mirrors the register's Vendor / For-policy columns */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Vendor *</span>
+              <input name="vendor" required placeholder="Star Health / Netflix…" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Type *</span>
+              <input name="billType" required placeholder="EMI / Insurance / Subscription…" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">For whom</span>
+              <input name="insuredFor" placeholder="Himal / Baleno / Synergy…" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Policy / ref no.</span>
+              <input name="policyNumber" placeholder="Policy or account no." className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Insured value ₹</span>
+              <input name="insuredValue" inputMode="decimal" placeholder="Cover amount" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+          </div>
+
+          {/* Money & timing — the register's Due / Every / Via / Amount */}
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount ₹ *</span>
+              <input name="amount" required inputMode="decimal" placeholder="Taxable" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bill date *</span>
+              <input name="billDate" type="date" required className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due date *</span>
+              <input name="dueDate" type="date" required className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Renewal (insurance)</span>
+              <input name="renewalDate" type="date" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Every</span>
+              <select name="recurrence" className={`mt-1 w-full bg-white ${inputCls}`}>
+                <option value="NONE">One-time</option>
+                <option value="MONTHLY">Monthly</option>
+                <option value="QUARTERLY">Quarterly</option>
+                <option value="HALF_YEARLY">Half-yearly</option>
+                <option value="YEARLY">Yearly</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Pay from</span>
+              <input name="payFrom" placeholder="Bank / card / GPay" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+          </div>
+
+          {/* Documents & notes */}
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">📎 Attach bill</span>
+              <input type="file" name="file" accept="application/pdf,image/*" className="mt-1 w-full text-xs" />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">…or Drive link</span>
+              <input name="link" placeholder="https://drive.google.com/…" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Remarks</span>
+              <input name="remarks" placeholder="Anything worth remembering" className={`mt-1 w-full ${inputCls}`} />
+            </label>
+          </div>
 
           {/* GST / TDS (spec §7) */}
-          <details className="w-full">
+          <details className="mt-3">
             <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
               GST / TDS details (optional)
             </summary>
@@ -148,8 +195,8 @@ export default async function BillsPage() {
               <span className="ml-3 text-[10px] font-medium uppercase text-zinc-400">TDS</span>
               <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
                 <option value="">section</option>
-                {TDS_SECTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                {TDS_SECTIONS.map((sec) => (
+                  <option key={sec} value={sec}>{sec}</option>
                 ))}
               </select>
               <input name="tdsRate" placeholder="rate %" inputMode="decimal" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
@@ -157,20 +204,14 @@ export default async function BillsPage() {
             </div>
           </details>
 
-          {/* Insurance metadata */}
-          <details className="w-full">
-            <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
-              Insurance details (optional)
-            </summary>
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-2">
-              <input name="policyNumber" placeholder="Policy number" className="w-36 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <input name="insuredValue" inputMode="decimal" placeholder="Insured value ₹" className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <input name="insuredFor" placeholder="For whom (e.g. Himal)" className="w-40 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <span className="text-[10px] text-zinc-400">
-                set the renewal date above — a passed renewal shows a lapse alert
-              </span>
-            </div>
-          </details>
+          <div className="mt-4 flex items-center gap-3">
+            <button type="submit" className="rounded-md bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+              Add bill
+            </button>
+            <span className="text-[10px] text-zinc-400">
+              a passed renewal date shows a lapse alert · recurring bills spawn the next instance on ✓ Paid
+            </span>
+          </div>
         </form>
       </details>
 
