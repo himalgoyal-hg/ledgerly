@@ -239,6 +239,37 @@ export default async function CashFlowPage(props: {
         </div>
       )}
 
+      {/* Cash-only flow — the physical pool month by month */}
+      {view === 'ahead' && (() => {
+        const cashPool = pools.find((p) => p.pool === 'CASH')
+        if (!cashPool) return null
+        return (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs shadow-sm print:hidden">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+              Cash only
+            </span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-zinc-400">today</span>
+              <span className="font-semibold tabular-nums text-zinc-800">
+                {displayINR(cashPool.balanceNow.toFixed(2))}
+              </span>
+            </span>
+            {cashPool.months.map((m) => (
+              <span
+                key={m.month}
+                className="flex items-baseline gap-1"
+                title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
+              >
+                <span className="text-zinc-400">{shortMonth(m.month)}</span>
+                <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-800'}`}>
+                  {displayINR(m.closing.toFixed(2))}
+                </span>
+              </span>
+            ))}
+          </div>
+        )
+      })()}
+
       {view === 'ahead' && cashProjection && (
         <details className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden" open>
           <summary className="flex cursor-pointer flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs hover:bg-zinc-50">
