@@ -266,6 +266,40 @@ export default async function CashFlowPage(props: {
                 </span>
               </span>
             ))}
+            {/* Quick-add a future cash need right here: name, ₹, month →
+                a one-off CASH line (− amount = cash coming in). */}
+            {admin && (
+              <form action={saveCashPlanAction} className="ml-auto flex items-center gap-1">
+                <input type="hidden" name="frequency" value="ONCE" />
+                <input type="hidden" name="source" value="CASH" />
+                <input
+                  name="label"
+                  required
+                  placeholder="Cash lagnaar — kashasathi"
+                  className="w-40 rounded border border-zinc-300 px-1.5 py-1 text-xs"
+                />
+                <input
+                  name="amount"
+                  required
+                  inputMode="decimal"
+                  placeholder="₹"
+                  title="Positive = cash needed (out), negative = coming in"
+                  className="w-20 rounded border border-zinc-300 px-1.5 py-1 text-right text-xs"
+                />
+                <input
+                  name="onMonth"
+                  type="month"
+                  required
+                  className="rounded border border-zinc-300 px-1.5 py-1 text-xs"
+                />
+                <button
+                  type="submit"
+                  className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
+                >
+                  + Add
+                </button>
+              </form>
+            )}
           </div>
         )
       })()}
