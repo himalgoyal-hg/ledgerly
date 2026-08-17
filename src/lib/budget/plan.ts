@@ -84,6 +84,40 @@ export async function poolBalances(): Promise<Map<Pool, number>> {
   return balances
 }
 
+/**
+ * Gross posted movement per pool since a date (month-to-date): money into /
+ * out of each books' bank accounts, and the cash pool's locations. Lets the
+ * current month show its true OPENING balance (1st of the month) with the
+ * full month's flows, instead of starting mid-month from today's balance.
+ */
+async function poolMovementSince(since: Date): Promise<Map<Pool, { inflow: number; outflow: number }>> {
+  const entities = await prisma.entity.findMany({ where: { archivedAt: null } })
+  const map = new Map<Pool, { inflow: number; outflow: number }>()
+  for (const e of entities) {
+    if (!POOLS.includes(e.code as Pool)) continue
+    const rows = await prisma.$queryRaw<{ inflow: string | null; outflow: string | null }[]>`
+      SELECT COALESCE(SUM(l.debit), 0)::text AS inflow, COALESCE(SUM(l.credit), 0)::text AS outflow
+      FROM "JournalLine" l
+      JOIN "JournalEntry" j ON j.id = l."entryId"
+      WHERE j.date >= ${since}::date AND l."accountId" IN (
+        SELECT "ledgerAccountId" FROM "BankAccount"
+        WHERE "entityId" = ${e.id} AND "ledgerAccountId" IS NOT NULL
+      )
+    `
+    map.set(e.code as Pool, { inflow: Number(rows[0]?.inflow ?? 0), outflow: Number(rows[0]?.outflow ?? 0) })
+  }
+  const cash = await prisma.$queryRaw<{ inflow: string | null; outflow: string | null }[]>`
+    SELECT COALESCE(SUM(l.debit), 0)::text AS inflow, COALESCE(SUM(l.credit), 0)::text AS outflow
+    FROM "JournalLine" l
+    JOIN "JournalEntry" j ON j.id = l."entryId"
+    WHERE j.date >= ${since}::date AND l."accountId" IN (
+      SELECT "ledgerAccountId" FROM "CashLocation" WHERE "ledgerAccountId" IS NOT NULL
+    )
+  `
+  map.set('CASH', { inflow: Number(cash[0]?.inflow ?? 0), outflow: Number(cash[0]?.outflow ?? 0) })
+  return map
+}
+
 /** A line's planned amount for one month (monthly equivalent, or the ONCE hit). */
 function planForMonth(
   line: { amount: Prisma.Decimal; frequency: string; onMonth: string | null },
@@ -97,9 +131,10 @@ function planForMonth(
 }
 
 /**
- * Project each pool `count` months ahead, starting this month: opening is
- * the live balance today, then budgeted monthly equivalents (+ ONCE lines
- * in their month) roll it forward.
+ * Project each pool `count` months ahead, starting this month: the current
+ * month opens on its 1st-of-month balance and carries its full flows
+ * (posted so far + the plan's remainder), then budgeted monthly
+ * equivalents (+ ONCE lines in their month) roll it forward.
  *
  * The CURRENT month is interlinked with the books: what already moved on a
  * line's head (bank rows, cash payments — anything posted) nets off its
@@ -141,13 +176,19 @@ export async function projectPools(today: Date, count = 6): Promise<PoolProjecti
     return remaining / plan
   }
 
+  // Op = the month's true opening (1st of the month): today's balance minus
+  // what already moved this month; the moved money then counts inside the
+  // current month's Incoming/Outgoing, alongside the plan's remainder.
+  const mtd = await poolMovementSince(new Date(`${currentMonth}-01T00:00:00Z`))
+
   return POOLS.map((pool) => {
     const mine = lines.filter((l) => l.source === pool)
     const balanceNow = balances.get(pool) ?? 0
-    let running = balanceNow
+    const moved = mtd.get(pool) ?? { inflow: 0, outflow: 0 }
+    let running = balanceNow - (moved.inflow - moved.outflow)
     const rows: PoolMonth[] = months.map((month) => {
-      let inflow = 0
-      let outflow = 0
+      let inflow = month === currentMonth ? moved.inflow : 0
+      let outflow = month === currentMonth ? moved.outflow : 0
       for (const line of mine) {
         let amount = planForMonth(line, month)
         if (month === currentMonth) amount *= remainingFraction(line.headAccountId)
