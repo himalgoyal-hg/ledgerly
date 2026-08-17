@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
+import { CellInput } from './cell-input'
 import {
   saveFinanceCellAction,
   createFinanceTaskAction,
@@ -145,7 +146,7 @@ export default async function FinanceTasksPage() {
             <tr className="border-b border-zinc-200 align-bottom text-[10px] uppercase tracking-wider text-zinc-400">
               <th className="sticky left-0 z-10 bg-white px-2 py-2">Month</th>
               {tasks.map((t) => (
-                <th key={t.id} className="px-1.5 py-2 font-medium">
+                <th key={t.id} className={`px-1.5 py-2 font-medium ${t.dueDay === null ? 'min-w-[16rem]' : 'min-w-[7rem]'}`}>
                   <div className="normal-case tracking-normal">
                     <div className="text-[10px] text-zinc-400">
                       {t.account ?? ' '}
@@ -204,12 +205,11 @@ export default async function FinanceTasksPage() {
                         <form action={saveFinanceCellAction}>
                           <input type="hidden" name="taskId" value={t.id} />
                           <input type="hidden" name="month" value={mk} />
-                          <input
-                            name="value"
+                          <CellInput
                             defaultValue={value}
                             title={value || (overdue ? `Due ${ord(t.dueDay!)} — pending` : 'Type and press Enter to save')}
                             placeholder={overdue ? `due ${ord(t.dueDay!)}` : ''}
-                            className={`w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs tabular-nums hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none ${overdue ? 'placeholder:text-amber-600' : ''}`}
+                            emphasis={overdue}
                           />
                         </form>
                       </td>
