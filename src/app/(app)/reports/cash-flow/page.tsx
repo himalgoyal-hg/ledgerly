@@ -51,6 +51,22 @@ export default async function CashFlowPage(props: {
         orderBy: [{ source: 'asc' }, { label: 'asc' }],
       })
     : []
+  // Every tagging head, offered as type-ahead for the category fields —
+  // a matching name links the line to its head, so tagged entries net
+  // against the plan and the cashflow stays in step with the books.
+  const headNames = admin
+    ? [
+        ...new Set(
+          (
+            await prisma.ledgerAccount.findMany({
+              where: { isGroup: false, archivedAt: null, kind: { in: ['EXPENSE', 'INCOME'] } },
+              select: { name: true },
+              orderBy: { name: 'asc' },
+            })
+          ).map((h) => h.name),
+        ),
+      ]
+    : []
   const POOL_OPTIONS = ['ACPL', 'HG', 'MG', 'PG', 'CASH']
   const shortMonth = (m: string) =>
     `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
@@ -358,8 +374,9 @@ export default async function CashFlowPage(props: {
                         name="label"
                         form={formId}
                         required
+                        list="head-options"
                         defaultValue={line?.label ?? ''}
-                        placeholder="e.g. Synergy EMI / Food & Dining"
+                        placeholder="Type — tagging heads suggest themselves"
                         className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
                     </td>
@@ -461,6 +478,11 @@ export default async function CashFlowPage(props: {
             <option value="Investment" />
             <option value="ACPL expense" />
           </datalist>
+          <datalist id="head-options">
+            {headNames.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
         </div>
       )}
 
@@ -490,8 +512,9 @@ export default async function CashFlowPage(props: {
                         name="label"
                         form={formId}
                         required
+                        list="head-options"
                         defaultValue={line?.label ?? ''}
-                        placeholder="e.g. Rakhi Gift / Land Buying"
+                        placeholder="Type — tagging heads suggest themselves"
                         className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
                     </td>
