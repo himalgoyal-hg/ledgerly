@@ -918,3 +918,11 @@ model FinanceTaskCell {
   @@unique([taskId, month])
   @@index([month])
 }
+
+// Month rows of the finance-task grid. Explicit, so future months can be
+// added ahead of time (the sheet ran Dec-25..Nov-26 with empty tails) —
+// a row exists even before any cell in it is filled.
+model FinanceMonth {
+  id    String   @id @default(cuid())
+  month DateTime @unique @db.Date // first of the month
+}

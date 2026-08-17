@@ -34,6 +34,22 @@ export async function saveFinanceCellAction(formData: FormData) {
   revalidatePath('/tasks')
 }
 
+/** Add a month row — the picked one, or the next after the latest row. */
+export async function addFinanceMonthAction(formData: FormData) {
+  await requireAdmin()
+  const raw = field(formData, 'month')
+  let month: Date
+  if (raw) {
+    month = parseMonth(raw)
+  } else {
+    const last = await prisma.financeMonth.findFirst({ orderBy: { month: 'desc' } })
+    const base = last?.month ?? new Date()
+    month = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + 1, 1))
+  }
+  await prisma.financeMonth.upsert({ where: { month }, create: { month }, update: {} })
+  revalidatePath('/tasks')
+}
+
 export async function createFinanceTaskAction(formData: FormData) {
   await requireAdmin()
   const name = field(formData, 'name')

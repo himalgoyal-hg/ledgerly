@@ -7,6 +7,7 @@ import {
   createFinanceTaskAction,
   updateFinanceTaskAction,
   archiveFinanceTaskAction,
+  addFinanceMonthAction,
 } from './actions'
 
 // Finance tasks — Himal's sheet, as a screen: columns are the recurring
@@ -24,35 +25,39 @@ const ord = (d: number) => {
 export default async function FinanceTasksPage() {
   await requireAdmin()
 
-  const tasks = await prisma.financeTask.findMany({
-    where: { archivedAt: null },
-    orderBy: { sortOrder: 'asc' },
-    include: { cells: true },
-  })
+  const [tasks, monthRows] = await Promise.all([
+    prisma.financeTask.findMany({
+      where: { archivedAt: null },
+      orderBy: { sortOrder: 'asc' },
+      include: { cells: true },
+    }),
+    prisma.financeMonth.findMany({ orderBy: { month: 'asc' } }),
+  ])
 
   // cell lookup: taskId → month key (yyyy-mm) → value
   const cellMap = new Map<string, Map<string, string>>()
-  let minKey = '2025-12'
+  const monthSet = new Set<string>(monthRows.map((r) => r.month.toISOString().slice(0, 7)))
   for (const t of tasks) {
     const m = new Map<string, string>()
     for (const c of t.cells) {
       const key = c.month.toISOString().slice(0, 7)
       m.set(key, c.value)
-      if (key < minKey) minKey = key
+      monthSet.add(key) // a cell's month always shows, row or no row
     }
     cellMap.set(t.id, m)
   }
 
-  // months: earliest cell → 2 months past today (the sheet's rolling year)
+  // month rows come from the DB (＋ Add month appends); today's month always shows
   const now = new Date()
   const nowKey = now.toISOString().slice(0, 7)
-  const months: string[] = []
-  const cursor = new Date(`${minKey}-01T00:00:00Z`)
-  const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 1))
-  while (cursor <= end) {
-    months.push(cursor.toISOString().slice(0, 7))
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1)
-  }
+  monthSet.add(nowKey)
+  const months = [...monthSet].sort()
+  const lastMonth = months[months.length - 1]
+  const nextMonthKey = (() => {
+    const d = new Date(`${lastMonth}-01T00:00:00Z`)
+    d.setUTCMonth(d.getUTCMonth() + 1)
+    return d.toISOString().slice(0, 7)
+  })()
 
   const monthLabel = (key: string) =>
     new Date(`${key}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: '2-digit', timeZone: 'UTC' })
@@ -218,6 +223,25 @@ export default async function FinanceTasksPage() {
                 </tr>
               )
             })}
+            {/* the next row of the sheet — one click away */}
+            <tr>
+              <td colSpan={tasks.length + 1} className="px-2 py-1.5">
+                <form action={addFinanceMonthAction} className="flex items-center gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-md border border-dashed border-zinc-300 px-3 py-1 text-xs text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
+                  >
+                    ＋ Add {monthLabel(nextMonthKey)}
+                  </button>
+                  <input
+                    name="month"
+                    type="month"
+                    title="Or pick a different month to add"
+                    className="rounded-md border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500"
+                  />
+                </form>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
