@@ -47,6 +47,93 @@ export async function expenseMatrix(entityId: string, months = 12) {
   return { months: keys, rows: out, colTotals, grand: colTotals.reduce((s, v) => s + v, 0) }
 }
 
+/**
+ * The sheet's "Expenses M/M" tab, computed: expense heads × FY months
+ * (Apr..Mar) straight from tagged postings, with the Budget columns —
+ * monthly budget (year ÷ 12), variance vs the recent month, total year
+ * budget, and variance vs the FY's actual total. Rows appear if they have
+ * either an actual or a budget.
+ */
+export async function expenseMatrixFy(entityId: string, fyStart: number) {
+  const L = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const keys = Array.from({ length: 12 }, (_, i) => {
+    const year = i < 9 ? fyStart : fyStart + 1
+    const month = i < 9 ? i + 4 : i - 8
+    return { key: `${year}-${String(month).padStart(2, '0')}`, label: L[month - 1], year, month }
+  })
+  const from = new Date(Date.UTC(fyStart, 3, 1))
+  const to = new Date(Date.UTC(fyStart + 1, 3, 1))
+  const [actuals, budgets] = await Promise.all([
+    prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
+      SELECT a.name, to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
+             SUM(l.debit - l.credit)::text AS amt
+      FROM "JournalLine" l
+      JOIN "JournalEntry" e ON e.id = l."entryId"
+      JOIN "LedgerAccount" a ON a.id = l."accountId"
+      WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE'
+        AND e.date >= ${from}::date AND e.date < ${to}::date
+      GROUP BY a.name, 2
+    `,
+    prisma.budget.findMany({
+      where: {
+        entityId,
+        OR: [
+          { year: fyStart, month: { gte: 4 } },
+          { year: fyStart + 1, month: { lte: 3 } },
+        ],
+      },
+    }),
+  ])
+
+  const actualBy = new Map<string, Map<string, number>>()
+  for (const r of actuals) {
+    const m = actualBy.get(r.name) ?? new Map<string, number>()
+    m.set(r.month, Number(r.amt))
+    actualBy.set(r.name, m)
+  }
+  const accounts = await prisma.ledgerAccount.findMany({
+    where: { id: { in: [...new Set(budgets.map((b) => b.accountId))] } },
+    select: { id: true, name: true },
+  })
+  const accountName = new Map(accounts.map((a) => [a.id, a.name]))
+  const budgetBy = new Map<string, number>()
+  for (const b of budgets) {
+    const name = accountName.get(b.accountId) ?? b.accountId
+    budgetBy.set(name, (budgetBy.get(name) ?? 0) + Number(b.amount))
+  }
+
+  // "recent month" = today's month when inside this FY, else the FY's last
+  const nowKey = new Date().toISOString().slice(0, 7)
+  const recentIdx = Math.max(0, keys.findIndex((k) => k.key === nowKey))
+  const recentIdxFinal = keys.some((k) => k.key === nowKey) ? recentIdx : keys.length - 1
+
+  const names = new Set<string>([...actualBy.keys(), ...budgetBy.keys()])
+  const rows = [...names]
+    .map((name) => {
+      const m = actualBy.get(name)
+      const cells = keys.map((k) => m?.get(k.key) ?? 0)
+      const total = cells.reduce((s, v) => s + v, 0)
+      const yearBudget = budgetBy.get(name) ?? 0
+      const monthlyBudget = yearBudget / 12
+      return {
+        name,
+        cells,
+        total,
+        monthlyBudget,
+        recentVariance: monthlyBudget - cells[recentIdxFinal],
+        yearBudget,
+        yearVariance: yearBudget - total,
+      }
+    })
+    .filter((r) => r.total !== 0 || r.yearBudget !== 0)
+    .sort((a, b) => b.total - a.total || b.yearBudget - a.yearBudget)
+
+  const colTotals = keys.map((_, i) => rows.reduce((s, r) => s + r.cells[i], 0))
+  const grand = colTotals.reduce((s, v) => s + v, 0)
+  const budgetGrand = rows.reduce((s, r) => s + r.yearBudget, 0)
+  return { months: keys, rows, colTotals, grand, budgetGrand, recentIdx: recentIdxFinal }
+}
+
 /** Weekly expense totals with the top accounts of each week. */
 export async function weeklyExpenses(entityId: string, weeks = 16) {
   const from = new Date(Date.now() - weeks * 7 * 86_400_000)
