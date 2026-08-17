@@ -43,7 +43,7 @@ export async function createFinanceTaskAction(formData: FormData) {
   if (dueDay !== null && (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31))
     throw new Error('Due day must be 1–31')
   const last = await prisma.financeTask.findFirst({ orderBy: { sortOrder: 'desc' } })
-  await prisma.financeTask.create({
+  const task = await prisma.financeTask.create({
     data: {
       name,
       account: field(formData, 'account') || null,
@@ -51,6 +51,15 @@ export async function createFinanceTaskAction(formData: FormData) {
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   })
+  // Fill-what-you-know: if the first month's value came along, the column
+  // is born with its cell filled — same as adding it on the sheet.
+  const firstValue = field(formData, 'firstValue')
+  const firstMonth = field(formData, 'firstMonth')
+  if (firstValue && firstMonth) {
+    await prisma.financeTaskCell.create({
+      data: { taskId: task.id, month: parseMonth(firstMonth), value: firstValue },
+    })
+  }
   revalidatePath('/tasks')
 }
 

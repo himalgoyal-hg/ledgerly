@@ -98,16 +98,17 @@ export default async function FinanceTasksPage() {
         </div>
       </div>
 
-      {/* New task — same structured form style as bills/invoices */}
+      {/* New bill / task — the sheet's column format: name, paying account,
+          due day, and (fill-what-you-know) the first month's value */}
       <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
         <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
-          ＋ New task (a new column in the register)
+          ＋ New bill / task (a new column in the register)
         </summary>
         <form action={createFinanceTaskAction} className="border-t border-zinc-100 p-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Task *</span>
-              <input name="name" required placeholder="Mom 40000 / Jeep Compass EMI…" className={`mt-1 w-full ${inputCls}`} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bill / task *</span>
+              <input name="name" required placeholder="New EMI Rs. 12,000 / Netflix…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Paid from</span>
@@ -117,12 +118,23 @@ export default async function FinanceTasksPage() {
               <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due day</span>
               <input name="dueDay" inputMode="numeric" placeholder="7" className={`mt-1 w-full ${inputCls}`} />
             </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Month (optional)</span>
+              <input name="firstMonth" type="month" defaultValue={nowKey} className={`mt-1 w-full ${inputCls}`} />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount / note (optional)</span>
+              <input name="firstValue" placeholder="₹12,000 / Yes" className={`mt-1 w-full ${inputCls}`} />
+            </label>
             <div className="flex items-end">
               <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
-                Add task
+                Add
               </button>
             </div>
           </div>
+          <p className="mt-2 text-[11px] text-zinc-400">
+            Fill what you have — name is enough; amount आणि बाकी cells नंतर grid मध्येच भरता येतात.
+          </p>
         </form>
       </details>
 
