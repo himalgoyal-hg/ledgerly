@@ -926,3 +926,28 @@ model FinanceMonth {
   id    String   @id @default(cuid())
   month DateTime @unique @db.Date // first of the month
 }
+
+// Net capital (sheet "Net capital", Books of Himal): a sources-and-
+// application statement kept by hand. Sections: INCOME (own capital),
+// LIABILITY (loans taken), APPLICATION (where it sits), TAXPAID (tax-paid
+// assets currently showing), BANK (bank balances). Columns mirror the
+// sheet: New (updated figure), Total, Synergy share, books figure,
+// Remaining. Nothing posts — the nets are computed on the page.
+model NetCapitalLine {
+  id          String    @id @default(cuid())
+  section     String // INCOME | LIABILITY | APPLICATION | TAXPAID | BANK
+  name        String
+  taxStatus   String? // "Tax paid" | "Not paid"
+  amountNew   Decimal?  @db.Decimal(14, 2)
+  amountTotal Decimal?  @db.Decimal(14, 2)
+  synergy     Decimal?  @db.Decimal(14, 2)
+  fyFigure    Decimal?  @db.Decimal(14, 2) // the unlabeled FY-books column
+  remaining   Decimal?  @db.Decimal(14, 2)
+  sortOrder   Int       @default(0)
+  archivedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([section])
+}
