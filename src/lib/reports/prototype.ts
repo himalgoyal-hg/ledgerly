@@ -108,6 +108,12 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
   const recentIdxFinal = keys.some((k) => k.key === nowKey) ? recentIdx : keys.length - 1
 
   const names = new Set<string>([...actualBy.keys(), ...budgetBy.keys()])
+  // accountId per head name, so the budget cells can edit in place
+  const headAccounts = await prisma.ledgerAccount.findMany({
+    where: { entityId, isGroup: false, name: { in: [...names] } },
+    select: { id: true, name: true },
+  })
+  const idByName = new Map(headAccounts.map((a) => [a.name, a.id]))
   const rows = [...names]
     .map((name) => {
       const m = actualBy.get(name)
@@ -117,6 +123,7 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
       const monthlyBudget = yearBudget / 12
       return {
         name,
+        accountId: idByName.get(name) ?? null,
         cells,
         total,
         monthlyBudget,
