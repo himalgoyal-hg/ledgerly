@@ -194,7 +194,17 @@ export async function saveCashPlanAction(formData: FormData) {
   const frequency = String(formData.get('frequency') ?? 'ONCE')
   const amountRaw = String(formData.get('amount') ?? '').replace(/[,₹\s]/g, '')
   const amount = Number(amountRaw)
-  const onMonth = String(formData.get('onMonth') ?? '').trim() || null
+  let onMonth = String(formData.get('onMonth') ?? '').trim() || null
+  // The sheet's extra columns: Claimable-as (income tax) and the due day.
+  // A one-time line may send a full date; it splits into month + day.
+  const taxTreatment = String(formData.get('taxTreatment') ?? '').trim() || null
+  let dayNote = String(formData.get('dayNote') ?? '').trim() || null
+  const onDate = String(formData.get('onDate') ?? '').trim()
+  if (onDate) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(onDate)) throw new Error('Bad date')
+    onMonth = onDate.slice(0, 7)
+    dayNote = String(Number(onDate.slice(8, 10)))
+  }
 
   if (!label) throw new Error('Name the payment')
   if (!['ACPL', 'HG', 'MG', 'PG', 'CASH'].includes(source)) throw new Error('Pick the source')
@@ -228,6 +238,8 @@ export async function saveCashPlanAction(formData: FormData) {
       frequency,
       amount: amount.toFixed(2),
       onMonth: frequency === 'ONCE' ? onMonth : null,
+      taxTreatment,
+      dayNote,
     }
     const line = id
       ? await tx.budgetLine.update({ where: { id }, data })
