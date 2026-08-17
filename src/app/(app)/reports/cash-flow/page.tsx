@@ -254,7 +254,7 @@ export default async function CashFlowPage(props: {
             </thead>
             <tbody className="divide-y divide-zinc-100">
               <tr>
-                <td className="px-3 py-1.5 text-xs font-medium text-zinc-500">Op</td>
+                <td className="px-3 py-1.5 text-xs font-medium text-zinc-500">Opening Balance</td>
                 {cashProjection.months.map((m) => (
                   <td key={m.month} className="px-2 py-1.5 text-right tabular-nums text-zinc-600">
                     {displayINR(m.opening.toFixed(0))}
