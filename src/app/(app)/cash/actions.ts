@@ -230,9 +230,15 @@ export async function saveCashPlanAction(formData: FormData) {
     const entity = head
       ? await tx.entity.findUniqueOrThrow({ where: { id: head.entityId } })
       : await tx.entity.findFirstOrThrow({ where: { code: source === 'CASH' ? 'HG' : source } })
+    // No head with this name anywhere? It is born right here, in the pool's
+    // books — so the plan line and the tagging screen share one head from
+    // day one (+ = expense head, − = income head).
+    const headAccountId =
+      head?.id ??
+      (await resolveHeadAccount(tx, { entityId: entity.id, headText: label, isOutflow: amount > 0 }))
     const data = {
       entityId: entity.id,
-      headAccountId: head?.id ?? null,
+      headAccountId,
       label,
       source,
       frequency,
