@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
+import { resolveHeadAccount } from '@/lib/ops/heads'
 
 // Budget edits on the Expenses M/M grid. Unlike the calendar-year setBudget,
 // this writes the FINANCIAL year the report shows: Apr..Dec under fy,
@@ -13,11 +14,14 @@ import { parsePaise, formatPaise } from '@/lib/ledger/money'
 export async function setFyBudgetAction(formData: FormData) {
   const admin = await requireAdmin()
   const entityId = String(formData.get('entityId') ?? '')
-  const accountId = String(formData.get('accountId') ?? '')
+  let accountId = String(formData.get('accountId') ?? '')
+  // "＋ Add budget" sends a head picked OR typed — a typed name becomes a
+  // new expense head on the spot, same as everywhere else in the app.
+  const headText = String(formData.get('headText') ?? '').trim()
   const fy = Number(formData.get('fy'))
   const kind = String(formData.get('kind') ?? 'monthly') // monthly | year
   const amount = String(formData.get('amount') ?? '').trim().replace(/[,₹\s]/g, '')
-  if (!accountId) throw new Error('Pick an account')
+  if (!accountId && !headText) throw new Error('Pick a head')
   if (!Number.isInteger(fy)) throw new Error('Bad financial year')
 
   const fyMonths = [
@@ -26,6 +30,9 @@ export async function setFyBudgetAction(formData: FormData) {
   ]
 
   await auditedTransaction(async (tx) => {
+    if (!accountId) {
+      accountId = await resolveHeadAccount(tx, { entityId, headText, isOutflow: true })
+    }
     const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: accountId } })
     if (account.entityId !== entityId) throw new Error('Account does not belong to this entity')
     if (account.isGroup) throw new Error('Budget a leaf account, not a group head')

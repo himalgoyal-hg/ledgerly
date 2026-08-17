@@ -1,7 +1,10 @@
 import { requireUser, isAdmin } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { expenseMatrixFy } from '@/lib/reports/prototype'
+import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
+import { BudgetCells } from './budget-cells'
 
 // Expenses M/M — the sheet's tab, computed instead of typed: heads × FY
 // months straight from tagged entries, budget columns from Budget vs
@@ -32,26 +35,14 @@ export default async function MonthlyMatrixPage({
 
   const m = await expenseMatrixFy(entity.id, fy)
   const admin = isAdmin(user)
+  const expenseHeads = admin
+    ? await prisma.ledgerAccount.findMany({
+        where: { entityId: entity.id, isGroup: false, kind: 'EXPENSE', archivedAt: null },
+        orderBy: { name: 'asc' },
+        select: { id: true, code: true, name: true, kind: true },
+      })
+    : []
   const cellR = 'px-2 py-1.5 text-right tabular-nums whitespace-nowrap'
-  const budgetInput =
-    'w-24 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right text-sm tabular-nums text-zinc-500 hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
-
-  // Excel-style: the budget IS the input — type, Enter, saved for this FY
-  const BudgetCell = ({ accountId, kind, value }: { accountId: string; kind: 'monthly' | 'year'; value: number }) => (
-    <form action={setFyBudgetAction} className="flex justify-end">
-      <input type="hidden" name="entityId" value={entity.id} />
-      <input type="hidden" name="accountId" value={accountId} />
-      <input type="hidden" name="fy" value={fy} />
-      <input type="hidden" name="kind" value={kind} />
-      <input
-        name="amount"
-        inputMode="decimal"
-        defaultValue={Math.round(value) ? String(Math.round(value)) : ''}
-        title={kind === 'monthly' ? '₹ per month for this FY — Enter saves, blank clears' : '₹ for the whole FY, spread monthly — Enter saves, blank clears'}
-        className={budgetInput}
-      />
-    </form>
-  )
 
   return (
     <div className="space-y-4">
@@ -80,6 +71,44 @@ export default async function MonthlyMatrixPage({
           </button>
         </form>
       </div>
+
+      {/* New budget line — pick a head or type a new one, give ₹/month or ₹/year */}
+      {admin && (
+        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+            ＋ Add budget (type a new head to create it right here)
+          </summary>
+          <form action={setFyBudgetAction} className="flex flex-wrap items-end gap-3 border-t border-zinc-100 p-4">
+            <input type="hidden" name="entityId" value={entity.id} />
+            <input type="hidden" name="fy" value={fy} />
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Expense head *</span>
+              <HeadCombobox
+                heads={expenseHeads}
+                name="accountId"
+                createName="headText"
+                required
+                placeholder="Type to search — or create new"
+                className="mt-1 w-64 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount ₹ *</span>
+              <input name="amount" required inputMode="decimal" placeholder="5000" className="mt-1 w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-right text-sm" />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Per</span>
+              <select name="kind" className="mt-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <option value="monthly">month (× 12 = year)</option>
+                <option value="year">year (÷ 12 = monthly)</option>
+              </select>
+            </label>
+            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+              Add budget
+            </button>
+          </form>
+        </details>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
         <table className="w-full min-w-[1100px] text-xs">
@@ -118,14 +147,25 @@ export default async function MonthlyMatrixPage({
                     {inr(c)}
                   </td>
                 ))}
-                <td className={`${cellR} text-zinc-500`}>
-                  {admin && r.accountId ? <BudgetCell accountId={r.accountId} kind="monthly" value={r.monthlyBudget} /> : inr(r.monthlyBudget)}
-                </td>
-                <td className={`${cellR} ${r.recentVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.recentVariance)}</td>
-                <td className={`${cellR} text-zinc-500`}>
-                  {admin && r.accountId ? <BudgetCell accountId={r.accountId} kind="year" value={r.yearBudget} /> : inr(r.yearBudget)}
-                </td>
-                <td className={`${cellR} ${r.yearVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.yearVariance)}</td>
+                {admin && r.accountId ? (
+                  <BudgetCells
+                    entityId={entity.id}
+                    accountId={r.accountId}
+                    fy={fy}
+                    monthly={r.monthlyBudget}
+                    year={r.yearBudget}
+                    recentVariance={r.recentVariance}
+                    yearVariance={r.yearVariance}
+                    save={setFyBudgetAction}
+                  />
+                ) : (
+                  <>
+                    <td className={`${cellR} text-zinc-500`}>{inr(r.monthlyBudget)}</td>
+                    <td className={`${cellR} ${r.recentVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.recentVariance)}</td>
+                    <td className={`${cellR} text-zinc-500`}>{inr(r.yearBudget)}</td>
+                    <td className={`${cellR} ${r.yearVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.yearVariance)}</td>
+                  </>
+                )}
               </tr>
             ))}
             <tr className="bg-zinc-50 font-semibold">
