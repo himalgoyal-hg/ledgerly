@@ -133,7 +133,7 @@ export default async function FinanceTasksPage() {
             </div>
           </div>
           <p className="mt-2 text-[11px] text-zinc-400">
-            Fill what you have — name is enough; amount आणि बाकी cells नंतर grid मध्येच भरता येतात.
+            Fill what you have — name is enough; the amount and other cells can be filled later, right in the grid.
           </p>
         </form>
       </details>
@@ -222,7 +222,7 @@ export default async function FinanceTasksPage() {
         </table>
       </div>
       <p className="text-[11px] text-zinc-400">
-        Cell मध्ये type करून Enter — save. रिकामं केलं की clear. ✎ ने column edit, ＋ ने नवीन task.
+        Type in a cell and press Enter to save; clear it to remove. ✎ edits a column, ＋ adds a new one.
       </p>
     </div>
   )
