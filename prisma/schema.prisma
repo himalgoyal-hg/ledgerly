@@ -886,3 +886,35 @@ model AuditLog {
   @@index([actorId])
   @@index([createdAt])
 }
+
+// Finance tasks (Himal's sheet, tab "Finance task"): a monthly payment
+// checklist. Columns are recurring obligations (Mom cash, EMIs, CC bills)
+// with the paying account and due day; rows are months; a cell holds
+// whatever the sheet held — an amount, "Yes", or a note. Freeform on
+// purpose: this is a checklist register, not a ledger (nothing posts).
+model FinanceTask {
+  id         String    @id @default(cuid())
+  name       String // "Mom 40000", "Jeep Compass Emi Rs. 60973", "Comments"
+  account    String? // "MG Axis bank", "7838 account" — label, not a FK
+  dueDay     Int? // day of month the payment is due
+  sortOrder  Int       @default(0) // sheet column order
+  archivedAt DateTime?
+
+  cells FinanceTaskCell[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FinanceTaskCell {
+  id     String      @id @default(cuid())
+  taskId String
+  task   FinanceTask @relation(fields: [taskId], references: [id])
+  month  DateTime    @db.Date // first of the month
+  value  String // "₹30,000" | "Yes" | "12558- April" | note text
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([taskId, month])
+  @@index([month])
+}

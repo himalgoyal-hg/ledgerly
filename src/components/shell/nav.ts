@@ -56,6 +56,7 @@ export function buildNav(user: CurrentUser): NavGroup[] {
         { href: '/invoices', label: 'Invoices & receivables', icon: 'invoices', show: admin },
         { href: '/reimbursements', label: 'Reimbursements', icon: 'reimbursements', show: hasPermission(user, 'reimbursementSubmit') || admin },
         { href: '/bills', label: 'Bills & insurance', icon: 'bills', show: admin },
+        { href: '/tasks', label: 'Finance tasks', icon: 'tasks', show: admin },
         { href: '/salary', label: 'Salary register', icon: 'salary', show: admin },
       ],
     },
