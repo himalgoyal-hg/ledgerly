@@ -1,6 +1,7 @@
 import 'server-only'
 import { prisma } from '@/lib/db'
 import { resolveHeadAccount } from '@/lib/ops/heads'
+import { nextChildCode } from '@/lib/ledger/coa'
 import { syncBudgetForHead } from '@/lib/budget/plan'
 
 // RETIRED (18 Aug 2026): the Google-Sheet pull is switched off — the app's
@@ -109,6 +110,16 @@ function resolveBank(
   return hit?.id ?? null
 }
 
+// nature → where a master-born head lives in the chart
+const NATURE_GROUP: Record<string, { code: string; kind: 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' }> = {
+  Expense: { code: '5000', kind: 'EXPENSE' },
+  Income: { code: '4000', kind: 'INCOME' },
+  Asset: { code: '1900', kind: 'ASSET' },
+  Liability: { code: '2300', kind: 'LIABILITY' },
+  Contra: { code: '5000', kind: 'EXPENSE' },
+  Personal: { code: '5000', kind: 'EXPENSE' },
+}
+
 function poolOf(bankMode: string | null, oldPool: string | null): string {
   if (!bankMode) return oldPool ?? 'CASH'
   const m = bankMode.toLowerCase()
@@ -183,6 +194,33 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
             },
           })
           touched.add(headAccountId)
+        }
+      }
+      // The head itself is born WITH the master row — budget or no budget —
+      // so tagging, cash entry and reports see it the moment it is added.
+      {
+        const anywhere = await tx.ledgerAccount.findFirst({
+          where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' } },
+        })
+        if (!anywhere && r.category.toLowerCase() !== 'cash') {
+          const booksCode =
+            r.books && r.books !== 'CASH' ? r.books : poolOf(r.bankMode, prev?.source ?? null)
+          const entity = await tx.entity.findFirstOrThrow({
+            where: { code: booksCode === 'CASH' ? 'HG' : booksCode },
+          })
+          const spot = NATURE_GROUP[r.nature ?? 'Expense'] ?? NATURE_GROUP.Expense
+          const group = await tx.ledgerAccount.findUniqueOrThrow({
+            where: { entityId_code: { entityId: entity.id, code: spot.code } },
+          })
+          await tx.ledgerAccount.create({
+            data: {
+              entityId: entity.id,
+              code: await nextChildCode(tx, entity.id, spot.code),
+              name: r.category,
+              kind: spot.kind,
+              parentId: group.id,
+            },
+          })
         }
       }
       const bankAccountId = r.bankMode ? resolveBank(banks, r.bankMode) : null
