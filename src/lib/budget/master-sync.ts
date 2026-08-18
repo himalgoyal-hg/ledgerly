@@ -82,6 +82,23 @@ export function parseMaster(csv: string): MasterRow[] {
   return out
 }
 
+/** "HDFC 2762" → the app's own BankAccount, by number digits or name. */
+function resolveBank(
+  banks: { id: string; nickname: string; accountNumber: string }[],
+  mode: string,
+): string | null {
+  const norm = (s: string) => s.toLowerCase().replace(/meena/g, 'mg').replace(/himal/g, 'hg')
+  const m = norm(mode)
+  const digits = m.match(/\d{3,}/g) ?? []
+  if (digits.length) {
+    const hit = banks.find((b) => digits.some((d) => b.accountNumber.endsWith(d) || norm(b.nickname).includes(d)))
+    if (hit) return hit.id
+  }
+  const tokens = m.split(/[^a-z0-9]+/).filter((t) => t && !['bank', 'account', 'balance'].includes(t))
+  const hit = banks.find((b) => tokens.length > 0 && tokens.every((t) => norm(b.nickname).includes(t)))
+  return hit?.id ?? null
+}
+
 function poolOf(bankMode: string | null, oldPool: string | null): string {
   if (!bankMode) return oldPool ?? 'CASH'
   const m = bankMode.toLowerCase()
@@ -113,6 +130,10 @@ export async function syncFromMaster(csvText?: string): Promise<MasterSyncSummar
 
   const old = await prisma.budgetLine.findMany({ where: { archivedAt: null, frequency: { not: 'ONCE' } } })
   const oldByLabel = new Map(old.map((l) => [l.label.toLowerCase(), l]))
+  const banks = await prisma.bankAccount.findMany({
+    where: { archivedAt: null },
+    select: { id: true, nickname: true, accountNumber: true },
+  })
 
   const touchedHeads = new Set<string>()
   await prisma.$transaction(
@@ -156,10 +177,11 @@ export async function syncFromMaster(csvText?: string): Promise<MasterSyncSummar
           touchedHeads.add(headAccountId)
         }
         if (r.bankMode || r.expenseType) {
+          const bankAccountId = r.bankMode ? resolveBank(banks, r.bankMode) : null
           await tx.headMode.upsert({
             where: { category: r.category },
-            create: { category: r.category, modeBank: r.bankMode, modeCc: null, expenseType: r.expenseType },
-            update: { modeBank: r.bankMode ?? undefined, expenseType: r.expenseType ?? undefined },
+            create: { category: r.category, modeBank: r.bankMode, modeCc: null, expenseType: r.expenseType, bankAccountId },
+            update: { modeBank: r.bankMode ?? undefined, expenseType: r.expenseType ?? undefined, bankAccountId },
           })
         }
       }

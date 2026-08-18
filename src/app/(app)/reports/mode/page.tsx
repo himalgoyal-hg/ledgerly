@@ -45,10 +45,10 @@ export default async function ActualVsPlanModePage({
   // head × paying-account pairs from the ledger: the head line of an entry
   // paired with its bank/cash counter-line (reversals net out in the SUM)
   const pairs = await prisma.$queryRaw<
-    { head: string; acct: string; acct_no: string | null; is_cash: boolean; amt: string }[]
+    { head: string; acct: string; acct_no: string | null; bank_id: string | null; is_cash: boolean; amt: string }[]
   >`
     SELECT ha.name AS head, COALESCE(b.nickname, cl.name) AS acct,
-           b."accountNumber" AS acct_no,
+           b."accountNumber" AS acct_no, b.id AS bank_id,
            (cl.id IS NOT NULL) AS is_cash,
            SUM(hl.debit - hl.credit)::text AS amt
     FROM "JournalLine" hl
@@ -61,7 +61,7 @@ export default async function ActualVsPlanModePage({
     WHERE ha.kind IN ('EXPENSE', 'INCOME')
       AND (b.id IS NOT NULL OR cl.id IS NOT NULL)
       AND e.date >= ${from} AND e.date < ${to}
-    GROUP BY 1, 2, 3, 4
+    GROUP BY 1, 2, 3, 4, 5
     HAVING SUM(hl.debit - hl.credit) <> 0
     ORDER BY 1
   `
@@ -71,10 +71,10 @@ export default async function ActualVsPlanModePage({
 
   // group pairs by head; matching sees nickname + account number, since
   // nicknames like "HG HDFC" carry the digits only in the number
-  const byHead = new Map<string, { acct: string; matchKey: string; isCash: boolean; amt: number }[]>()
+  const byHead = new Map<string, { acct: string; matchKey: string; bankId: string | null; isCash: boolean; amt: number }[]>()
   for (const p of pairs) {
     const list = byHead.get(p.head) ?? []
-    list.push({ acct: p.acct, matchKey: `${p.acct} ${p.acct_no ?? ''}`, isCash: p.is_cash, amt: Number(p.amt) })
+    list.push({ acct: p.acct, matchKey: `${p.acct} ${p.acct_no ?? ''}`, bankId: p.bank_id, isCash: p.is_cash, amt: Number(p.amt) })
     byHead.set(p.head, list)
   }
 
@@ -84,8 +84,11 @@ export default async function ActualVsPlanModePage({
       const planned = mode?.modeBank ?? null
       const checked = accts.map((a) => ({
         ...a,
+        // resolved link first (master-sync tied the mode to a real bank
+        // account), name/number match as fallback
         ok: planned
-          ? modeMatches(planned, a.matchKey, a.isCash) ||
+          ? (mode?.bankAccountId != null && a.bankId === mode.bankAccountId) ||
+            modeMatches(planned, a.matchKey, a.isCash) ||
             (mode?.modeCc ? modeMatches(mode.modeCc, a.matchKey, a.isCash) : false)
           : null,
       }))

@@ -30,6 +30,11 @@ export default async function CoaPage() {
     prisma.headMode.findMany(),
     prisma.budgetLine.findMany({ where: { archivedAt: null, frequency: { not: 'ONCE' } } }),
   ])
+  // bank modes resolved to real accounts link straight to that bank's ledger
+  const banks = await prisma.bankAccount.findMany({
+    select: { id: true, nickname: true, ledgerAccountId: true },
+  })
+  const bankById = new Map(banks.map((b) => [b.id, b]))
   const groups = accounts.filter((a) => a.isGroup)
   const depth = (code: string) => (code.endsWith('000') ? 0 : code.endsWith('00') ? 1 : code.endsWith('0') ? 2 : 2)
 
@@ -111,11 +116,24 @@ export default async function CoaPage() {
                       if (!mode && lines.length === 0) return <span className="text-zinc-300">—</span>
                       return (
                         <div className="flex flex-wrap items-center gap-1">
-                          {mode?.modeBank && (
-                            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-800" title="Planned bank mode">
-                              {mode.modeBank}
-                            </span>
-                          )}
+                          {mode?.modeBank &&
+                            (() => {
+                              const bank = mode.bankAccountId ? bankById.get(mode.bankAccountId) : null
+                              const chip = (
+                                <span
+                                  className={`rounded-full border px-2 py-0.5 ${bank ? 'border-sky-300 bg-sky-50 text-sky-800 hover:bg-sky-100' : 'border-sky-200 bg-sky-50 text-sky-800'}`}
+                                  title={bank ? `Planned bank mode — linked to ${bank.nickname}; click for its ledger` : 'Planned bank mode'}
+                                >
+                                  {mode.modeBank}
+                                  {bank ? ' ↗' : ''}
+                                </span>
+                              )
+                              return bank?.ledgerAccountId ? (
+                                <Link href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`}>{chip}</Link>
+                              ) : (
+                                chip
+                              )
+                            })()}
                           {mode?.modeCc && (
                             <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800" title="Planned credit card">
                               {mode.modeCc}

@@ -102,6 +102,43 @@ export default async function OverviewPage() {
   const hasPostings = Boolean(flows?.some((m) => m.income || m.expense || m.cashNet))
   const today = new Date().toISOString().slice(0, 10)
 
+  // The master sheet's connected picture: monthly plan rhythm, what's due
+  // next (by the sheet's day column), and how much of the graph is linked.
+  const planCard = admin
+    ? await (async () => {
+        const { lineMonthly } = await import('@/lib/budget/plan')
+        const lines = await prisma.budgetLine.findMany({ where: { archivedAt: null } })
+        let monthlyIn = 0
+        let monthlyOut = 0
+        const dayToday = new Date().getDate()
+        const dueSoon: { label: string; day: string; amount: number }[] = []
+        for (const l of lines) {
+          const m = l.frequency === 'ONCE' ? 0 : lineMonthly(l)
+          if (m > 0) monthlyOut += m
+          if (m < 0) monthlyIn -= m
+          const d = Number(l.dayNote)
+          if (l.frequency === 'MONTHLY' && Number.isInteger(d) && d >= dayToday && Number(l.amount) > 0) {
+            dueSoon.push({ label: l.label, day: `${d}th`, amount: Number(l.amount) })
+          }
+        }
+        dueSoon.sort((a, b) => parseInt(a.day) - parseInt(b.day))
+        const [linkedBanks, ccHeads] = await Promise.all([
+          prisma.headMode.count({ where: { bankAccountId: { not: null } } }),
+          prisma.ledgerAccount.count({
+            where: { defaultCostCentreId: { not: null }, isGroup: false, archivedAt: null },
+          }),
+        ])
+        return {
+          monthlyIn,
+          monthlyOut,
+          lines: lines.filter((l) => l.frequency !== 'ONCE').length,
+          dueSoon: dueSoon.slice(0, 5),
+          linkedBanks,
+          ccHeads,
+        }
+      })()
+    : null
+
   return (
     <div className="space-y-6 animate-fade-up">
       {/* Page header */}
@@ -251,6 +288,54 @@ export default async function OverviewPage() {
           />
         )}
       </section>
+
+      {/* Finance plan (master sheet) — the connected picture for the admin:
+          the plan's monthly rhythm, what's due next, and the mode check */}
+      {admin && planCard && (
+        <Card>
+          <CardHeader
+            title="Finance plan (master sheet)"
+            hint="Plan lines, budgets, modes and cost centres — all synced from New Finance setup HG"
+            action={{ label: 'Accounts', href: '/admin/coa' }}
+          />
+          <div className="grid gap-4 px-5 pb-4 sm:px-6 md:grid-cols-3">
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Plan / month</div>
+              <div className="mt-1 space-y-0.5 text-sm tabular-nums">
+                <div className="text-emerald-700">In {displayINR(planCard.monthlyIn.toFixed(0))}</div>
+                <div className="text-red-600">Out {displayINR(planCard.monthlyOut.toFixed(0))}</div>
+                <div className={`font-semibold ${planCard.monthlyIn - planCard.monthlyOut < 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                  Net {displayINR((planCard.monthlyIn - planCard.monthlyOut).toFixed(0))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due next (this month)</div>
+              <div className="mt-1 space-y-0.5 text-xs text-zinc-600">
+                {planCard.dueSoon.length === 0 && <div className="text-zinc-400">nothing with a due day ahead</div>}
+                {planCard.dueSoon.map((d) => (
+                  <div key={d.label} className="flex justify-between gap-2">
+                    <span className="truncate">{d.day} · {d.label}</span>
+                    <span className="tabular-nums">{displayINR(d.amount.toFixed(0))}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Connected</div>
+              <div className="mt-1 space-y-0.5 text-xs text-zinc-600">
+                <div>{planCard.lines} plan lines · {planCard.linkedBanks} bank-linked modes</div>
+                <div>{planCard.ccHeads} heads with default cost centre</div>
+                <Link href="/reports/cash-flow?view=ahead" className="text-zinc-500 hover:underline">Cash ahead →</Link>
+                <br />
+                <Link href="/reports/mode" className="text-amber-700 hover:underline">
+                  Check this month&apos;s mode mismatches →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* Analytics */}
       {(admin || can.financials) && (

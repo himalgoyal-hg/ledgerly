@@ -962,5 +962,8 @@ model HeadMode {
   modeBank    String? // "HDFC 2762", "ACPL HDFC 7838", "Cash", "Greeshma balance"
   modeCc      String? // "Tata Neo", "AMEX CC", "ICICI CC"
   expenseType String? // Compulsory | Optional-Lifestyle | Optional-growth | Optional-Investment
+  // The mode resolved to the app's own bank account (by number/name at
+  // master-sync time) — everything connects: category → head → account.
+  bankAccountId String?
   updatedAt   DateTime @updatedAt
 }
