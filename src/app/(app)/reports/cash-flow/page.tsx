@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireUser, isAdmin } from '@/lib/auth'
@@ -32,6 +33,20 @@ export default async function CashFlowPage(props: {
   const pools = admin ? await projectPools(new Date(), 6) : []
   // Bank + cash TOGETHER: every pool (each books' banks, plus the cash
   // pool) summed per month — the same live rupees the dashboard totals.
+  const agg = (subset: typeof pools) =>
+    subset.length > 0 && pools.length > 0
+      ? pools[0].months.map((m, i) => ({
+          month: m.month,
+          opening: subset.reduce((t, p) => t + p.months[i].opening, 0),
+          inflow: subset.reduce((t, p) => t + p.months[i].inflow, 0),
+          outflow: subset.reduce((t, p) => t + p.months[i].outflow, 0),
+          closing: subset.reduce((t, p) => t + p.months[i].closing, 0),
+        }))
+      : []
+  // bank and cash ARE different pockets — each gets its own block, the
+  // total ties them back together
+  const bankMonths = agg(pools.filter((p) => p.pool !== 'CASH'))
+  const cashMonths = agg(pools.filter((p) => p.pool === 'CASH'))
   const cashProjection =
     pools.length > 0
       ? {
@@ -291,41 +306,51 @@ export default async function CashFlowPage(props: {
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              <tr>
-                <td className="px-3 py-1.5 text-xs font-medium text-zinc-500">Opening Balance</td>
-                {cashProjection.months.map((m) => (
-                  <td key={m.month} className="px-2 py-1.5 text-right tabular-nums text-zinc-600">
-                    {displayINR(m.opening.toFixed(0))}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="px-3 py-1.5 text-xs font-medium text-zinc-500">Incoming</td>
-                {cashProjection.months.map((m) => (
-                  <td key={m.month} className="px-2 py-1.5 text-right tabular-nums text-emerald-700">
-                    {displayINR(m.inflow.toFixed(0))}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="px-3 py-1.5 text-xs font-medium text-zinc-500">Outgoing</td>
-                {cashProjection.months.map((m) => (
-                  <td key={m.month} className="px-2 py-1.5 text-right tabular-nums text-red-600">
-                    {m.outflow ? `-${displayINR(m.outflow.toFixed(0))}` : displayINR('0')}
-                  </td>
-                ))}
-              </tr>
-              <tr className="bg-zinc-50 font-semibold">
-                <td className="px-3 py-1.5 text-xs text-zinc-800">Closing</td>
-                {cashProjection.months.map((m) => (
-                  <td
-                    key={m.month}
-                    className={`px-2 py-1.5 text-right tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-900'}`}
-                  >
-                    {displayINR(m.closing.toFixed(0))}
-                  </td>
-                ))}
-              </tr>
+              {([
+                ['Bank', bankMonths],
+                ['Cash', cashMonths],
+                ['Total', cashProjection.months],
+              ] as const).map(([label, months]) => (
+                <Fragment key={label}>
+                  <tr className={label === 'Total' ? 'border-t-2 border-zinc-300 bg-zinc-50/80' : 'bg-zinc-50/50'}>
+                    <td colSpan={months.length + 1} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                      {label}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1 text-xs text-zinc-500">Opening Balance</td>
+                    {months.map((m) => (
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-zinc-600">
+                        {displayINR(m.opening.toFixed(0))}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1 text-xs text-zinc-500">Incoming</td>
+                    {months.map((m) => (
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-emerald-700">
+                        {displayINR(m.inflow.toFixed(0))}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-1 text-xs text-zinc-500">Outgoing</td>
+                    {months.map((m) => (
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-red-600">
+                        {m.outflow ? `-${displayINR(m.outflow.toFixed(0))}` : displayINR('0')}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className={label === 'Total' ? 'bg-zinc-100/80 font-semibold' : 'font-medium'}>
+                    <td className="px-3 py-1 text-xs text-zinc-800">Closing</td>
+                    {months.map((m) => (
+                      <td key={m.month} className={`px-2 py-1 text-right text-xs tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                        {displayINR(m.closing.toFixed(0))}
+                      </td>
+                    ))}
+                  </tr>
+                </Fragment>
+              ))}
             </tbody>
           </table>
           {/* pool-by-pool drill-down, tucked away */}
