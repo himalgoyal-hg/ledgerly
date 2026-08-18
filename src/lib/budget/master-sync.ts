@@ -195,9 +195,10 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
         cashBudget: r.cashBudget !== 0 ? r.cashBudget.toFixed(2) : null,
       }
+      const last = await tx.headMode.aggregate({ _max: { sortOrder: true } })
       await tx.headMode.upsert({
         where: { category: r.category },
-        create: { category: r.category, modeCc: null, ...mirror },
+        create: { category: r.category, modeCc: null, sortOrder: (last._max.sortOrder ?? 0) + 1, ...mirror },
         update: mirror,
       })
     },

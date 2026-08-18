@@ -972,6 +972,8 @@ model HeadMode {
   // WHOLE master — zero-budget and note-only rows included.
   nature     String? // Expense | Income | Liability | Asset | Contra | Personal
   books      String? // HG | ACPL | MG | PG — which books the plan/head belongs to (blank = derive from bank mode)
+  section    String? // the sheet's grouping: HG/ MG EXPENSES | ACPL TRANSACTIONS | ...
+  sortOrder  Int      @default(0) // the sheet's row order within the register
   frequency  String? // DAILY..ANNUAL
   dayNote    String?
   bankBudget Decimal? @db.Decimal(14, 2)

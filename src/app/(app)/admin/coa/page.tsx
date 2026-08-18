@@ -5,6 +5,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { saveMasterRowAction, removeMasterRowAction } from './actions'
 import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
+import { Fragment } from 'react'
 import { SmartCombobox } from '@/components/smart-combobox'
 
 // Accounts IS the master register (Himal, 18 Aug 2026): every category with
@@ -33,7 +34,7 @@ export default async function CoaPage() {
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
 
-  const modes = await prisma.headMode.findMany({ orderBy: { category: 'asc' } })
+  const modes = await prisma.headMode.findMany({ orderBy: [{ sortOrder: 'asc' }, { category: 'asc' }] })
   const banks = await prisma.bankAccount.findMany({
     select: { id: true, nickname: true, ledgerAccountId: true },
   })
@@ -100,13 +101,23 @@ export default async function CoaPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {[null, ...modes].map((m) => {
+            {[null, ...modes].map((m, idx, arr) => {
+              const prev = idx > 1 ? (arr[idx - 1] as (typeof modes)[number] | null) : null
+              const sectionHeader =
+                m && m.section && m.section !== (prev?.section ?? null) ? m.section : null
               const fid = m ? `mr-${m.id}` : 'mr-new'
               const heads = m ? (headsByName.get(m.category.toLowerCase()) ?? []) : []
               const bank = m?.bankAccountId ? bankById.get(m.bankAccountId) : null
               return (
+                <Fragment key={m?.id ?? 'new'}>
+                {sectionHeader && (
+                  <tr data-filter-keep="1" className="border-t border-zinc-200 bg-zinc-100/70">
+                    <td colSpan={9} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                      {sectionHeader}
+                    </td>
+                  </tr>
+                )}
                 <tr
-                  key={m?.id ?? 'new'}
                   data-filter-keep={m ? undefined : '1'}
                   className={
                     m
@@ -227,6 +238,7 @@ export default async function CoaPage() {
                     )}
                   </td>
                 </tr>
+                </Fragment>
               )
             })}
           </tbody>
