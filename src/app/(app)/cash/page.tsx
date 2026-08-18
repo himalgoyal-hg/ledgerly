@@ -5,7 +5,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { cashBalances } from '@/lib/ops/cash'
 import { projectPools } from '@/lib/budget/plan'
 import type { HeadOpt } from '@/components/head-combobox'
-import { CashQuickRow, type QuickLocation } from './quick-row'
+import { CashQuickRow, type QuickLocation, type CcOption } from './quick-row'
 import {
   createCashEntryAction,
   quickCashEntryAction,
@@ -89,6 +89,10 @@ export default async function CashPage(props: {
   const quickLocations: QuickLocation[] = locations.map((l) => ({
     id: l.id, name: l.name, entityId: l.entityId, entityCode: entityCode.get(l.entityId) ?? '?',
   }))
+  // cost centres per books, for the quick row's second classification tier
+  const allCcs = await prisma.costCentre.findMany({ where: { archivedAt: null }, orderBy: { name: 'asc' } })
+  const costCentresByEntity: Record<string, CcOption[]> = {}
+  for (const c of allCcs) (costCentresByEntity[c.entityId] ??= []).push({ id: c.id, label: c.name })
 
   // --- Passbook (running balance) ---
   // Scope = one location or the whole pool; walk backwards from the live
@@ -279,6 +283,7 @@ export default async function CashPage(props: {
           <CashQuickRow
             locations={quickLocations}
             headsByEntity={headsByEntity}
+            costCentresByEntity={costCentresByEntity}
             action={quickCashEntryAction}
           />
           <div className="flex flex-wrap gap-4">

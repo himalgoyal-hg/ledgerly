@@ -101,6 +101,8 @@ export async function quickCashEntryAction(formData: FormData) {
   const locationId = String(formData.get('locationId') ?? '')
   const details = String(formData.get('details') ?? '').trim() || null
   const comments = String(formData.get('comments') ?? '').trim() || null
+  const costCentreId = String(formData.get('costCentreId') ?? '') || null
+  const costCentreText = String(formData.get('costCentreText') ?? '').trim() || null
 
   await auditedTransaction(async (tx) => {
     const location = await tx.cashLocation.findUniqueOrThrow({ where: { id: locationId } })
@@ -118,13 +120,14 @@ export async function quickCashEntryAction(formData: FormData) {
         isOutflow,
       })
     }
+    const ccId = await resolveCostCentre(tx, { entityId, costCentreId, costCentreText })
     const entry = await createCashEntry(tx, {
       entityId,
       kind: isOutflow ? 'PAYMENT' : 'RECEIPT',
       date,
       locationId,
       headAccountId,
-      costCentreId: null, // head's default rides along inside createCashEntry
+      costCentreId: ccId, // null → head's default rides along inside createCashEntry
       amount: Math.abs(value).toFixed(2),
       remarks: details,
       actorId: user.id,
