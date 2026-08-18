@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { saveMasterRowAction, removeMasterRowAction } from './actions'
+import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
 
 // Accounts IS the master register (Himal, 18 Aug 2026): every category with
@@ -21,22 +22,12 @@ const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
   HALF_YEARLY: 'Half yearly', ANNUAL: 'Annual',
 }
-export default async function CoaPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>
-}) {
+export default async function CoaPage() {
   const user = await requireAdmin()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
 
-  const params = await searchParams
-  const q = (params.q ?? '').trim()
-
-  const modes = await prisma.headMode.findMany({
-    where: q ? { category: { contains: q, mode: 'insensitive' } } : undefined,
-    orderBy: { category: 'asc' },
-  })
+  const modes = await prisma.headMode.findMany({ orderBy: { category: 'asc' } })
   const banks = await prisma.bankAccount.findMany({
     select: { id: true, nickname: true, ledgerAccountId: true },
   })
@@ -63,26 +54,11 @@ export default async function CoaPage({
             The single source of the plan. Edit a cell, hit ✓ — cash flow, budgets, reports and tagging follow.
           </p>
         </div>
-        <form className="flex items-center gap-1.5">
-          <input
-            name="q"
-            defaultValue={q}
-            placeholder="Search heads…"
-            className="w-44 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-500 focus:outline-none"
-          />
-          <button type="submit" className="rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">
-            Go
-          </button>
-          {q && (
-            <Link href="/admin/coa" className="text-xs text-zinc-400 hover:text-zinc-700">
-              clear
-            </Link>
-          )}
-        </form>
+        <LiveFilter selector="[data-live-filter='master']" placeholder="Type to search heads…" />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[74rem] text-left text-sm">
+        <table data-live-filter="master" className="w-full min-w-[74rem] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[9px] uppercase tracking-wider text-zinc-400">
               <th colSpan={3} className="px-3 pt-2 pb-0.5 font-medium">What it is</th>
@@ -91,7 +67,7 @@ export default async function CoaPage({
               <th className="bg-zinc-50/80" />
             </tr>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[10px] uppercase tracking-wider text-zinc-500">
-              <th className="px-3 py-1.5">Expense Head {q ? `(${modes.length} of search)` : `(${modes.length})`}</th>
+              <th className="px-3 py-1.5">Expense Head ({modes.length})</th>
               <th className="px-2 py-1.5">Books</th>
               <th className="px-2 py-1.5">Nature</th>
               <th className="px-2 py-1.5">Bank mode</th>
@@ -111,6 +87,7 @@ export default async function CoaPage({
               return (
                 <tr
                   key={m?.id ?? 'new'}
+                  data-filter-keep={m ? undefined : '1'}
                   className={m ? 'even:bg-zinc-50/40 hover:bg-sky-50/40' : 'bg-emerald-50/50'}
                 >
                   <td className="px-3 py-1 text-xs font-medium text-zinc-800">

@@ -16,6 +16,7 @@ import { ConfirmButton } from '@/components/confirm-button'
 import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { InvoiceRow } from './invoice-row'
+import { LiveFilter } from '@/components/live-filter'
 
 // Invoices (spec §6.6), export-first: billing knows only the client, the $
 // and the date (due = +7 days, follow up after the 10th) — the money (rate,
@@ -255,9 +256,10 @@ export default async function InvoicesPage() {
         </details>
       </details>
 
+      <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='invoices']" placeholder="Search invoices — client / books / amount…" /></div>
       {/* The register — the Excel sheet, computed */}
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[72rem] text-left text-sm">
+        <table data-live-filter="invoices" className="w-full min-w-[72rem] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
               <th className="px-1.5 py-2">#</th>

@@ -7,6 +7,7 @@ import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { createBillAction, payBillAction, deleteBillAction, updateBillAction } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
 import { BillRow } from './bill-row'
+import { LiveFilter } from '@/components/live-filter'
 
 // Bills & insurance (spec §6.3): a document store + reminder list. Nothing
 // posts from here — the expense reaches the books when the bank-statement
@@ -89,6 +90,8 @@ export default async function BillsPage() {
           </a>
         </div>
       </div>
+
+      <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='bills']" placeholder="Search bills — vendor / policy / type…" /></div>
 
       {/* New bill — tucked away until needed */}
       <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
@@ -217,7 +220,7 @@ export default async function BillsPage() {
 
       {/* The register */}
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[72rem] text-left text-sm">
+        <table data-live-filter="bills" className="w-full min-w-[72rem] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
               <th className="px-3 py-2">Vendor</th>
@@ -336,7 +339,7 @@ export default async function BillsPage() {
           <div className="border-b border-zinc-200 px-4 py-2">
             <h2 className="text-sm font-medium text-zinc-900">Recently paid</h2>
           </div>
-          <table className="w-full text-left text-sm">
+          <table data-live-filter="bills" className="w-full text-left text-sm">
             <tbody className="divide-y divide-zinc-50">
               {paid.map((bill) => {
                 const files = fileLinks(bill.link)

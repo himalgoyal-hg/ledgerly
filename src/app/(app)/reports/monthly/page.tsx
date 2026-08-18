@@ -5,6 +5,7 @@ import { expenseMatrixFy } from '@/lib/reports/prototype'
 import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
 import { BudgetCells } from './budget-cells'
+import { LiveFilter } from '@/components/live-filter'
 
 // Expenses M/M — the sheet's tab, computed instead of typed: heads × FY
 // months straight from tagged entries, budget columns from Budget vs
@@ -110,8 +111,9 @@ export default async function MonthlyMatrixPage({
         </details>
       )}
 
+      <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='mm']" placeholder="Search expense heads…" /></div>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <table className="w-full min-w-[1100px] text-xs">
+        <table data-live-filter="mm" className="w-full min-w-[1100px] text-xs">
           <thead className="border-b border-zinc-200 text-left uppercase text-zinc-500">
             <tr className="text-[9px] text-zinc-400">
               <th colSpan={2}></th>
@@ -168,7 +170,7 @@ export default async function MonthlyMatrixPage({
                 )}
               </tr>
             ))}
-            <tr className="bg-zinc-50 font-semibold">
+            <tr data-filter-keep="1" className="bg-zinc-50 font-semibold">
               <td className={cellR}>{inr(m.grand)}</td>
               <td className="px-2 py-1.5">Total</td>
               {m.colTotals.map((c, i) => (

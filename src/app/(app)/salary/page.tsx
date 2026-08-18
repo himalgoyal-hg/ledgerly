@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { LiveFilter } from '@/components/live-filter'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
@@ -97,7 +98,7 @@ export default async function SalaryPage() {
         <h2 className="text-sm font-medium text-zinc-900">{title}</h2>
         <p className="text-xs text-zinc-400">for cost budgeting — monthly and yearly run rate</p>
       </div>
-      <table className="w-full text-left text-sm">
+      <table data-live-filter="salary" className="w-full text-left text-sm">
         <thead>
           <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
             <th className="px-4 py-1.5">&nbsp;</th>
@@ -131,6 +132,7 @@ export default async function SalaryPage() {
 
       {/* The register (spec §6.4): every person with team, cost centre and
           the money columns budgeting needs; edit inline. */}
+      <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='salary']" placeholder="Search people / team…" /></div>
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
         <table className="w-full min-w-[56rem] text-left text-sm">
           <thead>
