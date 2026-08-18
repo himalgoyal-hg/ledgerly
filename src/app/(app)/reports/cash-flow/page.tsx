@@ -8,6 +8,7 @@ import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
 import { ReportHeader, DateRangeFilters } from '../report-chrome'
+import { SmartCombobox } from '@/components/smart-combobox'
 
 // Cash Flow (spec §10), direct method: every entry touching bank or cash
 // contributes its counter-lines. Transfers between own accounts have no
@@ -105,6 +106,12 @@ export default async function CashFlowPage(props: {
   })()
 
   const POOL_OPTIONS = ['ACPL', 'HG', 'MG', 'PG', 'CASH']
+  // same Day dropdown as the master register: dates, weekdays, period-ends
+  const DAY_OPTIONS = [
+    ...Array.from({ length: 31 }, (_, i) => String(i + 1)),
+    'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+    'End of month', 'End of quarter',
+  ]
   const shortMonth = (m: string) =>
     `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
   const freqLabel: Record<string, string> = {
@@ -475,12 +482,16 @@ export default async function CashFlowPage(props: {
                       </select>
                     </td>
                     <td className="px-2 py-0.5">
-                      <input
+                      <SmartCombobox
+                        options={[
+                          ...(row?.dayNote && !DAY_OPTIONS.includes(row.dayNote) ? [{ id: row.dayNote, label: row.dayNote }] : []),
+                          ...DAY_OPTIONS.map((d) => ({ id: d, label: d })),
+                        ]}
                         name="dayNote"
-                        form={formId}
-                        defaultValue={row?.dayNote ?? ''}
-                        placeholder="27 / Friday"
-                        className="w-20 rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        defaultId={row?.dayNote ?? ''}
+                        formId={formId}
+                        placeholder="Day"
+                        className="w-24 rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="whitespace-nowrap px-2 py-1 text-right text-xs tabular-nums text-zinc-500">
