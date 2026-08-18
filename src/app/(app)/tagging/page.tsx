@@ -270,7 +270,6 @@ export default async function TaggingPage(props: {
         ...(txn.balance !== null ? [['Balance after', displayINR(String(txn.balance))] as [string, string]] : []),
         ['Status', txn.status.toLowerCase()],
         ...(txn.headAccountId ? [['Head', headName(txn.headAccountId)] as [string, string]] : []),
-        ...(txn.nature ? [['Nature', natureLabel(txn.nature)] as [string, string]] : []),
         ...(ccName(txn.costCentreId) ? [['Cost centre', ccName(txn.costCentreId)!] as [string, string]] : []),
         ...(txn.taggedById || txn.autoTagged
           ? [['Tagged', txn.autoTagged ? 'Verified by System' : `${txn.tagSource ?? 'manual'} — ${userName(txn.taggedById)}`] as [string, string]]
@@ -400,7 +399,7 @@ export default async function TaggingPage(props: {
           defaultValue={q}
           list="tag-search-suggest"
           autoComplete="off"
-          placeholder="Search — narration / head / nature / cost centre"
+          placeholder="Search — narration / head / cost centre"
           className="w-72 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
         />
         {/* Auto-suggest: first letters filter heads, natures, cost centres
@@ -593,8 +592,6 @@ export default async function TaggingPage(props: {
                               >
                                 {headName(txn.aiHeadAccountId)}
                               </span>
-                              <span className="text-zinc-400">·</span>
-                              <span className="text-zinc-700">{natureLabel(txn.aiNature)}</span>
                               {ccName(txn.aiCostCentreId) && (
                                 <>
                                   <span className="text-zinc-400">·</span>
