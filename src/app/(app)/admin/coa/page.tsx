@@ -5,6 +5,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { saveMasterRowAction, removeMasterRowAction } from './actions'
 import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
+import { SmartCombobox } from '@/components/smart-combobox'
 
 // Accounts IS the master register (Himal, 18 Aug 2026): every category with
 // its books, bank mode, cost centre, budgets, frequency, day and nature —
@@ -113,12 +114,14 @@ export default async function CoaPage() {
                     )}
                   </td>
                   <td className="w-24 px-1 py-0.5">
-                    <select name="nature" form={fid} defaultValue={m?.nature ?? ''} className={`${cellCls} bg-white`}>
-                      <option value=""></option>
-                      {NATURES.map((n) => (
-                        <option key={n}>{n}</option>
-                      ))}
-                    </select>
+                    <SmartCombobox
+                      options={NATURES.map((n) => ({ id: n, label: n }))}
+                      name="nature"
+                      defaultId={m?.nature ?? ''}
+                      formId={fid}
+                      placeholder="Nature"
+                      className={`${cellCls} bg-white`}
+                    />
                   </td>
                   <td className="w-32 px-1 py-0.5">
                     <div className="flex items-center gap-1">
@@ -131,12 +134,14 @@ export default async function CoaPage() {
                     </div>
                   </td>
                   <td className="w-32 px-1 py-0.5">
-                    <select name="expenseType" form={fid} defaultValue={m?.expenseType ?? ''} className={`${cellCls} bg-white`}>
-                      <option value=""></option>
-                      {CC_TYPES.map((t) => (
-                        <option key={t}>{t}</option>
-                      ))}
-                    </select>
+                    <SmartCombobox
+                      options={CC_TYPES.map((t) => ({ id: t, label: t }))}
+                      name="expenseType"
+                      defaultId={m?.expenseType ?? ''}
+                      formId={fid}
+                      placeholder="Cost centre"
+                      className={`${cellCls} bg-white`}
+                    />
                   </td>
                   <td className="w-24 px-1 py-0.5">
                     <input
@@ -158,23 +163,27 @@ export default async function CoaPage() {
                     />
                   </td>
                   <td className="w-28 px-1 py-0.5">
-                    <select name="frequency" form={fid} defaultValue={m?.frequency ?? ''} className={`${cellCls} bg-white`}>
-                      <option value=""></option>
-                      {Object.entries(FREQ_LABEL).map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
-                      ))}
-                    </select>
+                    <SmartCombobox
+                      options={Object.entries(FREQ_LABEL).map(([v, l]) => ({ id: v, label: l }))}
+                      name="frequency"
+                      defaultId={m?.frequency ?? ''}
+                      formId={fid}
+                      placeholder="Frequency"
+                      className={`${cellCls} bg-white`}
+                    />
                   </td>
                   <td className="w-24 px-1 py-0.5">
-                    <select name="dayNote" form={fid} defaultValue={m?.dayNote ?? ''} className={`${cellCls} bg-white`}>
-                      <option value=""></option>
-                      {m?.dayNote && !DAY_OPTIONS.includes(m.dayNote) && (
-                        <option value={m.dayNote}>{m.dayNote}</option>
-                      )}
-                      {DAY_OPTIONS.map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
+                    <SmartCombobox
+                      options={[
+                        ...(m?.dayNote && !DAY_OPTIONS.includes(m.dayNote) ? [{ id: m.dayNote, label: m.dayNote }] : []),
+                        ...DAY_OPTIONS.map((d) => ({ id: d, label: d })),
+                      ]}
+                      name="dayNote"
+                      defaultId={m?.dayNote ?? ''}
+                      formId={fid}
+                      placeholder="Day"
+                      className={`${cellCls} bg-white`}
+                    />
                   </td>
                   <td className="whitespace-nowrap px-2 py-0.5 text-right">
                     <form id={fid} action={saveMasterRowAction} className="inline">

@@ -44,11 +44,21 @@ export function SmartCombobox(props: {
   const resolve = (raw: string): ComboOpt | null => {
     const typed = raw.trim().toLowerCase()
     if (!typed) return null
-    return (
+    const exact =
       options.find((o) => o.label.toLowerCase() === typed) ??
-      options.find((o) => o.id.toLowerCase() === typed) ??
-      null
-    )
+      options.find((o) => o.id.toLowerCase() === typed)
+    if (exact) return exact
+    // Smart search: as soon as the typed text points at exactly ONE option,
+    // snap to it — same Excel feel as the head box. Lets go if typing on.
+    if (typed.length >= 2) {
+      const starts = options.filter((o) => o.label.toLowerCase().startsWith(typed))
+      if (starts.length === 1) return starts[0]
+      if (starts.length === 0) {
+        const contains = options.filter((o) => o.label.toLowerCase().includes(typed))
+        if (contains.length === 1) return contains[0]
+      }
+    }
+    return null
   }
   const unresolved = props.createName && !id ? text.trim() : ''
   const creating = unresolved !== ''
