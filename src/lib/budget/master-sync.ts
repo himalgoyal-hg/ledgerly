@@ -29,6 +29,8 @@ export interface MasterRow {
   nature: string | null
   /** Explicit books for the plan/head (HG/ACPL/MG/PG); blank = derive from bank mode. */
   books?: string | null
+  /** Claimable-as for income tax; undefined = keep the previous line's value. */
+  taxTreatment?: string | null
 }
 
 const FREQ: Record<string, string> = {
@@ -174,7 +176,7 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
               amount: part.amount.toFixed(2),
               onMonth: null,
               expenseType: r.expenseType,
-              taxTreatment: prev?.taxTreatment ?? null,
+              taxTreatment: r.taxTreatment !== undefined ? r.taxTreatment : (prev?.taxTreatment ?? null),
               dayNote: r.dayNote,
             },
           })

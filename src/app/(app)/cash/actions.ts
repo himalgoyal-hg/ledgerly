@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { prisma } from '@/lib/db'
 import { requirePermission, requireAdmin } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import { createCashEntry } from '@/lib/ops/cash'
@@ -314,4 +315,85 @@ export async function purgeCashEntryAction(formData: FormData) {
     })
   })
   revalidatePath('/cash')
+}
+
+/**
+ * One category, one row — the Cash-ahead register's save: bank and cash
+ * budgets in their own columns, claimable-as editable, everything else
+ * (mode, books, nature, cost centre) carried from the master. Runs the
+ * same applyMasterRow the Accounts register uses, so both screens are the
+ * same truth.
+ */
+export async function saveCategoryPlanAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const f = (n: string) => String(formData.get(n) ?? '').trim()
+  const num = (n: string) => {
+    const raw = f(n).replace(/[,₹\s]/g, '')
+    if (!raw) return 0
+    const v = Number(raw)
+    if (!Number.isFinite(v)) throw new Error(`Bad amount in ${n}`)
+    return v
+  }
+  const category = f('category')
+  if (!category) throw new Error('Name the category')
+  const bankBudget = num('bankBudget')
+  const cashBudget = num('cashBudget')
+  const frequency = f('frequency') || null
+  if ((bankBudget !== 0 || cashBudget !== 0) && !frequency) throw new Error('A budget needs its frequency')
+
+  const hm = await prisma.headMode.findFirst({
+    where: { category: { equals: category, mode: 'insensitive' } },
+  })
+  const { applyMasterRow } = await import('@/lib/budget/master-sync')
+  await applyMasterRow({
+    category: hm?.category ?? category,
+    bankMode: hm?.modeBank ?? null,
+    expenseType: hm?.expenseType ?? null,
+    bankBudget,
+    cashBudget,
+    frequency,
+    dayNote: f('dayNote') || null,
+    nature: hm?.nature ?? null,
+    books: hm?.books ?? null,
+    taxTreatment: f('taxTreatment') || null,
+  })
+  await auditedTransaction(async (tx) => {
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'cash.plan_save',
+      targetType: 'HeadMode',
+      targetId: category,
+      summary: `Plan "${category}": bank ₹${bankBudget} / cash ₹${cashBudget} ${frequency ?? ''}`,
+    })
+  })
+  revalidatePath('/cash')
+  revalidatePath('/reports/cash-flow')
+  revalidatePath('/admin/coa')
+}
+
+/** Take a whole category off the recurring plan (both its bank and cash lines). */
+export async function archiveCategoryPlanAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const category = String(formData.get('category') ?? '').trim()
+  const lines = await prisma.budgetLine.findMany({
+    where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: category, mode: 'insensitive' } },
+  })
+  await auditedTransaction(async (tx) => {
+    for (const line of lines) {
+      await tx.budgetLine.update({ where: { id: line.id }, data: { archivedAt: new Date() } })
+      if (line.headAccountId) {
+        const { syncBudgetForHead } = await import('@/lib/budget/plan')
+        await syncBudgetForHead(tx, line.headAccountId)
+      }
+    }
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'cash.plan_archive',
+      targetType: 'HeadMode',
+      targetId: category,
+      summary: `Plan category "${category}" removed (${lines.length} line(s) → recycle bin)`,
+    })
+  })
+  revalidatePath('/cash')
+  revalidatePath('/reports/cash-flow')
 }

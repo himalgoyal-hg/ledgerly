@@ -5,7 +5,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
-import { saveCashPlanAction, archiveCashPlanAction } from '../../cash/actions'
+import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
 import { ReportHeader, DateRangeFilters } from '../report-chrome'
 
 // Cash Flow (spec §10), direct method: every entry touching bank or cash
@@ -67,6 +67,28 @@ export default async function CashFlowPage(props: {
         ),
       ]
     : []
+  // One row per CATEGORY, bank and cash budgets in their OWN columns —
+  // the sheet's shape. Same-label bank/cash lines fold into one row.
+  const recurringCats = (() => {
+    const map = new Map<string, {
+      label: string; bank: number; cash: number; frequency: string
+      dayNote: string | null; taxTreatment: string | null
+    }>()
+    for (const l of planLines.filter((x) => x.frequency !== 'ONCE')) {
+      const key = l.label.toLowerCase()
+      const row = map.get(key) ?? {
+        label: l.label, bank: 0, cash: 0, frequency: l.frequency, dayNote: l.dayNote, taxTreatment: l.taxTreatment,
+      }
+      if (l.source === 'CASH') row.cash += Number(l.amount)
+      else row.bank += Number(l.amount)
+      row.frequency = l.frequency
+      row.dayNote = row.dayNote ?? l.dayNote
+      row.taxTreatment = row.taxTreatment ?? l.taxTreatment
+      map.set(key, row)
+    }
+    return [...map.values()].sort((a, b) => a.label.localeCompare(b.label))
+  })()
+
   const POOL_OPTIONS = ['ACPL', 'HG', 'MG', 'PG', 'CASH']
   const shortMonth = (m: string) =>
     `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(m.slice(5, 7)) - 1]} ${m.slice(2, 4)}`
@@ -347,49 +369,62 @@ export default async function CashFlowPage(props: {
         </div>
       )}
 
-      {/* Recurring — the sheet's left block: category, budget, claimable-as,
-          frequency, day, account. Rows edit in place; the green row adds. */}
+      {/* Recurring — one row per category, Bank budget and Cash budget in
+          their OWN columns (the sheet's shape). Saving runs the same master
+          propagation as the Accounts register. */}
       {view === 'ahead' && cashProjection && (
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
-          <table className="w-full min-w-[62rem] text-left text-sm">
+          <table className="w-full min-w-[64rem] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
-                <th className="w-[22%] px-2 py-1.5">Recurring — account tagging category</th>
-                <th className="px-2 py-1.5 text-right">Budget ₹ (+out / −in)</th>
+                <th className="w-[22%] px-2 py-1.5">Recurring — expense head</th>
+                <th className="px-2 py-1.5 text-right">Bank budget ₹</th>
+                <th className="px-2 py-1.5 text-right">Cash budget ₹</th>
                 <th className="px-2 py-1.5">Claimable as (Income tax)</th>
                 <th className="px-2 py-1.5">Frequency</th>
                 <th className="px-2 py-1.5">Day</th>
-                <th className="px-2 py-1.5">Account</th>
                 <th className="px-2 py-1.5 text-right">₹ / month</th>
                 <th className="px-2 py-1.5" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-50">
-              {[null, ...planLines.filter((l) => l.frequency !== 'ONCE')].map((line) => {
-                const formId = line ? `cp-${line.id}` : 'cp-new-rec'
+              {[null, ...recurringCats].map((row) => {
+                const formId = row ? `cp-${row.label.replace(/[^a-zA-Z0-9]/g, '_')}` : 'cp-new-rec'
+                const monthly = row
+                  ? lineMonthly({ amount: String(row.bank) as never, frequency: row.frequency }) +
+                    lineMonthly({ amount: String(row.cash) as never, frequency: row.frequency })
+                  : 0
                 return (
-                  <tr key={line?.id ?? 'new'} className={line ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
+                  <tr key={row?.label ?? 'new'} className={row ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
                     <td className="px-2 py-0.5">
                       <input
-                        name="label"
+                        name="category"
                         form={formId}
                         required
                         list="head-options"
-                        defaultValue={line?.label ?? ''}
+                        defaultValue={row?.label ?? ''}
                         placeholder="Type — tagging heads suggest themselves"
                         className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
                       <input
-                        name="amount"
+                        name="bankBudget"
                         form={formId}
-                        required
                         inputMode="decimal"
-                        defaultValue={line ? String(line.amount) : ''}
-                        placeholder="₹"
-                        title="Positive = goes out, negative = comes in (e.g. Receipt from company)"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs"
+                        defaultValue={row?.bank ? String(Math.round(row.bank)) : ''}
+                        title="Per frequency period; negative = receipt"
+                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs tabular-nums"
+                      />
+                    </td>
+                    <td className="px-2 py-0.5">
+                      <input
+                        name="cashBudget"
+                        form={formId}
+                        inputMode="decimal"
+                        defaultValue={row?.cash ? String(Math.round(row.cash)) : ''}
+                        title="Paid from the cash pool"
+                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs tabular-nums"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -397,7 +432,7 @@ export default async function CashFlowPage(props: {
                         name="taxTreatment"
                         form={formId}
                         list="claimable-options"
-                        defaultValue={line?.taxTreatment ?? ''}
+                        defaultValue={row?.taxTreatment ?? ''}
                         placeholder="Drawing / HG Business Expense…"
                         className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
@@ -406,7 +441,7 @@ export default async function CashFlowPage(props: {
                       <select
                         name="frequency"
                         form={formId}
-                        defaultValue={line?.frequency ?? 'MONTHLY'}
+                        defaultValue={row?.frequency ?? 'MONTHLY'}
                         className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       >
                         {FREQUENCIES.filter((f) => f !== 'ONCE').map((f) => (
@@ -418,47 +453,34 @@ export default async function CashFlowPage(props: {
                       <input
                         name="dayNote"
                         form={formId}
-                        defaultValue={line?.dayNote ?? ''}
-                        placeholder="27 / Fri"
-                        className="w-16 rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        defaultValue={row?.dayNote ?? ''}
+                        placeholder="27 / Friday"
+                        className="w-20 rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
                       />
                     </td>
-                    <td className="px-2 py-0.5">
-                      <select
-                        name="source"
-                        form={formId}
-                        defaultValue={line?.source ?? 'HG'}
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
-                      >
-                        {POOL_OPTIONS.map((o) => (
-                          <option key={o}>{o}</option>
-                        ))}
-                      </select>
-                    </td>
                     <td className="whitespace-nowrap px-2 py-1 text-right text-xs tabular-nums text-zinc-500">
-                      {line ? displayINR(lineMonthly(line).toFixed(2)) : ''}
+                      {row ? displayINR(monthly.toFixed(2)) : ''}
                     </td>
                     <td className="px-2 py-0.5">
                       <div className="flex items-center justify-end gap-1">
-                        <form id={formId} action={saveCashPlanAction}>
-                          {line && <input type="hidden" name="id" value={line.id} />}
+                        <form id={formId} action={saveCategoryPlanAction}>
                           <button
                             type="submit"
                             className={`whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium ${
-                              line
+                              row
                                 ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100'
                                 : 'bg-emerald-700 text-white hover:bg-emerald-600'
                             }`}
                           >
-                            {line ? 'Save' : 'Add'}
+                            {row ? 'Save' : 'Add'}
                           </button>
                         </form>
-                        {line && (
-                          <form action={archiveCashPlanAction}>
-                            <input type="hidden" name="id" value={line.id} />
+                        {row && (
+                          <form action={archiveCategoryPlanAction}>
+                            <input type="hidden" name="category" value={row.label} />
                             <button
                               type="submit"
-                              title="Remove from the plan"
+                              title="Remove from the plan (recycle bin)"
                               className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
                             >
                               ✕
