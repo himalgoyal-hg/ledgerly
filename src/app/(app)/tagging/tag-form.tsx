@@ -90,7 +90,7 @@ export function TagRowCells(props: {
           required
           formId={formId}
           className={inputCls}
-          placeholder="Head — type or add"
+          placeholder="Expense Head — type or add"
           createName="headText"
           onPick={(head) => {
             if (head) {

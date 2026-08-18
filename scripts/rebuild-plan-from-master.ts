@@ -110,6 +110,33 @@ async function main() {
   const once = after.filter((l) => l.frequency === 'ONCE')
   console.log(`recurring: ${before} old → ${recurring.length} from master; ONCE kept: ${once.length}`)
   console.log(`budget model re-synced for ${touchedHeads.size} heads`)
+
+  // The sheet's "Default cost centre" column: set it on every same-named
+  // head, in whichever books the head lives. Reuses an existing cost
+  // centre when the name matches (Optional-Lifestyle ↔ Lifestyle, and the
+  // books' "Invesment" spelling); creates it in those books otherwise.
+  const strip = (s: string) => s.toLowerCase().trim().replace(/^optional-?\s*/, '')
+  const ALIAS: Record<string, string> = { investment: 'invesment' }
+  let ccSet = 0
+  for (const r of rows.filter((x) => x.expenseType)) {
+    const heads = await prisma.ledgerAccount.findMany({
+      where: { isGroup: false, archivedAt: null, name: { equals: r.category, mode: 'insensitive' } },
+    })
+    for (const head of heads) {
+      const existing = await prisma.costCentre.findMany({ where: { entityId: head.entityId, archivedAt: null } })
+      const want = r.expenseType as string
+      const ws = strip(want)
+      const cc =
+        existing.find((c) => c.name.toLowerCase() === want.toLowerCase()) ??
+        existing.find((c) => strip(c.name) === ws || c.name.toLowerCase() === ws || c.name.toLowerCase() === (ALIAS[ws] ?? ws)) ??
+        (await prisma.costCentre.create({ data: { entityId: head.entityId, name: want } }))
+      if (head.defaultCostCentreId !== cc.id) {
+        await prisma.ledgerAccount.update({ where: { id: head.id }, data: { defaultCostCentreId: cc.id } })
+        ccSet++
+      }
+    }
+  }
+  console.log(`default cost centres set on ${ccSet} heads (from the sheet's column)`)
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1) })
