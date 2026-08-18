@@ -29,8 +29,12 @@ export async function restoreDocAction(formData: FormData) {
   for (const p of PATHS) revalidatePath(p)
 }
 
-/** Remove a binned CASH entry's register row for good (its ledger reversal stays). */
-export async function purgeBinnedCashAction(formData: FormData) {
+/**
+ * Remove a binned posting for good: the doc leaves the bin permanently
+ * (binPurgedAt), a cash entry's register row is dropped, and the ledger
+ * keeps the original + reversal untouched — append-only, always.
+ */
+export async function purgeDocAction(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const docId = String(formData.get('docId') ?? '')
   await auditedTransaction(async (tx) => {
@@ -38,12 +42,52 @@ export async function purgeBinnedCashAction(formData: FormData) {
     if (!doc.deletedAt) throw new Error('Only deleted entries can be removed forever')
     const entry = await tx.cashEntry.findUnique({ where: { docId } })
     if (entry) await tx.cashEntry.delete({ where: { id: entry.id } })
+    await tx.journalDoc.update({ where: { id: docId }, data: { binPurgedAt: new Date() } })
     await audit(tx, {
       actorId: user.id,
       action: 'bin.purge',
       targetType: 'JournalDoc',
       targetId: docId,
-      summary: 'Removed a binned cash entry forever (ledger reversal stays)',
+      summary: 'Removed a binned posting forever (ledger original + reversal stay)',
+    })
+  })
+  for (const p of PATHS) revalidatePath(p)
+}
+
+/** Permanently delete a removed plan line. */
+export async function purgePlanLineAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '')
+  await auditedTransaction(async (tx) => {
+    const line = await tx.budgetLine.findUniqueOrThrow({ where: { id } })
+    if (!line.archivedAt) throw new Error('Only binned plan lines can be removed forever')
+    await tx.budgetLine.delete({ where: { id } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'bin.purge',
+      targetType: 'BudgetLine',
+      targetId: id,
+      summary: `Removed plan line "${line.label}" forever`,
+    })
+  })
+  for (const p of PATHS) revalidatePath(p)
+}
+
+/** Permanently delete a removed finance-task column, its cells included. */
+export async function purgeTaskColumnAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const id = String(formData.get('id') ?? '')
+  await auditedTransaction(async (tx) => {
+    const task = await tx.financeTask.findUniqueOrThrow({ where: { id } })
+    if (!task.archivedAt) throw new Error('Only binned columns can be removed forever')
+    await tx.financeTaskCell.deleteMany({ where: { taskId: id } })
+    await tx.financeTask.delete({ where: { id } })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'bin.purge',
+      targetType: 'FinanceTask',
+      targetId: id,
+      summary: `Removed finance-task column "${task.name}" and its cells forever`,
     })
   })
   for (const p of PATHS) revalidatePath(p)

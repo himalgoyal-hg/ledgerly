@@ -220,6 +220,9 @@ model JournalDoc {
   currentEntry   JournalEntry? @relation("current", fields: [currentEntryId], references: [id])
   deletedAt   DateTime?
   deletedById String?
+  // "Remove forever" from the recycle bin: the doc (and its reversal) stay
+  // in the append-only ledger, but the bin never shows it again.
+  binPurgedAt DateTime?
 
   entries JournalEntry[]
 

@@ -4,9 +4,11 @@ import { displayINR } from '@/lib/ledger/money'
 import { ConfirmButton } from '@/components/confirm-button'
 import {
   restoreDocAction,
-  purgeBinnedCashAction,
+  purgeDocAction,
   restorePlanLineAction,
+  purgePlanLineAction,
   restoreTaskColumnAction,
+  purgeTaskColumnAction,
 } from './actions'
 
 // 🗑 The one recycle bin. Delete anything anywhere — a cash entry, a tagged
@@ -29,7 +31,7 @@ export default async function RecycleBinPage() {
 
   const [docs, planLines, taskColumns, entities] = await Promise.all([
     prisma.journalDoc.findMany({
-      where: { deletedAt: { not: null } },
+      where: { deletedAt: { not: null }, binPurgedAt: null },
       orderBy: { updatedAt: 'desc' },
       take: 100,
       include: {
@@ -116,17 +118,15 @@ export default async function RecycleBinPage() {
                           Restore
                         </button>
                       </form>
-                      {cashEntryDocs.has(d.id) && (
-                        <form action={purgeBinnedCashAction} className="ml-1 inline">
-                          <input type="hidden" name="docId" value={d.id} />
-                          <ConfirmButton
-                            message={`Remove "${first?.narration ?? 'this entry'}" forever? The ledger's reversal stays; this cannot be undone.`}
-                            className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
-                          >
-                            Remove forever
-                          </ConfirmButton>
-                        </form>
-                      )}
+                      <form action={purgeDocAction} className="ml-1 inline">
+                        <input type="hidden" name="docId" value={d.id} />
+                        <ConfirmButton
+                          message={`Remove "${cashRemarks.get(d.id) ?? first?.narration ?? 'this entry'}" forever? The ledger keeps the original and its reversal; this cannot be undone.`}
+                          className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                        >
+                          Remove forever
+                        </ConfirmButton>
+                      </form>
                     </td>
                   </tr>
                 )
@@ -161,12 +161,21 @@ export default async function RecycleBinPage() {
                   <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-400">
                     {l.archivedAt?.toISOString().slice(0, 10)}
                   </td>
-                  <td className="px-2 py-1.5 text-right">
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right">
                     <form action={restorePlanLineAction} className="inline">
                       <input type="hidden" name="id" value={l.id} />
                       <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
                         Restore
                       </button>
+                    </form>
+                    <form action={purgePlanLineAction} className="ml-1 inline">
+                      <input type="hidden" name="id" value={l.id} />
+                      <ConfirmButton
+                        message={`Remove plan line "${l.label}" forever? This cannot be undone.`}
+                        className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                      >
+                        Remove forever
+                      </ConfirmButton>
                     </form>
                   </td>
                 </tr>
@@ -197,12 +206,21 @@ export default async function RecycleBinPage() {
                   <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-400">
                     {t.archivedAt?.toISOString().slice(0, 10)}
                   </td>
-                  <td className="px-2 py-1.5 text-right">
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right">
                     <form action={restoreTaskColumnAction} className="inline">
                       <input type="hidden" name="id" value={t.id} />
                       <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
                         Restore
                       </button>
+                    </form>
+                    <form action={purgeTaskColumnAction} className="ml-1 inline">
+                      <input type="hidden" name="id" value={t.id} />
+                      <ConfirmButton
+                        message={`Remove column "${t.name}" and ALL its month cells forever? This cannot be undone.`}
+                        className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                      >
+                        Remove forever
+                      </ConfirmButton>
                     </form>
                   </td>
                 </tr>
