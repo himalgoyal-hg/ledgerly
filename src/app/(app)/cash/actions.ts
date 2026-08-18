@@ -289,3 +289,29 @@ export async function archiveCashPlanAction(formData: FormData) {
   revalidatePath('/cash')
   revalidatePath('/reports/cash-flow')
 }
+
+/**
+ * Empty a bin entry for good. Only entries whose posting is already
+ * reversed (the recycle bin) can go — the ledger keeps the original and
+ * its reversal untouched, so balances never move.
+ */
+export async function purgeCashEntryAction(formData: FormData) {
+  const user = await requirePermission('transactionEditDelete')
+  const entryId = String(formData.get('entryId') ?? '')
+  await auditedTransaction(async (tx) => {
+    const entry = await tx.cashEntry.findUniqueOrThrow({ where: { id: entryId } })
+    if (entry.docId) {
+      const doc = await tx.journalDoc.findUniqueOrThrow({ where: { id: entry.docId } })
+      if (!doc.deletedAt) throw new Error('Delete the entry first — only bin entries can be removed forever')
+    }
+    await tx.cashEntry.delete({ where: { id: entryId } })
+    await audit(tx, {
+      actorId: user.id,
+      action: 'cash.purge',
+      targetType: 'CashEntry',
+      targetId: entryId,
+      summary: `Removed binned cash ${entry.kind.toLowerCase()} ₹${entry.amount} forever (ledger reversal stays)`,
+    })
+  })
+  revalidatePath('/cash')
+}
