@@ -11,12 +11,17 @@ import { ConfirmButton } from '@/components/confirm-button'
 // edited here, propagated everywhere on every ✓. The Google-Sheet sync is
 // retired; this screen is the single source of truth.
 
-const BOOKS = ['HG', 'ACPL', 'MG', 'PG', 'CASH'] as const
 const BANK_MODES = [
   'HDFC 2762', 'HDFC 4271', 'ACPL HDFC 7838', 'HG ICICI',
   'Meena ICICI', 'Meena Axis', 'Cash', 'Greeshma balance', 'Reimbursements',
 ]
 const NATURES = ['Expense', 'Income', 'Liability', 'Asset', 'Contra', 'Personal']
+// the Day dropdown: dates first, then weekdays and period-ends
+const DAY_OPTIONS = [
+  ...Array.from({ length: 31 }, (_, i) => String(i + 1)),
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
+  'End of month', 'End of quarter',
+]
 const CC_TYPES = ['Compulsory', 'Optional-Lifestyle', 'Optional-growth', 'Optional-Investment']
 const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
@@ -61,14 +66,13 @@ export default async function CoaPage() {
         <table data-live-filter="master" className="w-full min-w-[74rem] text-left text-sm">
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[9px] uppercase tracking-wider text-zinc-400">
-              <th colSpan={3} className="px-3 pt-2 pb-0.5 font-medium">What it is</th>
+              <th colSpan={2} className="px-3 pt-2 pb-0.5 font-medium">What it is</th>
               <th colSpan={2} className="px-2 pt-2 pb-0.5 font-medium">Where it moves</th>
               <th colSpan={4} className="px-2 pt-2 pb-0.5 font-medium">Budget &amp; rhythm</th>
               <th className="bg-zinc-50/80" />
             </tr>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[10px] uppercase tracking-wider text-zinc-500">
               <th className="px-3 py-1.5">Expense Head ({modes.length})</th>
-              <th className="px-2 py-1.5">Books</th>
               <th className="px-2 py-1.5">Nature</th>
               <th className="px-2 py-1.5">Bank mode</th>
               <th className="px-2 py-1.5">Cost centre</th>
@@ -94,6 +98,8 @@ export default async function CoaPage() {
                     {m ? (
                       <>
                         <input type="hidden" name="category" form={fid} value={m.category} />
+                        {/* the system already knows whose account this is */}
+                        <input type="hidden" name="books" form={fid} value={m.books ?? ''} />
                         {heads.length > 0 ? (
                           <Link href={`/admin/ledgers?accountId=${heads[0].id}`} className="hover:underline">
                             {m.category}
@@ -105,19 +111,6 @@ export default async function CoaPage() {
                     ) : (
                       <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-emerald-400`} />
                     )}
-                  </td>
-                  <td className="w-24 px-1 py-0.5">
-                    <select
-                      name="books"
-                      form={fid}
-                      defaultValue={m?.books ?? 'HG'}
-                      title="Which books (or the cash pool) this plan belongs to"
-                      className={`${cellCls} bg-white`}
-                    >
-                      {BOOKS.map((b) => (
-                        <option key={b} value={b}>{b === 'CASH' ? 'Cash' : b}</option>
-                      ))}
-                    </select>
                   </td>
                   <td className="w-24 px-1 py-0.5">
                     <select name="nature" form={fid} defaultValue={m?.nature ?? ''} className={`${cellCls} bg-white`}>
@@ -172,8 +165,16 @@ export default async function CoaPage() {
                       ))}
                     </select>
                   </td>
-                  <td className="w-20 px-1 py-0.5">
-                    <input name="dayNote" form={fid} defaultValue={m?.dayNote ?? ''} placeholder="27 / Fri" className={cellCls} />
+                  <td className="w-24 px-1 py-0.5">
+                    <select name="dayNote" form={fid} defaultValue={m?.dayNote ?? ''} className={`${cellCls} bg-white`}>
+                      <option value=""></option>
+                      {m?.dayNote && !DAY_OPTIONS.includes(m.dayNote) && (
+                        <option value={m.dayNote}>{m.dayNote}</option>
+                      )}
+                      {DAY_OPTIONS.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
                   </td>
                   <td className="whitespace-nowrap px-2 py-0.5 text-right">
                     <form id={fid} action={saveMasterRowAction} className="inline">
