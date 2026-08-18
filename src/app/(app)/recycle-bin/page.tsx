@@ -9,7 +9,11 @@ import {
   purgePlanLineAction,
   restoreTaskColumnAction,
   purgeTaskColumnAction,
+  bulkDocsAction,
+  bulkPlanLinesAction,
+  bulkTaskColumnsAction,
 } from './actions'
+import { BinSelectAll } from './select-all'
 
 // 🗑 The one recycle bin. Delete anything anywhere — a cash entry, a tagged
 // posting, a plan line, a finance-task column — and it waits here, out of
@@ -75,9 +79,29 @@ export default async function RecycleBinPage() {
 
       {docs.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <form id="bin-docs" action={bulkDocsAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+            <BinSelectAll formId="bin-docs" />
+            <button
+              type="submit"
+              name="op"
+              value="restore"
+              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+            >
+              Restore selected
+            </button>
+            <ConfirmButton
+              name="op"
+              value="purge"
+              message="Remove ALL selected forever? This cannot be undone."
+              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+            >
+              Remove selected forever
+            </ConfirmButton>
+          </form>
           <table className="w-full min-w-[52rem] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+                <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Deleted postings ({docs.length})</th>
                 <th className="px-2 py-2">Books</th>
                 <th className="px-2 py-2">Date</th>
@@ -93,6 +117,9 @@ export default async function RecycleBinPage() {
                 const amount = first ? first.lines.reduce((t, l) => t + Number(l.debit), 0) : 0
                 return (
                   <tr key={d.id} className="text-xs hover:bg-zinc-50/60">
+                    <td className="px-2 py-1.5">
+                      <input type="checkbox" name="docIds" value={d.id} form="bin-docs" className="accent-zinc-900" aria-label="Select" />
+                    </td>
                     <td className="max-w-[20rem] truncate px-3 py-1.5 font-medium text-zinc-700" title={first?.narration}>
                       {cashRemarks.get(d.id) || first?.narration || '(no narration)'}
                     </td>
@@ -138,9 +165,29 @@ export default async function RecycleBinPage() {
 
       {planLines.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <form id="bin-lines" action={bulkPlanLinesAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+            <BinSelectAll formId="bin-lines" />
+            <button
+              type="submit"
+              name="op"
+              value="restore"
+              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+            >
+              Restore selected
+            </button>
+            <ConfirmButton
+              name="op"
+              value="purge"
+              message="Remove ALL selected forever? This cannot be undone."
+              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+            >
+              Remove selected forever
+            </ConfirmButton>
+          </form>
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+                <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Removed plan lines ({planLines.length})</th>
                 <th className="px-2 py-2">Pool</th>
                 <th className="px-2 py-2">Frequency</th>
@@ -152,6 +199,9 @@ export default async function RecycleBinPage() {
             <tbody className="divide-y divide-zinc-100">
               {planLines.map((l) => (
                 <tr key={l.id} className="text-xs hover:bg-zinc-50/60">
+                  <td className="px-2 py-1.5">
+                    <input type="checkbox" name="ids" value={l.id} form="bin-lines" className="accent-zinc-900" aria-label="Select" />
+                  </td>
                   <td className="px-3 py-1.5 font-medium text-zinc-700">{l.label}</td>
                   <td className="px-2 py-1.5 text-zinc-500">{l.source}</td>
                   <td className="px-2 py-1.5 text-zinc-500">{l.frequency.toLowerCase()}{l.onMonth ? ` (${l.onMonth})` : ''}</td>
@@ -187,9 +237,29 @@ export default async function RecycleBinPage() {
 
       {taskColumns.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <form id="bin-cols" action={bulkTaskColumnsAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+            <BinSelectAll formId="bin-cols" />
+            <button
+              type="submit"
+              name="op"
+              value="restore"
+              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+            >
+              Restore selected
+            </button>
+            <ConfirmButton
+              name="op"
+              value="purge"
+              message="Remove ALL selected forever? This cannot be undone."
+              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+            >
+              Remove selected forever
+            </ConfirmButton>
+          </form>
           <table className="w-full min-w-[36rem] text-left text-sm">
             <thead>
               <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+                <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Removed finance-task columns ({taskColumns.length})</th>
                 <th className="px-2 py-2">Paid from</th>
                 <th className="px-2 py-2">Due day</th>
@@ -200,6 +270,9 @@ export default async function RecycleBinPage() {
             <tbody className="divide-y divide-zinc-100">
               {taskColumns.map((t) => (
                 <tr key={t.id} className="text-xs hover:bg-zinc-50/60">
+                  <td className="px-2 py-1.5">
+                    <input type="checkbox" name="ids" value={t.id} form="bin-cols" className="accent-zinc-900" aria-label="Select" />
+                  </td>
                   <td className="px-3 py-1.5 font-medium text-zinc-700">{t.name}</td>
                   <td className="px-2 py-1.5 text-zinc-500">{t.account ?? '—'}</td>
                   <td className="px-2 py-1.5 text-zinc-500">{t.dueDay ?? '—'}</td>

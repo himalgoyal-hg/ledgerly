@@ -130,3 +130,90 @@ export async function restoreTaskColumnAction(formData: FormData) {
   })
   for (const p of PATHS) revalidatePath(p)
 }
+
+// --- Bulk: act on every ticked row at once (op = restore | purge) ---
+
+export async function bulkDocsAction(formData: FormData) {
+  const user = await requirePermission('transactionEditDelete')
+  const op = String(formData.get('op') ?? '')
+  const ids = formData.getAll('docIds').map(String).filter(Boolean)
+  if (!ids.length) return
+  for (const docId of ids) {
+    await auditedTransaction(async (tx) => {
+      const doc = await tx.journalDoc.findUniqueOrThrow({ where: { id: docId } })
+      if (!doc.deletedAt) return
+      if (op === 'restore') {
+        await undoJournalDocument(tx, { docId, actorId: user.id })
+      } else {
+        const entry = await tx.cashEntry.findUnique({ where: { docId } })
+        if (entry) await tx.cashEntry.delete({ where: { id: entry.id } })
+        await tx.journalDoc.update({ where: { id: docId }, data: { binPurgedAt: new Date() } })
+      }
+      await audit(tx, {
+        actorId: user.id,
+        action: op === 'restore' ? 'bin.restore' : 'bin.purge',
+        targetType: 'JournalDoc',
+        targetId: docId,
+        summary: `Bulk ${op === 'restore' ? 'restored' : 'removed forever'} (1 of ${ids.length} selected postings)`,
+      })
+    })
+  }
+  for (const p of PATHS) revalidatePath(p)
+}
+
+export async function bulkPlanLinesAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const op = String(formData.get('op') ?? '')
+  const ids = formData.getAll('ids').map(String).filter(Boolean)
+  if (!ids.length) return
+  await auditedTransaction(async (tx) => {
+    for (const id of ids) {
+      const line = await tx.budgetLine.findUnique({ where: { id } })
+      if (!line?.archivedAt) continue
+      if (op === 'restore') {
+        await tx.budgetLine.update({ where: { id }, data: { archivedAt: null } })
+        if (line.headAccountId) {
+          const { syncBudgetForHead } = await import('@/lib/budget/plan')
+          await syncBudgetForHead(tx, line.headAccountId)
+        }
+      } else {
+        await tx.budgetLine.delete({ where: { id } })
+      }
+    }
+    await audit(tx, {
+      actorId: admin.id,
+      action: op === 'restore' ? 'bin.restore' : 'bin.purge',
+      targetType: 'BudgetLine',
+      targetId: ids.join(','),
+      summary: `Bulk ${op === 'restore' ? 'restored' : 'removed forever'} ${ids.length} plan line(s)`,
+    })
+  })
+  for (const p of PATHS) revalidatePath(p)
+}
+
+export async function bulkTaskColumnsAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const op = String(formData.get('op') ?? '')
+  const ids = formData.getAll('ids').map(String).filter(Boolean)
+  if (!ids.length) return
+  await auditedTransaction(async (tx) => {
+    for (const id of ids) {
+      const task = await tx.financeTask.findUnique({ where: { id } })
+      if (!task?.archivedAt) continue
+      if (op === 'restore') {
+        await tx.financeTask.update({ where: { id }, data: { archivedAt: null } })
+      } else {
+        await tx.financeTaskCell.deleteMany({ where: { taskId: id } })
+        await tx.financeTask.delete({ where: { id } })
+      }
+    }
+    await audit(tx, {
+      actorId: admin.id,
+      action: op === 'restore' ? 'bin.restore' : 'bin.purge',
+      targetType: 'FinanceTask',
+      targetId: ids.join(','),
+      summary: `Bulk ${op === 'restore' ? 'restored' : 'removed forever'} ${ids.length} finance-task column(s)`,
+    })
+  })
+  for (const p of PATHS) revalidatePath(p)
+}

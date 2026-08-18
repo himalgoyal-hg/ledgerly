@@ -7,10 +7,15 @@ export function ConfirmButton(props: {
   message: string
   className?: string
   children: React.ReactNode
+  /** Submitted with the form, so one form can carry several confirmed ops. */
+  name?: string
+  value?: string
 }) {
   return (
     <button
       type="submit"
+      name={props.name}
+      value={props.value}
       onClick={(e) => {
         if (!window.confirm(props.message)) e.preventDefault()
       }}
