@@ -69,7 +69,7 @@ export default async function CoaPage() {
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[9px] uppercase tracking-wider text-zinc-400">
               <th colSpan={2} className="px-3 pt-2 pb-0.5 font-medium">What it is</th>
               <th colSpan={2} className="px-2 pt-2 pb-0.5 font-medium">Where it moves</th>
-              <th colSpan={4} className="px-2 pt-2 pb-0.5 font-medium">Budget &amp; rhythm</th>
+              <th colSpan={4} className="px-2 pt-2 pb-0.5 font-medium">Budget</th>
               <th className="bg-zinc-50/80" />
             </tr>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[10px] uppercase tracking-wider text-zinc-500">
@@ -77,8 +77,8 @@ export default async function CoaPage() {
               <th className="px-2 py-1.5">Nature</th>
               <th className="px-2 py-1.5">Bank mode</th>
               <th className="px-2 py-1.5">Cost centre</th>
-              <th className="px-2 py-1.5 text-right">Bank ₹</th>
-              <th className="px-2 py-1.5 text-right">Cash ₹</th>
+              <th className="px-2 py-1.5 text-right">Bank budget ₹</th>
+              <th className="px-2 py-1.5 text-right">Cash budget ₹</th>
               <th className="px-2 py-1.5">Frequency</th>
               <th className="px-2 py-1.5">Day</th>
               <th className="px-2 py-1.5" />
