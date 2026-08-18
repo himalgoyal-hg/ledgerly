@@ -1,0 +1,1222 @@
+[
+ {
+  "category": "Synergy EMI",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 270000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "27",
+  "nature": "Liability"
+ },
+ {
+  "category": "Food & Dining",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 1250.0,
+  "cashBudget": 0.0,
+  "frequency": "WEEKLY",
+  "dayNote": "Friday date",
+  "nature": "Expense"
+ },
+ {
+  "category": "Zomato health dinner",
+  "bankMode": "Greeshma balance",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 9000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Books",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 1000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "25",
+  "nature": "Asset"
+ },
+ {
+  "category": "Medical",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 2000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "25",
+  "nature": "Expense"
+ },
+ {
+  "category": "Entertainment & Subscriptions",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 1500.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "8",
+  "nature": "Expense"
+ },
+ {
+  "category": "Gym & Health",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 37750.0,
+  "cashBudget": 0.0,
+  "frequency": "QUARTERLY",
+  "dayNote": "28",
+  "nature": "Expense"
+ },
+ {
+  "category": "Petrol",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 750.0,
+  "cashBudget": 0.0,
+  "frequency": "WEEKLY",
+  "dayNote": "Friday date",
+  "nature": "Expense"
+ },
+ {
+  "category": "Clothing & Shoping",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 10000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Hobbies",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Compulsory",
+  "bankBudget": 500.0,
+  "cashBudget": 0.0,
+  "frequency": "WEEKLY",
+  "dayNote": "Monday",
+  "nature": "Expense"
+ },
+ {
+  "category": "Salon",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Compulsory",
+  "bankBudget": 1000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Steve",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 2000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "ACPL business exp",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 1000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Finance expenses",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 500.0,
+  "cashBudget": 0.0,
+  "frequency": "QUARTERLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Insurance",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 40000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Bike/ Car Expenses",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 2500.0,
+  "cashBudget": 0.0,
+  "frequency": "QUARTERLY",
+  "dayNote": "End of quarter",
+  "nature": "Expense"
+ },
+ {
+  "category": "Car maintenance",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 4800.0,
+  "cashBudget": 0.0,
+  "frequency": "HALF_YEARLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Bike maintenance",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 5600.0,
+  "cashBudget": 0.0,
+  "frequency": "HALF_YEARLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Property tax - Synergy",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 67797.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Synergy events",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 10000.0,
+  "cashBudget": 0.0,
+  "frequency": "HALF_YEARLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Telephone expenses",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 600.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Asset management",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 50000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": "End of May",
+  "nature": "Expense"
+ },
+ {
+  "category": "Poker",
+  "bankMode": null,
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 1500.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Socialising",
+  "bankMode": "HDFC 4271",
+  "expenseType": "Compulsory",
+  "bankBudget": 10000.0,
+  "cashBudget": 0.0,
+  "frequency": "HALF_YEARLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Mom travel",
+  "bankMode": null,
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 300000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Synergy Maintenance",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 10000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Gadgets",
+  "bankMode": null,
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 100000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Mom gifts",
+  "bankMode": null,
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 100000.0,
+  "cashBudget": 0.0,
+  "frequency": "HALF_YEARLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Professional Fees",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Synergy Insurance EMI",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Forex",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Gifting",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 50000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Meena Goyal- Ration",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 15000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Meena Goyal- Fruit/ vegetables",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 15000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Income tax",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 700000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Investment expenses- Octanom (AOS)",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Travel",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Optional-Lifestyle",
+  "bankBudget": 150000.0,
+  "cashBudget": 0.0,
+  "frequency": "QUARTERLY",
+  "dayNote": "End of quarter",
+  "nature": "Expense"
+ },
+ {
+  "category": "Light Bill",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 5000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Investment",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-Investment",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Asset"
+ },
+ {
+  "category": "MG SIP",
+  "bankMode": "Meena ICICI",
+  "expenseType": "Compulsory",
+  "bankBudget": 30000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "SIP",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-Investment",
+  "bankBudget": 80000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense, Income"
+ },
+ {
+  "category": "Income",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Income"
+ },
+ {
+  "category": "Interest",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Income"
+ },
+ {
+  "category": "Property tax - ABC",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "ABC rent",
+  "bankMode": "HG ICICI",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "20",
+  "nature": "Income"
+ },
+ {
+  "category": "ABC EMI",
+  "bankMode": "HG ICICI",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "5",
+  "nature": "Liability"
+ },
+ {
+  "category": "Return Payment",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Contra"
+ },
+ {
+  "category": "Investment expenses- Others",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 5000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Dividend",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Income"
+ },
+ {
+  "category": "Asset",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Shares",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Asset"
+ },
+ {
+  "category": "SIP Income",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Income"
+ },
+ {
+  "category": "Investment in Land",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Capital Receipts",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Hedged investments",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Asset"
+ },
+ {
+  "category": "HDFC CC",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Optional-growth",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Liability"
+ },
+ {
+  "category": "AMEX CC",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "WEEKLY",
+  "dayNote": null,
+  "nature": "Contra"
+ },
+ {
+  "category": "2762 <<-->> ICICI",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Contra"
+ },
+ {
+  "category": "Cash",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Asset"
+ },
+ {
+  "category": "MG Axis <<-->> ICICI",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "2762 <<-->>  Federal",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Contra"
+ },
+ {
+  "category": "ICICI <<-->> Kotak",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "2762 <<-->> Kotak",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "4271 <<-->> ICICI",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "2762 <<-->> 4271",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Contra"
+ },
+ {
+  "category": "ACPL",
+  "bankMode": "HDFC 2762",
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "WEEKLY",
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "Meena Goyal",
+  "bankMode": "HDFC 2762",
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "Sanjay Goyal",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "HG -->> MG (Expense)",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 30000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "HG <<-->> MG",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "ACPL <<-->> HG",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "ACPL <<-->> HG Federal",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "HG <<--->> PG",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "Loan given",
+  "bankMode": "HDFC 2762",
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Asset"
+ },
+ {
+  "category": "Devendra Mandhana HUF",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "Darshan Pahade HUF",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "Ashish",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "MG <<--->> PG",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "ABC Deposit",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Personal"
+ },
+ {
+  "category": "ABC Sales proceeds",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Income"
+ },
+ {
+  "category": "AJ Revenue",
+  "bankMode": "Cash",
+  "expenseType": "Compulsory",
+  "bankBudget": -126000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "3",
+  "nature": "Income"
+ },
+ {
+  "category": "Pattern",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": -1275000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "15",
+  "nature": "Income"
+ },
+ {
+  "category": "Neat Method",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": -220000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "6",
+  "nature": "Income"
+ },
+ {
+  "category": "Noria revenue",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": -85000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Shubham Jain",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 80000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Payroll",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 700000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "7",
+  "nature": "Expense"
+ },
+ {
+  "category": "PF",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 55000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "15",
+  "nature": "Expense"
+ },
+ {
+  "category": "Softwares",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 15000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "7",
+  "nature": "Expense"
+ },
+ {
+  "category": "Marketing",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 25000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Verve",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 50000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Harin",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 50000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "7",
+  "nature": "Expense"
+ },
+ {
+  "category": "Software development",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 150000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "HG Professional fees",
+  "bankMode": "HDFC 2762",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "MG Salary",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": "10",
+  "nature": "Expense"
+ },
+ {
+  "category": "Upwork",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 5000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "GSuite",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 15000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "TDS compliances",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 2500.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "MIRO",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 1700.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Official travel expense",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Zoom",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "ChatGPT",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 1700.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Video editing",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Digital Ocean",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 1700.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Square Associate",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Tanmeet Professional fees",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 25000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Hiring Expense- Tests",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 2500.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Platform Hiring Expense",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 3000.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Learning",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Professional Tax",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 50000.0,
+  "cashBudget": 0.0,
+  "frequency": "ANNUAL",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "ACPL Salary",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Helium 10 Subscription",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Office Equipments",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Google Workspace",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "ACPL Hyrox",
+  "bankMode": null,
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Proton VPN",
+  "bankMode": "ACPL HDFC 7838",
+  "expenseType": "Compulsory",
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": "MONTHLY",
+  "dayNote": null,
+  "nature": "Expense"
+ },
+ {
+  "category": "Office Interiors - Furniture & Fixtures",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Charges",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Sports",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Loan to Harshal Pahade",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "HG--> Greeshma",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "Car Loan Stamp Duty",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ },
+ {
+  "category": "New Car",
+  "bankMode": null,
+  "expenseType": null,
+  "bankBudget": 0.0,
+  "cashBudget": 0.0,
+  "frequency": null,
+  "dayNote": null,
+  "nature": null
+ }
+]
