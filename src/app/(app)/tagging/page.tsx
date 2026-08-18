@@ -331,9 +331,8 @@ export default async function TaggingPage(props: {
         <th className="px-2 py-2">A/c</th>
         <th className="px-2 py-2">Narration</th>
         <th className="px-2 py-2 text-right">Amount</th>
-        <th className="w-[18%] min-w-36 px-2 py-2">Expense Head</th>
-        <th className="w-[18%] min-w-36 px-2 py-2">Nature</th>
-        <th className="w-[18%] min-w-36 px-2 py-2">Cost centre</th>
+        <th className="w-[27%] min-w-44 px-2 py-2">Expense Head</th>
+        <th className="w-[27%] min-w-44 px-2 py-2">Cost centre</th>
         <th className="px-2 py-2" />
       </tr>
     </thead>
@@ -467,12 +466,6 @@ export default async function TaggingPage(props: {
               className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
             />
             <SmartCombobox
-              options={NATURES.map((n) => ({ id: n.value, label: n.label }))}
-              name="nature"
-              placeholder="Nature — auto by direction"
-              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            />
-            <SmartCombobox
               options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
               name="costCentreId"
               createName="costCentreText"
@@ -589,7 +582,7 @@ export default async function TaggingPage(props: {
                       {hasSuggestion && (
                         <tr className="border-t-0 bg-sky-50/70">
                           <td className="px-2 py-1" />
-                          <td colSpan={8} className="px-2 pb-1.5 pt-0.5">
+                          <td colSpan={7} className="px-2 pb-1.5 pt-0.5">
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-800">
                                 AI
@@ -815,9 +808,6 @@ export default async function TaggingPage(props: {
                         <>
                           <td className="px-2 py-1.5 text-xs text-zinc-600">
                             {headName(txn.headAccountId)}
-                          </td>
-                          <td className="px-2 py-1.5 text-xs text-zinc-600">
-                            {natureLabel(txn.nature)}
                           </td>
                           <td className="px-2 py-1.5 text-xs text-zinc-600">
                             {ccName(txn.costCentreId) ?? '—'}

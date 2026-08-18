@@ -83,7 +83,7 @@ export function TagRowCells(props: {
       {/* The three tiers are identical twins: equal 18% columns (they share
           the table's slack evenly, keeping narration and amount snug) and
           the same input styling. */}
-      <td className="w-[18%] px-2 py-1">
+      <td className="w-[27%] px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
@@ -108,20 +108,9 @@ export function TagRowCells(props: {
           }}
         />
       </td>
-      <td className="w-[18%] px-2 py-1">
-        <SmartCombobox
-          key={`n${seed}`}
-          options={NATURE_OPTIONS}
-          name="nature"
-          defaultId={nature}
-          required
-          formId={formId}
-          placeholder="Nature — type to search"
-          className={inputCls}
-          onPick={(opt) => setNature(opt?.id ?? '')}
-        />
-      </td>
-      <td className="w-[18%] px-2 py-1">
+      {/* Nature rides hidden — auto from the head / master, per Himal
+          (18 Aug): it posts correctly without taking a column. */}
+      <td className="w-[27%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -138,6 +127,7 @@ export function TagRowCells(props: {
         <div className="flex items-start gap-1.5">
           <form id={formId} action={props.action}>
             <input type="hidden" name="txnId" value={props.txnId} />
+            <input type="hidden" name="nature" value={nature || (props.isOutflow ? 'expense' : 'income')} />
             <button
               type="submit"
               title={props.submitTitle}
