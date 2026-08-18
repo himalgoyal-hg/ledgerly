@@ -2,11 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
-import {
-  syncMasterSheetAction,
-  saveMasterRowAction,
-  removeMasterRowAction,
-} from './actions'
+import { saveMasterRowAction, removeMasterRowAction } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
 
 // Accounts IS the master register now (Himal, 18 Aug 2026): every category
@@ -49,16 +45,8 @@ export default async function CoaPage() {
             and the plan, budgets and reports update everywhere. All books in one list.
           </p>
         </div>
-        {/* the whole app reads the master; this button pulls the Google Sheet over it */}
-        <form action={syncMasterSheetAction}>
-          <button
-            type="submit"
-            title="Fetches 'New Finance setup HG' from the Google Sheet and OVERWRITES these rows, then updates plan lines, heads, modes, cost centres and budgets everywhere"
-            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
-          >
-            ⟳ Sync from master sheet
-          </button>
-        </form>
+        {/* This register IS the master (Himal, 18 Aug 2026) — the Google
+            Sheet sync is retired so nothing ever overwrites edits made here. */}
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
@@ -198,9 +186,8 @@ export default async function CoaPage() {
           ))}
         </datalist>
         <p className="border-t border-zinc-100 px-4 py-2 text-[11px] text-zinc-400">
-          Edit any cell and hit ✓ — the plan, budgets, modes and cost centres update everywhere at once. Negative budget =
-          receipt. Click a head for its ledger, ↗ for the bank&apos;s. ⟳ sync pulls the Google Sheet OVER these edits, so
-          keep the sheet matching or stop syncing.
+          This register is the master — edit any cell and hit ✓, and the plan, budgets, modes and cost centres update
+          everywhere at once. Negative budget = receipt. Click a head for its ledger, ↗ for the bank&apos;s.
         </p>
       </div>
     </div>

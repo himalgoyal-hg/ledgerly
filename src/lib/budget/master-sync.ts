@@ -3,15 +3,17 @@ import { prisma } from '@/lib/db'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { syncBudgetForHead } from '@/lib/budget/plan'
 
-// One master, everywhere: "New Finance setup HG" (the Google Sheet tab) is
-// fetched LIVE and pushed through the whole app in one sweep —
+// RETIRED (18 Aug 2026): the Google-Sheet pull is switched off — the app's
+// own master register on Accounts is the single source of truth, edited via
+// applyMasterRow/removeMasterRow below. syncFromMaster stays only as a
+// manual one-off import tool (call it from code deliberately, never from UI):
+// it OVERWRITES every app-side edit with the sheet —
 //   1. recurring plan lines (cashflow) rebuilt wholesale, ONCE lines kept
 //   2. heads created where missing (so tagging knows every category)
 //   3. HeadMode refreshed (Actual vs Plan Mode reads the same truth)
 //   4. default cost centres set on every same-named head, all books
 //   5. Budget rows (Budget vs Actual / Expenses M/M) re-synced per head,
 //      and CLEARED for categories the master zeroes out
-// Run it from the button on Accounts whenever the sheet changes.
 
 const MASTER_CSV_URL =
   'https://docs.google.com/spreadsheets/d/15kvgIkhuJTQRmCJF4tq1gvKJl7os4Hpl3bmLZmmR2mA/export?format=csv&gid=611479732'
