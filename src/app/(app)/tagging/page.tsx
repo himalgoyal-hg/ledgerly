@@ -127,11 +127,20 @@ export default async function TaggingPage(props: {
         orderBy: { code: 'asc' },
         select: { id: true, code: true, name: true, kind: true, defaultCostCentreId: true },
       }),
-      prisma.costCentre.findMany({
-        where: { entityId: entity.id, archivedAt: null },
-        orderBy: { name: 'asc' },
-        select: { id: true, name: true },
-      }),
+      // Archived cost centres ride along too: older tags point at them, and
+      // a stored value must never DISPLAY as blank. Active ones list first;
+      // archived wear their label so nobody picks them by accident.
+      prisma.costCentre
+        .findMany({
+          where: { entityId: entity.id },
+          orderBy: [{ archivedAt: 'asc' }, { name: 'asc' }],
+          select: { id: true, name: true, archivedAt: true },
+        })
+        .then((ccs) =>
+          ccs
+            .sort((a, b) => Number(a.archivedAt !== null) - Number(b.archivedAt !== null) || a.name.localeCompare(b.name))
+            .map((c) => ({ id: c.id, name: c.archivedAt ? `${c.name} (archived)` : c.name })),
+        ),
       prisma.bankAccount.findMany({ select: { id: true, nickname: true, entityId: true } }),
       prisma.user.findMany({ select: { id: true, name: true } }),
       prisma.statementTransaction.count({
