@@ -10,7 +10,10 @@ import {
   renameAccount,
   setDefaultCostCentre,
   syncMasterSheetAction,
+  saveMasterRowAction,
+  removeMasterRowAction,
 } from './actions'
+import { ConfirmButton } from '@/components/confirm-button'
 
 export default async function CoaPage() {
   const user = await requireAdmin()
@@ -271,67 +274,133 @@ export default async function CoaPage() {
                 <th className="px-2 py-2 text-right">Cash budget ₹</th>
                 <th className="px-2 py-2">Frequency</th>
                 <th className="px-2 py-2">Day</th>
+                <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
-              {[...modes]
-                .sort((x, y) => x.category.localeCompare(y.category))
-                .map((m) => {
-                  const heads = headsByName.get(m.category.toLowerCase()) ?? []
-                  const bank = m.bankAccountId ? bankById.get(m.bankAccountId) : null
-                  const budget = (v: unknown) =>
-                    v == null ? '' : (Number(v) < 0 ? '-₹' : '₹') + Math.abs(Number(v)).toLocaleString('en-IN')
-                  return (
-                    <tr key={m.id} className="hover:bg-zinc-50/60">
-                      <td className="px-3 py-1 text-xs font-medium text-zinc-800">
-                        {heads.length > 0 ? (
-                          <Link href={`/admin/ledgers?accountId=${heads[0].id}`} className="hover:underline">
-                            {m.category}
-                          </Link>
-                        ) : (
-                          <span title="No head in any books yet">{m.category}</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 text-[11px]">
-                        {heads.length ? (
-                          <span className="text-zinc-500">{[...new Set(heads.map((h) => h.code))].join(' · ')}</span>
-                        ) : (
-                          <span className="text-zinc-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.nature ?? ''}</td>
-                      <td className="px-2 py-1 text-[11px]">
-                        {m.modeBank ? (
-                          bank?.ledgerAccountId ? (
-                            <Link
-                              href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`}
-                              className="text-sky-700 hover:underline"
-                              title={`Linked to ${bank.nickname}`}
-                            >
-                              {m.modeBank} ↗
+              {[null, ...[...modes].sort((x, y) => x.category.localeCompare(y.category))].map((m) => {
+                const fid = m ? `mr-${m.id}` : 'mr-new'
+                const heads = m ? (headsByName.get(m.category.toLowerCase()) ?? []) : []
+                const bank = m?.bankAccountId ? bankById.get(m.bankAccountId) : null
+                const cellCls =
+                  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
+                return (
+                  <tr key={m?.id ?? 'new'} className={m ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
+                    <td className="px-3 py-1 text-xs font-medium text-zinc-800">
+                      {m ? (
+                        <>
+                          <input type="hidden" name="category" form={fid} value={m.category} />
+                          {heads.length > 0 ? (
+                            <Link href={`/admin/ledgers?accountId=${heads[0].id}`} className="hover:underline">
+                              {m.category}
                             </Link>
                           ) : (
-                            <span className="text-zinc-600">{m.modeBank}</span>
-                          )
-                        ) : (
-                          ''
+                            <span title="No head in any books yet — appears when a budget/plan needs it">{m.category}</span>
+                          )}
+                        </>
+                      ) : (
+                        <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-zinc-300`} />
+                      )}
+                    </td>
+                    <td className="px-2 py-1 text-[11px]">
+                      {heads.length ? (
+                        <span className="text-zinc-500">{[...new Set(heads.map((h) => h.code))].join(' · ')}</span>
+                      ) : (
+                        <span className="text-zinc-300">—</span>
+                      )}
+                    </td>
+                    <td className="w-24 px-1 py-0.5">
+                      <select name="nature" form={fid} defaultValue={m?.nature ?? ''} className={`${cellCls} bg-white`}>
+                        <option value=""></option>
+                        {['Expense', 'Income', 'Liability', 'Asset', 'Contra', 'Personal'].map((n) => (
+                          <option key={n}>{n}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="w-32 px-1 py-0.5">
+                      <div className="flex items-center gap-1">
+                        <input name="bankMode" form={fid} list="bank-mode-options" defaultValue={m?.modeBank ?? ''} placeholder="HDFC 2762 / Cash" className={cellCls} />
+                        {bank?.ledgerAccountId && (
+                          <Link href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`} title={`Linked to ${bank.nickname}`} className="text-sky-600 hover:text-sky-800">
+                            ↗
+                          </Link>
                         )}
-                      </td>
-                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.expenseType ?? ''}</td>
-                      <td className={`px-2 py-1 text-right text-xs tabular-nums ${Number(m.bankBudget) < 0 ? 'text-emerald-700' : 'text-zinc-600'}`}>
-                        {budget(m.bankBudget)}
-                      </td>
-                      <td className="px-2 py-1 text-right text-xs tabular-nums text-zinc-600">{budget(m.cashBudget)}</td>
-                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.frequency ? freqLabel[m.frequency] ?? m.frequency : ''}</td>
-                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.dayNote ?? ''}</td>
-                    </tr>
-                  )
-                })}
+                      </div>
+                    </td>
+                    <td className="w-32 px-1 py-0.5">
+                      <select name="expenseType" form={fid} defaultValue={m?.expenseType ?? ''} className={`${cellCls} bg-white`}>
+                        <option value=""></option>
+                        {['Compulsory', 'Optional-Lifestyle', 'Optional-growth', 'Optional-Investment'].map((t) => (
+                          <option key={t}>{t}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="w-24 px-1 py-0.5">
+                      <input
+                        name="bankBudget"
+                        form={fid}
+                        inputMode="decimal"
+                        defaultValue={m?.bankBudget == null ? '' : String(Math.round(Number(m.bankBudget)))}
+                        title="− = receipt"
+                        className={`${cellCls} text-right tabular-nums ${Number(m?.bankBudget) < 0 ? 'text-emerald-700' : ''}`}
+                      />
+                    </td>
+                    <td className="w-20 px-1 py-0.5">
+                      <input
+                        name="cashBudget"
+                        form={fid}
+                        inputMode="decimal"
+                        defaultValue={m?.cashBudget == null ? '' : String(Math.round(Number(m.cashBudget)))}
+                        className={`${cellCls} text-right tabular-nums`}
+                      />
+                    </td>
+                    <td className="w-28 px-1 py-0.5">
+                      <select name="frequency" form={fid} defaultValue={m?.frequency ?? ''} className={`${cellCls} bg-white`}>
+                        <option value=""></option>
+                        {Object.entries(freqLabel).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="w-20 px-1 py-0.5">
+                      <input name="dayNote" form={fid} defaultValue={m?.dayNote ?? ''} placeholder="27 / Fri" className={cellCls} />
+                    </td>
+                    <td className="whitespace-nowrap px-1 py-0.5 text-right">
+                      <form id={fid} action={saveMasterRowAction} className="inline">
+                        <button
+                          type="submit"
+                          title="Save — updates plan, budgets, modes and cost centres everywhere"
+                          className={`rounded px-2 py-0.5 text-[11px] font-medium ${m ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100' : 'bg-emerald-700 text-white hover:bg-emerald-600'}`}
+                        >
+                          {m ? '✓' : 'Add'}
+                        </button>
+                      </form>
+                      {m && (
+                        <form action={removeMasterRowAction} className="ml-1 inline">
+                          <input type="hidden" name="category" value={m.category} />
+                          <ConfirmButton
+                            message={`Remove "${m.category}" from the master? Its plan lines and FY budgets clear; the head and its postings stay.`}
+                            className="rounded border border-red-100 px-1.5 py-0.5 text-[11px] text-red-400 hover:bg-red-50 hover:text-red-600"
+                          >
+                            ✕
+                          </ConfirmButton>
+                        </form>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
+          <datalist id="bank-mode-options">
+            {['HDFC 2762', 'HDFC 4271', 'ACPL HDFC 7838', 'HG ICICI', 'Meena ICICI', 'Meena Axis', 'Cash', 'Greeshma balance'].map((b) => (
+              <option key={b} value={b} />
+            ))}
+          </datalist>
         </div>
         <p className="px-4 py-2 text-[11px] text-zinc-400">
-          Mirrored from &quot;New Finance setup HG&quot; on every ⟳ sync — negative budgets are receipts; click a category for its ledger, a bank mode for the account&apos;s.
+          Edit any cell and hit ✓ — the plan, budgets, modes and cost centres update everywhere at once. Negative budget =
+          receipt. ⟳ sync pulls the Google Sheet OVER these edits, so keep the sheet matching or stop syncing.
         </p>
       </details>
     </div>

@@ -178,3 +178,64 @@ export async function syncMasterSheetAction() {
   revalidatePath('/reports/mode')
   revalidatePath('/tagging')
 }
+
+/**
+ * Edit one master row in the app — the same propagation as the sheet sync,
+ * for a single category: plan lines, HeadMode mirror (bank link), budgets,
+ * cost-centre defaults. The app is a first-class editor of the master.
+ */
+export async function saveMasterRowAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const f = (n: string) => String(formData.get(n) ?? '').trim()
+  const num = (n: string) => {
+    const raw = f(n).replace(/[,₹\s]/g, '')
+    if (!raw) return 0
+    const v = Number(raw)
+    if (!Number.isFinite(v)) throw new Error(`Bad amount in ${n}`)
+    return v
+  }
+  const row = {
+    category: f('category'),
+    bankMode: f('bankMode') || null,
+    expenseType: f('expenseType') || null,
+    bankBudget: num('bankBudget'),
+    cashBudget: num('cashBudget'),
+    frequency: f('frequency') || null,
+    dayNote: f('dayNote') || null,
+    nature: f('nature') || null,
+  }
+  if ((row.bankBudget !== 0 || row.cashBudget !== 0) && !row.frequency) {
+    throw new Error('A budget needs its frequency')
+  }
+  const { applyMasterRow } = await import('@/lib/budget/master-sync')
+  await applyMasterRow(row)
+  await auditedTransaction(async (tx) => {
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'master.row_save',
+      targetType: 'HeadMode',
+      targetId: row.category,
+      summary: `Master row "${row.category}": bank ₹${row.bankBudget} / cash ₹${row.cashBudget} ${row.frequency ?? ''} · ${row.bankMode ?? 'no mode'} · ${row.expenseType ?? 'no CC'}`,
+      after: { ...row },
+    })
+  })
+  for (const p of ['/admin/coa', '/reports/cash-flow', '/reports/budget', '/reports/monthly', '/reports/mode', '/tagging']) revalidatePath(p)
+}
+
+export async function removeMasterRowAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const category = String(formData.get('category') ?? '').trim()
+  if (!category) throw new Error('Category is required')
+  const { removeMasterRow } = await import('@/lib/budget/master-sync')
+  await removeMasterRow(category)
+  await auditedTransaction(async (tx) => {
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'master.row_remove',
+      targetType: 'HeadMode',
+      targetId: category,
+      summary: `Master row removed: "${category}" (plan lines + FY budgets cleared; heads and postings stay)`,
+    })
+  })
+  for (const p of ['/admin/coa', '/reports/cash-flow', '/reports/budget', '/reports/monthly', '/reports/mode']) revalidatePath(p)
+}

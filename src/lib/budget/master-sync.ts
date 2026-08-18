@@ -110,6 +110,151 @@ function poolOf(bankMode: string | null, oldPool: string | null): string {
   return 'HG' // 2762 / 4271 / HG ICICI / Greeshma balance
 }
 
+/**
+ * One category, applied everywhere — the app-side editor's counterpart of
+ * syncFromMaster: replaces the category's recurring plan lines, mirrors the
+ * row in HeadMode (bank link resolved), re-syncs or clears its budgets, and
+ * sets the default cost centre on every same-named head. Editing a row in
+ * the app IS editing the master.
+ */
+export async function applyMasterRow(r: MasterRow): Promise<void> {
+  if (!r.category.trim()) throw new Error('Category name is required')
+  const banks = await prisma.bankAccount.findMany({
+    where: { archivedAt: null },
+    select: { id: true, nickname: true, accountNumber: true },
+  })
+  const prev = await prisma.budgetLine.findFirst({
+    where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: r.category, mode: 'insensitive' } },
+  })
+  const active = Boolean(r.frequency && (r.bankBudget !== 0 || r.cashBudget !== 0))
+  const touched = new Set<string>()
+
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.budgetLine.deleteMany({
+        where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: r.category, mode: 'insensitive' } },
+      })
+      if (active) {
+        const parts: { source: string; amount: number }[] = []
+        if (r.bankBudget !== 0) parts.push({ source: poolOf(r.bankMode, prev?.source ?? null), amount: r.bankBudget })
+        if (r.cashBudget !== 0) parts.push({ source: 'CASH', amount: r.cashBudget })
+        for (const part of parts) {
+          const heads = await tx.ledgerAccount.findMany({
+            where: { isGroup: false, archivedAt: null, name: { equals: r.category, mode: 'insensitive' } },
+            include: { entity: { select: { code: true } } },
+          })
+          const head =
+            heads.find((h) => h.entity.code === part.source) ??
+            heads.find((h) => h.entity.code === 'HG') ??
+            heads[0] ??
+            null
+          const entity = head
+            ? await tx.entity.findUniqueOrThrow({ where: { id: head.entityId } })
+            : await tx.entity.findFirstOrThrow({ where: { code: part.source === 'CASH' ? 'HG' : part.source } })
+          const headAccountId =
+            head?.id ??
+            (await resolveHeadAccount(tx, { entityId: entity.id, headText: r.category, isOutflow: part.amount > 0 }))
+          await tx.budgetLine.create({
+            data: {
+              entityId: entity.id,
+              headAccountId,
+              label: r.category,
+              source: part.source,
+              frequency: r.frequency as string,
+              amount: part.amount.toFixed(2),
+              onMonth: null,
+              expenseType: r.expenseType,
+              taxTreatment: prev?.taxTreatment ?? null,
+              dayNote: r.dayNote,
+            },
+          })
+          touched.add(headAccountId)
+        }
+      }
+      const bankAccountId = r.bankMode ? resolveBank(banks, r.bankMode) : null
+      const mirror = {
+        modeBank: r.bankMode,
+        expenseType: r.expenseType,
+        bankAccountId,
+        nature: r.nature,
+        frequency: r.frequency,
+        dayNote: r.dayNote,
+        bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
+        cashBudget: r.cashBudget !== 0 ? r.cashBudget.toFixed(2) : null,
+      }
+      await tx.headMode.upsert({
+        where: { category: r.category },
+        create: { category: r.category, modeCc: null, ...mirror },
+        update: mirror,
+      })
+    },
+    { timeout: 60_000 },
+  )
+
+  for (const headId of touched) {
+    await prisma.$transaction((tx) => syncBudgetForHead(tx, headId))
+  }
+  if (!active) {
+    const heads = await prisma.ledgerAccount.findMany({
+      where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' } },
+      select: { id: true },
+    })
+    if (heads.length) {
+      await prisma.budget.deleteMany({
+        where: {
+          accountId: { in: heads.map((h) => h.id) },
+          OR: [
+            { year: 2026, month: { gte: 4 } },
+            { year: 2027, month: { lte: 3 } },
+          ],
+        },
+      })
+    }
+  }
+  if (r.expenseType) {
+    const strip = (s: string) => s.toLowerCase().trim().replace(/^optional-?\s*/, '')
+    const ALIAS: Record<string, string> = { investment: 'invesment' }
+    const heads = await prisma.ledgerAccount.findMany({
+      where: { isGroup: false, archivedAt: null, name: { equals: r.category, mode: 'insensitive' } },
+    })
+    for (const head of heads) {
+      const existing = await prisma.costCentre.findMany({ where: { entityId: head.entityId, archivedAt: null } })
+      const want = r.expenseType
+      const ws = strip(want)
+      const cc =
+        existing.find((c) => c.name.toLowerCase() === want.toLowerCase()) ??
+        existing.find((c) => strip(c.name) === ws || c.name.toLowerCase() === ws || c.name.toLowerCase() === (ALIAS[ws] ?? ws)) ??
+        (await prisma.costCentre.create({ data: { entityId: head.entityId, name: want } }))
+      if (head.defaultCostCentreId !== cc.id) {
+        await prisma.ledgerAccount.update({ where: { id: head.id }, data: { defaultCostCentreId: cc.id } })
+      }
+    }
+  }
+}
+
+/** Take a category off the master: its row, plan lines and FY budgets go; heads and postings stay. */
+export async function removeMasterRow(category: string): Promise<void> {
+  await prisma.headMode.deleteMany({ where: { category } })
+  await prisma.budgetLine.deleteMany({
+    where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: category, mode: 'insensitive' } },
+  })
+  const heads = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, name: { equals: category, mode: 'insensitive' } },
+    select: { id: true },
+  })
+  if (heads.length) {
+    await prisma.budget.deleteMany({
+      where: {
+        accountId: { in: heads.map((h) => h.id) },
+        OR: [
+          { year: 2026, month: { gte: 4 } },
+          { year: 2027, month: { lte: 3 } },
+        ],
+      },
+    })
+  }
+}
+
 export interface MasterSyncSummary {
   recurring: number
   onceKept: number
