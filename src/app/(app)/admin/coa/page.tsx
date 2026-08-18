@@ -147,12 +147,13 @@ export default async function CoaPage() {
                     ) : (
                       <div className="flex gap-1">
                         <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-emerald-400`} />
-                        <input
+                        <SmartCombobox
+                          options={sections.map((sec) => ({ id: sec, label: sec }))}
                           name="section"
-                          form={fid}
-                          list="section-options"
-                          placeholder="Section (or a new one)"
-                          className={`${cellCls} w-40 border-dashed border-emerald-300`}
+                          createName="sectionNew"
+                          formId={fid}
+                          placeholder="Section — pick or type a new one"
+                          className={`${cellCls} w-44 border-dashed border-emerald-300 bg-white`}
                         />
                       </div>
                     )}
@@ -290,11 +291,6 @@ export default async function CoaPage() {
           </tbody>
         </table>
         </div>
-        <datalist id="section-options">
-          {sections.map((sec) => (
-            <option key={sec} value={sec} />
-          ))}
-        </datalist>
         <datalist id="bank-mode-options">
           {BANK_MODES.map((b) => (
             <option key={b} value={b} />
