@@ -168,7 +168,7 @@ export async function saveMasterRowAction(formData: FormData) {
     return v
   }
   const books = f('books')
-  if (books && !['HG', 'ACPL', 'MG', 'PG'].includes(books)) throw new Error('Bad books')
+  if (books && !['HG', 'ACPL', 'MG', 'PG', 'CASH'].includes(books)) throw new Error('Bad books')
   const row = {
     category: f('category'),
     books: books || null,

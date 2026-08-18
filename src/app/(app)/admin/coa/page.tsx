@@ -10,7 +10,7 @@ import { ConfirmButton } from '@/components/confirm-button'
 // edited here, propagated everywhere on every ✓. The Google-Sheet sync is
 // retired; this screen is the single source of truth.
 
-const BOOKS = ['HG', 'ACPL', 'MG', 'PG'] as const
+const BOOKS = ['HG', 'ACPL', 'MG', 'PG', 'CASH'] as const
 const BANK_MODES = [
   'HDFC 2762', 'HDFC 4271', 'ACPL HDFC 7838', 'HG ICICI',
   'Meena ICICI', 'Meena Axis', 'Cash', 'Greeshma balance', 'Reimbursements',
@@ -21,23 +21,6 @@ const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
   HALF_YEARLY: 'Half yearly', ANNUAL: 'Annual',
 }
-const BOOK_CHIP: Record<string, string> = {
-  HG: 'bg-sky-50 text-sky-700 border-sky-200',
-  ACPL: 'bg-violet-50 text-violet-700 border-violet-200',
-  MG: 'bg-rose-50 text-rose-700 border-rose-200',
-  PG: 'bg-amber-50 text-amber-700 border-amber-200',
-}
-
-// same derivation the save uses, for the "auto" hint
-const derivedBooks = (bankMode: string | null): string => {
-  if (!bankMode) return 'HG'
-  const m = bankMode.toLowerCase()
-  if (m === 'cash') return 'HG'
-  if (m.includes('7838') || m.startsWith('acpl')) return 'ACPL'
-  if (m.includes('meena')) return 'MG'
-  return 'HG'
-}
-
 export default async function CoaPage({
   searchParams,
 }: {
@@ -103,7 +86,7 @@ export default async function CoaPage({
           <thead>
             <tr className="border-b border-zinc-200 bg-zinc-50/80 text-[9px] uppercase tracking-wider text-zinc-400">
               <th colSpan={3} className="px-3 pt-2 pb-0.5 font-medium">What it is</th>
-              <th colSpan={3} className="px-2 pt-2 pb-0.5 font-medium">Where it moves</th>
+              <th colSpan={2} className="px-2 pt-2 pb-0.5 font-medium">Where it moves</th>
               <th colSpan={4} className="px-2 pt-2 pb-0.5 font-medium">Budget &amp; rhythm</th>
               <th className="bg-zinc-50/80" />
             </tr>
@@ -112,7 +95,6 @@ export default async function CoaPage({
               <th className="px-2 py-1.5">Books</th>
               <th className="px-2 py-1.5">Nature</th>
               <th className="px-2 py-1.5">Bank mode</th>
-              <th className="px-2 py-1.5">Head lives in</th>
               <th className="px-2 py-1.5">Cost centre</th>
               <th className="px-2 py-1.5 text-right">Bank ₹</th>
               <th className="px-2 py-1.5 text-right">Cash ₹</th>
@@ -126,7 +108,6 @@ export default async function CoaPage({
               const fid = m ? `mr-${m.id}` : 'mr-new'
               const heads = m ? (headsByName.get(m.category.toLowerCase()) ?? []) : []
               const bank = m?.bankAccountId ? bankById.get(m.bankAccountId) : null
-              const auto = derivedBooks(m?.modeBank ?? null)
               return (
                 <tr
                   key={m?.id ?? 'new'}
@@ -152,13 +133,12 @@ export default async function CoaPage({
                     <select
                       name="books"
                       form={fid}
-                      defaultValue={m?.books ?? ''}
-                      title="Which books this plan/head belongs to — auto follows the bank mode"
+                      defaultValue={m?.books ?? 'HG'}
+                      title="Which books (or the cash pool) this plan belongs to"
                       className={`${cellCls} bg-white`}
                     >
-                      <option value="">auto ({auto})</option>
                       {BOOKS.map((b) => (
-                        <option key={b}>{b}</option>
+                        <option key={b} value={b}>{b === 'CASH' ? 'Cash' : b}</option>
                       ))}
                     </select>
                   </td>
@@ -178,16 +158,6 @@ export default async function CoaPage({
                           ↗
                         </Link>
                       )}
-                    </div>
-                  </td>
-                  <td className="w-20 px-2 py-1">
-                    <div className="flex flex-wrap gap-0.5">
-                      {[...new Set(heads.map((h) => h.code))].map((c) => (
-                        <span key={c} className={`rounded-full border px-1.5 text-[10px] ${BOOK_CHIP[c] ?? 'border-zinc-200 bg-zinc-50 text-zinc-500'}`}>
-                          {c}
-                        </span>
-                      ))}
-                      {m && heads.length === 0 && <span className="text-[10px] text-zinc-300">—</span>}
                     </div>
                   </td>
                   <td className="w-32 px-1 py-0.5">
@@ -262,8 +232,8 @@ export default async function CoaPage({
         </datalist>
         <p className="border-t border-zinc-100 px-4 py-2 text-[11px] text-zinc-400">
           This register is the master — ✓ saves a row and updates the plan, budgets, modes and cost centres everywhere.
-          Books &quot;auto&quot; follows the bank mode; pick one to pin it. Negative budget = receipt. Click a head for its
-          ledger, ↗ for the bank&apos;s.
+          Books says whose books (or the cash pool) the plan sits in. Negative budget = receipt. The ↗ next to a bank
+          mode means it is linked to a real bank account — click it to open that account&apos;s statement ledger.
         </p>
       </div>
     </div>

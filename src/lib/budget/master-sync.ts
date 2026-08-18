@@ -139,7 +139,8 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: r.category, mode: 'insensitive' } },
       })
       if (active) {
-        const bankSource = r.books || poolOf(r.bankMode, prev?.source ?? null)
+        const bankSource =
+          r.books === 'CASH' ? 'CASH' : r.books || poolOf(r.bankMode, prev?.source ?? null)
         const parts: { source: string; amount: number }[] = []
         if (r.bankBudget !== 0) parts.push({ source: bankSource, amount: r.bankBudget })
         if (r.cashBudget !== 0) parts.push({ source: 'CASH', amount: r.cashBudget })
@@ -150,7 +151,8 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
           })
           // An explicit books choice pins both the plan's pool and where a
           // missing head is born; otherwise the pool's own books lead.
-          const wantCode = part.source === 'CASH' ? (r.books || 'HG') : part.source
+          const wantCode =
+            part.source === 'CASH' ? (r.books && r.books !== 'CASH' ? r.books : 'HG') : part.source
           const head =
             heads.find((h) => h.entity.code === wantCode) ??
             heads.find((h) => h.entity.code === 'HG') ??
