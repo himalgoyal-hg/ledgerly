@@ -133,6 +133,11 @@ export default async function CashPage(props: {
     },
     { in: 0, out: 0 },
   )
+  // The passbook's book-ends: opening = balance before the first shown
+  // entry, closing = after the last — exactly like a bank passbook page.
+  const openingBalance = rows.length > 0 ? rows[0].balance - effect(rows[0].entry) : scopeBalanceNow
+  const closingBalance = rows.length > 0 ? rows[rows.length - 1].balance : scopeBalanceNow
+
   const months = [...new Set(entries.map((e) => e.date.toISOString().slice(0, 7)))].sort().reverse()
   const monthLabel = (m: string) => {
     const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -371,8 +376,9 @@ export default async function CashPage(props: {
             )}
           </form>
           <span className="w-full text-xs text-zinc-500 sm:w-auto">
-            In {displayINR(flows.in.toFixed(2))} · Out {displayINR(flows.out.toFixed(2))} · Net{' '}
-            {displayINR((flows.in - flows.out).toFixed(2))}
+            Opening {displayINR(openingBalance.toFixed(2))} · In {displayINR(flows.in.toFixed(2))} · Out{' '}
+            {displayINR(flows.out.toFixed(2))} · Closing{' '}
+            <span className="font-semibold text-zinc-800">{displayINR(closingBalance.toFixed(2))}</span>
           </span>
         </div>
 
@@ -392,6 +398,17 @@ export default async function CashPage(props: {
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100">
+                {/* passbook's first line: where the money stood before these entries */}
+                <tr className="bg-zinc-50/70 text-xs">
+                  <td className="px-2 py-1.5 text-zinc-400">{month ? monthLabel(month) : 'Start'}</td>
+                  <td className="px-2 py-1.5 font-medium text-zinc-600" colSpan={5}>
+                    Opening balance
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-zinc-800">
+                    {displayINR(openingBalance.toFixed(2))}
+                  </td>
+                  <td />
+                </tr>
                 {rows.map(({ entry, balance }) => {
                   const deleted = Boolean(entry.docId && deletedDoc.has(entry.docId))
                   const amt = signedAmount(entry)
