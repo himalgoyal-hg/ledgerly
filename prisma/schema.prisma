@@ -965,5 +965,12 @@ model HeadMode {
   // The mode resolved to the app's own bank account (by number/name at
   // master-sync time) — everything connects: category → head → account.
   bankAccountId String?
+  // The rest of the sheet's row, mirrored verbatim so the app can show the
+  // WHOLE master — zero-budget and note-only rows included.
+  nature     String? // Expense | Income | Liability | Asset | Contra | Personal
+  frequency  String? // DAILY..ANNUAL
+  dayNote    String?
+  bankBudget Decimal? @db.Decimal(14, 2)
+  cashBudget Decimal? @db.Decimal(14, 2)
   updatedAt   DateTime @updatedAt
 }

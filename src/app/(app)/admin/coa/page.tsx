@@ -35,6 +35,20 @@ export default async function CoaPage() {
     select: { id: true, nickname: true, ledgerAccountId: true },
   })
   const bankById = new Map(banks.map((b) => [b.id, b]))
+  // the whole master, plus where each category's head actually lives
+  const allHeads = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, archivedAt: null },
+    select: { id: true, name: true, entity: { select: { code: true } } },
+  })
+  const headsByName = new Map<string, { id: string; code: string }[]>()
+  for (const h of allHeads) {
+    const key = h.name.toLowerCase()
+    headsByName.set(key, [...(headsByName.get(key) ?? []), { id: h.id, code: h.entity.code }])
+  }
+  const freqLabel: Record<string, string> = {
+    DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
+    HALF_YEARLY: 'Half yearly', ANNUAL: 'Annual',
+  }
   const groups = accounts.filter((a) => a.isGroup)
   const depth = (code: string) => (code.endsWith('000') ? 0 : code.endsWith('00') ? 1 : code.endsWith('0') ? 2 : 2)
 
@@ -237,6 +251,89 @@ export default async function CoaPage() {
           </button>
         </form>
       </div>
+
+      {/* The whole master sheet, mirrored — every category across ALL books,
+          zero-budget rows included, exactly as the sheet holds them */}
+      <details className="rounded-xl border border-zinc-200 bg-white shadow-sm" open>
+        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+          Master sheet — every category ({modes.length})
+        </summary>
+        <div className="overflow-x-auto border-t border-zinc-100">
+          <table className="w-full min-w-[64rem] text-left text-sm">
+            <thead>
+              <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+                <th className="px-3 py-2">Category</th>
+                <th className="px-2 py-2">Books</th>
+                <th className="px-2 py-2">Nature</th>
+                <th className="px-2 py-2">Bank mode</th>
+                <th className="px-2 py-2">Cost centre</th>
+                <th className="px-2 py-2 text-right">Bank budget ₹</th>
+                <th className="px-2 py-2 text-right">Cash budget ₹</th>
+                <th className="px-2 py-2">Frequency</th>
+                <th className="px-2 py-2">Day</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {[...modes]
+                .sort((x, y) => x.category.localeCompare(y.category))
+                .map((m) => {
+                  const heads = headsByName.get(m.category.toLowerCase()) ?? []
+                  const bank = m.bankAccountId ? bankById.get(m.bankAccountId) : null
+                  const budget = (v: unknown) =>
+                    v == null ? '' : (Number(v) < 0 ? '-₹' : '₹') + Math.abs(Number(v)).toLocaleString('en-IN')
+                  return (
+                    <tr key={m.id} className="hover:bg-zinc-50/60">
+                      <td className="px-3 py-1 text-xs font-medium text-zinc-800">
+                        {heads.length > 0 ? (
+                          <Link href={`/admin/ledgers?accountId=${heads[0].id}`} className="hover:underline">
+                            {m.category}
+                          </Link>
+                        ) : (
+                          <span title="No head in any books yet">{m.category}</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-[11px]">
+                        {heads.length ? (
+                          <span className="text-zinc-500">{[...new Set(heads.map((h) => h.code))].join(' · ')}</span>
+                        ) : (
+                          <span className="text-zinc-300">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.nature ?? ''}</td>
+                      <td className="px-2 py-1 text-[11px]">
+                        {m.modeBank ? (
+                          bank?.ledgerAccountId ? (
+                            <Link
+                              href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`}
+                              className="text-sky-700 hover:underline"
+                              title={`Linked to ${bank.nickname}`}
+                            >
+                              {m.modeBank} ↗
+                            </Link>
+                          ) : (
+                            <span className="text-zinc-600">{m.modeBank}</span>
+                          )
+                        ) : (
+                          ''
+                        )}
+                      </td>
+                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.expenseType ?? ''}</td>
+                      <td className={`px-2 py-1 text-right text-xs tabular-nums ${Number(m.bankBudget) < 0 ? 'text-emerald-700' : 'text-zinc-600'}`}>
+                        {budget(m.bankBudget)}
+                      </td>
+                      <td className="px-2 py-1 text-right text-xs tabular-nums text-zinc-600">{budget(m.cashBudget)}</td>
+                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.frequency ? freqLabel[m.frequency] ?? m.frequency : ''}</td>
+                      <td className="px-2 py-1 text-[11px] text-zinc-500">{m.dayNote ?? ''}</td>
+                    </tr>
+                  )
+                })}
+            </tbody>
+          </table>
+        </div>
+        <p className="px-4 py-2 text-[11px] text-zinc-400">
+          Mirrored from &quot;New Finance setup HG&quot; on every ⟳ sync — negative budgets are receipts; click a category for its ledger, a bank mode for the account&apos;s.
+        </p>
+      </details>
     </div>
   )
 }

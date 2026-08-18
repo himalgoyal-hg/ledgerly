@@ -24,6 +24,7 @@ export interface MasterRow {
   cashBudget: number
   frequency: string | null
   dayNote: string | null
+  nature: string | null
 }
 
 const FREQ: Record<string, string> = {
@@ -77,6 +78,7 @@ export function parseMaster(csv: string): MasterRow[] {
       cashBudget: num(r[4] ?? ''),
       frequency: FREQ[(r[5] ?? '').trim()] ?? null,
       dayNote: dayNote || null,
+      nature: (r[7] ?? '').trim() || null,
     })
   }
   return out
@@ -176,14 +178,26 @@ export async function syncFromMaster(csvText?: string): Promise<MasterSyncSummar
           })
           touchedHeads.add(headAccountId)
         }
-        if (r.bankMode || r.expenseType) {
-          const bankAccountId = r.bankMode ? resolveBank(banks, r.bankMode) : null
-          await tx.headMode.upsert({
-            where: { category: r.category },
-            create: { category: r.category, modeBank: r.bankMode, modeCc: null, expenseType: r.expenseType, bankAccountId },
-            update: { modeBank: r.bankMode ?? undefined, expenseType: r.expenseType ?? undefined, bankAccountId },
-          })
+      }
+      // EVERY sheet row lands in HeadMode — the app's mirror of the whole
+      // master, zero-budget and note-only rows included.
+      for (const r of rows) {
+        const bankAccountId = r.bankMode ? resolveBank(banks, r.bankMode) : null
+        const mirror = {
+          modeBank: r.bankMode,
+          expenseType: r.expenseType,
+          bankAccountId,
+          nature: r.nature,
+          frequency: r.frequency,
+          dayNote: r.dayNote,
+          bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
+          cashBudget: r.cashBudget !== 0 ? r.cashBudget.toFixed(2) : null,
         }
+        await tx.headMode.upsert({
+          where: { category: r.category },
+          create: { category: r.category, modeCc: null, ...mirror },
+          update: mirror,
+        })
       }
     },
     { timeout: 120_000 },
