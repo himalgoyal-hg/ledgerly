@@ -169,6 +169,15 @@ export default async function TaggingPage(props: {
       },
     },
   })
+  // The master sheet's Nature rides on every head option, so picking a
+  // head prefills nature (and its default cost centre) per the master —
+  // both stay editable in the row.
+  const headModes = await prisma.headMode.findMany({ select: { category: true, nature: true } })
+  const natureByName = new Map(headModes.map((m) => [m.category.toLowerCase(), m.nature]))
+  for (const h of heads as (typeof heads[number] & { masterNature?: string | null })[]) {
+    h.masterNature = natureByName.get(h.name.toLowerCase()) ?? null
+  }
+
   const docById = new Map(docs.map((d) => [d.id, d]))
   const headName = (id: string | null) => {
     const h = heads.find((a) => a.id === id)

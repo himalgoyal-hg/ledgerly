@@ -21,6 +21,8 @@ export interface HeadOpt {
   name: string
   kind: string
   defaultCostCentreId?: string | null
+  /** The master sheet's "Nature of a/c" for this category, when it has one. */
+  masterNature?: string | null
 }
 
 export function HeadCombobox(props: {

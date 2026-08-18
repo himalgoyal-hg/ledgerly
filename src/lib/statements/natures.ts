@@ -21,8 +21,16 @@ export function isNature(value: string): value is Nature {
   return NATURES.some((n) => n.value === value)
 }
 
-/** Auto-suggest the nature from the chosen head (spec: "auto-suggested from head"). */
-export function suggestNature(head: { kind: string; code: string }, isOutflow: boolean): Nature {
+/**
+ * Auto-suggest the nature from the chosen head. Ledger specials (bank /
+ * cash / contra codes) win first; then the MASTER sheet's "Nature of a/c"
+ * for the category speaks; the head's kind is the last word. Always just a
+ * prefill — the tag row can change it.
+ */
+export function suggestNature(
+  head: { kind: string; code: string; masterNature?: string | null },
+  isOutflow: boolean,
+): Nature {
   if (head.code.startsWith('11')) return 'transfer_own' // bank accounts group
   if (head.code.startsWith('12')) return 'transfer_own' // cash locations
   if (head.code.startsWith('18')) return 'transfer_own' // transfers in transit (contra)
@@ -33,6 +41,14 @@ export function suggestNature(head: { kind: string; code: string }, isOutflow: b
   if (head.code.startsWith('24')) return 'reimbursement_settlement' // member payables
   if (head.code === '2220') return 'gst_payment'
   if (head.code === '2230') return 'tds_deposit'
+  const mn = head.masterNature?.toLowerCase() ?? ''
+  if (mn) {
+    if (mn.includes('contra') || mn.includes('personal')) return 'transfer_own'
+    if (mn.includes('expense') && mn.includes('income')) return isOutflow ? 'expense' : 'income'
+    if (mn === 'income') return 'income'
+    if (mn === 'expense') return 'expense'
+    if (mn === 'liability' && !isOutflow) return 'loan_received'
+  }
   if (head.kind === 'INCOME') return 'income'
   if (head.kind === 'EXPENSE') return 'expense'
   return isOutflow ? 'expense' : 'income'
