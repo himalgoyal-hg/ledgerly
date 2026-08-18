@@ -28,7 +28,7 @@ export default async function BudgetPage(props: {
   const monthFilter = Number(params.month) || 0 // 0 = whole year
   const months = monthFilter ? [monthFilter] : Array.from({ length: 12 }, (_, i) => i + 1)
 
-  const [report, accounts, freqRows] = await Promise.all([
+  const [report, accounts] = await Promise.all([
     budgetVsActual(entity.id, year, months),
     prisma.ledgerAccount.findMany({
       where: {
@@ -46,14 +46,6 @@ export default async function BudgetPage(props: {
     }),
   ])
   // "set weekly" / "set quarterly" chip — how each target was entered.
-  const freqOf = new Map(freqRows.map((f) => [f.accountId, f.frequency]))
-  const freqLabel: Record<string, string> = {
-    WEEKLY: 'weekly',
-    MONTHLY: 'monthly',
-    QUARTERLY: 'quarterly',
-    HALF_YEARLY: 'half-yearly',
-    ANNUAL: 'annual',
-  }
   const query = new URLSearchParams({
     year: String(year),
     ...(monthFilter ? { month: String(monthFilter) } : {}),
@@ -94,6 +86,61 @@ export default async function BudgetPage(props: {
         exportHref={`/reports/export?report=budget&${query}`}
       />
 
+      {admin && (
+        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+            ＋ Set a budget target
+          </summary>
+          <div className="border-t border-zinc-100 p-4">
+          <form action={setBudget} className="mt-3 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="entityId" value={entity.id} />
+            <input type="hidden" name="year" value={year} />
+            <select
+              name="accountId"
+              required
+              className="min-w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">— account —</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.code} · {a.name}
+                </option>
+              ))}
+            </select>
+            <select name="month" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <option value="">Whole year</option>
+              {MONTHS.map((m, i) => (
+                <option key={m} value={i + 1}>{m} {year}</option>
+              ))}
+            </select>
+            <input
+              name="amount"
+              inputMode="decimal"
+              placeholder="Amount ₹ (blank clears)"
+              className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+            />
+            <select name="frequency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <option value="ANNUAL">per year</option>
+              <option value="MONTHLY">per month</option>
+              <option value="WEEKLY">per week</option>
+              <option value="QUARTERLY">per quarter</option>
+              <option value="HALF_YEARLY">per half-year</option>
+            </select>
+            <button
+              type="submit"
+              className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+            >
+              Save target
+            </button>
+          </form>
+          <p className="mt-2 text-xs text-zinc-400">
+            Whole-year targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and
+            spread over the twelve months. Picking a specific month takes the amount as-is.
+          </p>
+          </div>
+        </details>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
@@ -113,11 +160,6 @@ export default async function BudgetPage(props: {
                 <tr key={row.accountId}>
                   <td className="px-4 py-2">
                     <span className="font-mono text-xs text-zinc-400">{row.code}</span> {row.name}
-                    {freqOf.get(row.accountId) && (
-                      <span className="ml-2 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
-                        set {freqLabel[freqOf.get(row.accountId)!] ?? freqOf.get(row.accountId)}
-                      </span>
-                    )}
                   </td>
                   <td className="px-4 py-2 text-right text-zinc-500">
                     {admin ? (
@@ -202,56 +244,6 @@ export default async function BudgetPage(props: {
         </table>
       </div>
 
-      {admin && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm print:hidden">
-          <h2 className="font-medium text-zinc-900">Set a budget target</h2>
-          <form action={setBudget} className="mt-3 flex flex-wrap items-center gap-2">
-            <input type="hidden" name="entityId" value={entity.id} />
-            <input type="hidden" name="year" value={year} />
-            <select
-              name="accountId"
-              required
-              className="min-w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-            >
-              <option value="">— account —</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.code} · {a.name}
-                </option>
-              ))}
-            </select>
-            <select name="month" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="">Whole year</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i + 1}>{m} {year}</option>
-              ))}
-            </select>
-            <input
-              name="amount"
-              inputMode="decimal"
-              placeholder="Amount ₹ (blank clears)"
-              className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
-            />
-            <select name="frequency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
-              <option value="ANNUAL">per year</option>
-              <option value="MONTHLY">per month</option>
-              <option value="WEEKLY">per week</option>
-              <option value="QUARTERLY">per quarter</option>
-              <option value="HALF_YEARLY">per half-year</option>
-            </select>
-            <button
-              type="submit"
-              className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-            >
-              Save target
-            </button>
-          </form>
-          <p className="mt-2 text-xs text-zinc-400">
-            Whole-year targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and
-            spread over the twelve months. Picking a specific month takes the amount as-is.
-          </p>
-        </div>
-      )}
     </div>
   )
 }
