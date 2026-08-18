@@ -14,6 +14,7 @@ const TABS = [
   { href: '/reports/budget', label: 'Budget vs Actual' },
   { href: '/reports/monthly', label: 'Month by month' },
   { href: '/reports/mode', label: 'Actual vs Plan Mode' },
+  { href: '/reports/by', label: 'By head / cost centre' },
   { href: '/reports/weekly', label: 'Weekly' },
   { href: '/reports/usage', label: 'Cash vs bank' },
   { href: '/reports/banks', label: 'Bank balances' },
