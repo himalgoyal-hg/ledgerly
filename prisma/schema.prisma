@@ -951,3 +951,16 @@ model NetCapitalLine {
 
   @@index([section])
 }
+
+// Finance-setup modes (the sheet's Mode Bank / Mode CC / Expense type):
+// per tagging category, which bank account and credit card the payment is
+// SUPPOSED to move on. Compared against tagged reality on /reports/mode
+// ("Actual vs Plan Mode").
+model HeadMode {
+  id          String   @id @default(cuid())
+  category    String   @unique // tagging-category / head name
+  modeBank    String? // "HDFC 2762", "ACPL HDFC 7838", "Cash", "Greeshma balance"
+  modeCc      String? // "Tata Neo", "AMEX CC", "ICICI CC"
+  expenseType String? // Compulsory | Optional-Lifestyle | Optional-growth | Optional-Investment
+  updatedAt   DateTime @updatedAt
+}

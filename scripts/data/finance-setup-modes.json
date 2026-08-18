@@ -1,0 +1,488 @@
+[
+ {
+  "category": "Synergy EMI",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Food & Dining",
+  "modeBank": "HDFC 4271",
+  "modeCc": "Tata Neo",
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Zomato health dinner",
+  "modeBank": "Greeshma balance",
+  "modeCc": "Tata Neo",
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Books",
+  "modeBank": "HDFC 2762",
+  "modeCc": "ICICI CC",
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Medical",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Entertainment & Subscriptions",
+  "modeBank": "HDFC 4271",
+  "modeCc": "ICICI CC",
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Gym & Health",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Petrol",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Clothing & Shoping",
+  "modeBank": "HDFC 4271",
+  "modeCc": "ICICI CC",
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Hobbies",
+  "modeBank": "HDFC 4271",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Salon",
+  "modeBank": "HDFC 4271",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Steve",
+  "modeBank": "HDFC 2762",
+  "modeCc": "ICICI CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "ACPL business exp",
+  "modeBank": "HDFC 2762",
+  "modeCc": "AMEX CC",
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Finance expenses",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Insurance",
+  "modeBank": "HDFC 2762",
+  "modeCc": "ICICI CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Bike/ Car Expenses",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Car maintenance",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Bike maintenance",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Property tax - Synergy",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Synergy events",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Telephone expenses",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Asset management",
+  "modeBank": "HDFC 2762",
+  "modeCc": "ICICI CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Poker",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Socialising",
+  "modeBank": "HDFC 4271",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Mom travel",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Synergy Maintenance",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Gadgets",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Mom gifts",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Meena Goyal- Ration",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Meena Goyal- Fruit/ vegetables",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Income tax",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Investment expenses- Octanom (AOS)",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Travel",
+  "modeBank": "HDFC 2762",
+  "modeCc": "AMEX CC",
+  "expenseType": "Optional-Lifestyle"
+ },
+ {
+  "category": "Light Bill",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Investment",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-Investment"
+ },
+ {
+  "category": "MG SIP",
+  "modeBank": "Meena ICICI",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "SIP",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-Investment"
+ },
+ {
+  "category": "Income",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Interest",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Property tax - ABC",
+  "modeBank": "HDFC 2762",
+  "modeCc": "Tata Neo",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "ABC rent",
+  "modeBank": "HG ICICI",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "ABC EMI",
+  "modeBank": "HG ICICI",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Return Payment",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "Investment expenses- Others",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Dividend",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Asset",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "HDFC CC",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Optional-growth"
+ },
+ {
+  "category": "ACPL",
+  "modeBank": "HDFC 2762",
+  "modeCc": "AMEX CC",
+  "expenseType": null
+ },
+ {
+  "category": "Meena Goyal",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": null
+ },
+ {
+  "category": "HG -->> MG (Expense)",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Loan given",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": null
+ },
+ {
+  "category": "AJ Revenue",
+  "modeBank": "Cash",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Pattern",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Neat Method",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Noria revenue",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Shubham Jain",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Payroll",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "PF",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Softwares",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Marketing",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Verve",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Harin",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Software development",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "HG Professional fees",
+  "modeBank": "HDFC 2762",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "MG Salary",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Upwork",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "GSuite",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "TDS compliances",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "MIRO",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Official travel expense",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Zoom",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "ChatGPT",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Video editing",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Digital Ocean",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Square Associate",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Tanmeet Professional fees",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Hiring Expense- Tests",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Platform Hiring Expense",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": "AMEX CC",
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Professional Tax",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "ACPL Hyrox",
+  "modeBank": null,
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ },
+ {
+  "category": "Proton VPN",
+  "modeBank": "ACPL HDFC 7838",
+  "modeCc": null,
+  "expenseType": "Compulsory"
+ }
+]

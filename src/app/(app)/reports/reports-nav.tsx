@@ -13,6 +13,7 @@ const TABS = [
   { href: '/reports/cash-flow', label: 'Cash Flow' },
   { href: '/reports/budget', label: 'Budget vs Actual' },
   { href: '/reports/monthly', label: 'Month by month' },
+  { href: '/reports/mode', label: 'Actual vs Plan Mode' },
   { href: '/reports/weekly', label: 'Weekly' },
   { href: '/reports/usage', label: 'Cash vs bank' },
   { href: '/reports/banks', label: 'Bank balances' },
