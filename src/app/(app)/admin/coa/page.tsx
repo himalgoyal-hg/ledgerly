@@ -9,6 +9,7 @@ import {
   restoreAccount,
   renameAccount,
   setDefaultCostCentre,
+  syncMasterSheetAction,
 } from './actions'
 
 export default async function CoaPage() {
@@ -49,14 +50,26 @@ export default async function CoaPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Chart of Accounts — {entity.name} ({entity.code})
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Seeded automatically on entity creation. Group heads structure the
-          tree; postings go to leaf accounts only.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-zinc-900">
+            Chart of Accounts — {entity.name} ({entity.code})
+          </h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Seeded automatically on entity creation. Group heads structure the
+            tree; postings go to leaf accounts only.
+          </p>
+        </div>
+        {/* the whole app reads the master sheet; this button pulls it fresh */}
+        <form action={syncMasterSheetAction}>
+          <button
+            type="submit"
+            title="Fetches 'New Finance setup HG' from the Google Sheet and updates plan lines, heads, modes, cost centres and budgets everywhere"
+            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-sm font-medium text-emerald-800 hover:bg-emerald-100"
+          >
+            ⟳ Sync from master sheet
+          </button>
+        </form>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">

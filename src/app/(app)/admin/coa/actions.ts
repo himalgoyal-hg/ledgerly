@@ -151,3 +151,30 @@ export async function renameAccount(formData: FormData) {
   })
   revalidatePath('/admin/coa')
 }
+
+/**
+ * One click, one master: fetch "New Finance setup HG" live from the Google
+ * Sheet and push it through plan lines, heads, modes, cost centres and
+ * budgets. Everything the sheet says lands everywhere it is read.
+ */
+export async function syncMasterSheetAction() {
+  const admin = await requireAdmin()
+  const { syncFromMaster } = await import('@/lib/budget/master-sync')
+  const summary = await syncFromMaster()
+  await auditedTransaction(async (tx) => {
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'master.sync',
+      targetType: 'Entity',
+      targetId: 'master-sheet',
+      summary: `Master sheet synced: ${summary.recurring} plan lines, ${summary.headsSynced} heads' budgets, ${summary.costCentresSet} cost-centre defaults, ${summary.budgetsCleared} stale budget rows cleared`,
+      after: { ...summary },
+    })
+  })
+  revalidatePath('/admin/coa')
+  revalidatePath('/reports/cash-flow')
+  revalidatePath('/reports/budget')
+  revalidatePath('/reports/monthly')
+  revalidatePath('/reports/mode')
+  revalidatePath('/tagging')
+}
