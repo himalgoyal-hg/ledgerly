@@ -67,7 +67,19 @@ export function HeadCombobox(props: {
     const byCombined = props.heads.find(
       (h) => `${h.code} · ${h.name}`.toLowerCase() === typed || h.name.toLowerCase() === typed,
     )
-    return byCombined ?? null
+    if (byCombined) return byCombined
+    // Excel-feel: once the typed text points at exactly ONE head, snap to
+    // it — the pick (and its nature / cost-centre prefill) shows while
+    // typing, no need to hit the dropdown. Keeps clearing if typing on.
+    if (typed.length >= 3) {
+      const starts = options.filter((o) => o.label.toLowerCase().startsWith(typed))
+      if (starts.length === 1) return starts[0].head
+      if (starts.length === 0) {
+        const contains = options.filter((o) => o.label.toLowerCase().includes(typed))
+        if (contains.length === 1) return contains[0].head
+      }
+    }
+    return null
   }
 
   const creating = Boolean(props.createName) && !id && text.trim() !== ''

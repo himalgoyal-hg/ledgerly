@@ -4,7 +4,7 @@ import { prisma } from '@/lib/db'
 import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
-import { NATURES } from '@/lib/statements/natures'
+import { NATURES, suggestNature } from '@/lib/statements/natures'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
@@ -552,6 +552,9 @@ export default async function TaggingPage(props: {
                           />
                         </td>
                         {leadCells(txn, aiTip)}
+                        {/* The row opens FILLED per the master: the suggested
+                            (or rule) head, its master nature and default cost
+                            centre — visible at once, editable as ever. */}
                         <TagRowCells
                           txnId={txn.id}
                           isOutflow={Number(txn.debit) > 0}
@@ -559,6 +562,17 @@ export default async function TaggingPage(props: {
                           costCentres={costCentres}
                           action={tagTransaction}
                           submitLabel="Tag"
+                          defaults={(() => {
+                            const sugHead = txn.aiHeadAccountId
+                              ? heads.find((h) => h.id === txn.aiHeadAccountId)
+                              : undefined
+                            if (!sugHead) return undefined
+                            return {
+                              headAccountId: sugHead.id,
+                              nature: txn.aiNature ?? suggestNature(sugHead, Number(txn.debit) > 0),
+                              costCentreId: txn.aiCostCentreId ?? sugHead.defaultCostCentreId ?? '',
+                            }
+                          })()}
                         />
                       </tr>
                       {/* AI suggestion — advisory, one slim line under the row
