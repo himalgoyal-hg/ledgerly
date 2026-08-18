@@ -30,6 +30,7 @@ import {
   ReceiptText,
   Scale,
   ScrollText,
+  Trash2,
   Search,
   ShieldCheck,
   Sun,
@@ -71,6 +72,7 @@ const ICONS: Record<string, LucideIcon> = {
   users: ShieldCheck,
   automation: Zap,
   audit: ScrollText,
+  bin: Trash2,
 }
 
 export interface ShellEntity {

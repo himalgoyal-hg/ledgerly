@@ -474,53 +474,14 @@ export default async function CashPage(props: {
           </p>
         )}
 
-        {/* Recycle bin — deleted entries wait here, out of the passbook.
-            Undo restores the posting; Remove forever drops the row (the
-            ledger keeps the original + reversal, so balances never move). */}
+        {/* deleted entries live in the ONE recycle bin, not on this page */}
         {binRows.length > 0 && (
-          <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-            <summary className="cursor-pointer px-4 py-2 text-sm text-zinc-500 hover:bg-zinc-50">
-              🗑 Recycle bin ({binRows.length})
-            </summary>
-            <div className="overflow-x-auto border-t border-zinc-100">
-              <table className="w-full min-w-[40rem] text-left text-sm">
-                <tbody className="divide-y divide-zinc-100">
-                  {binRows.map(({ entry }) => (
-                    <tr key={entry.id} className="text-xs text-zinc-500">
-                      <td className="whitespace-nowrap px-3 py-1.5 tabular-nums">{entry.date.toISOString().slice(0, 10)}</td>
-                      <td className="max-w-[16rem] truncate px-2 py-1.5" title={entry.remarks ?? ''}>{entry.remarks ?? '—'}</td>
-                      <td className="whitespace-nowrap px-2 py-1.5">
-                        {entityCode.get(entry.entityId)} · {locationName(entry.locationId)}
-                      </td>
-                      <td className="max-w-40 truncate px-2 py-1.5">{headName(entry.headAccountId) ?? 'transfer'}</td>
-                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums">{displayINR(String(entry.amount))}</td>
-                      <td className="whitespace-nowrap px-2 py-1.5 text-right">
-                        {canEditPosted && (
-                          <>
-                            <form action={undoCashEntryAction} className="inline">
-                              <input type="hidden" name="entryId" value={entry.id} />
-                              <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
-                                Restore
-                              </button>
-                            </form>
-                            <form action={purgeCashEntryAction} className="ml-1 inline">
-                              <input type="hidden" name="entryId" value={entry.id} />
-                              <ConfirmButton
-                                message={`Remove "${entry.remarks ?? entry.kind}" ₹${entry.amount} forever? The ledger's reversal stays; this cannot be undone.`}
-                                className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
-                              >
-                                Remove forever
-                              </ConfirmButton>
-                            </form>
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </details>
+          <p className="text-xs text-zinc-400">
+            {binRows.length} deleted entr{binRows.length > 1 ? 'ies' : 'y'} in the{' '}
+            <Link href="/recycle-bin" className="text-zinc-600 underline hover:text-zinc-900">
+              🗑 Recycle bin
+            </Link>
+          </p>
         )}
       </div>
     </div>

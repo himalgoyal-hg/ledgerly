@@ -69,6 +69,7 @@ export function buildNav(user: CurrentUser): NavGroup[] {
         { href: '/admin/banking', label: 'Banks & cash locations', icon: 'entities', show: admin },
         { href: '/admin/entities', label: 'Entities', icon: 'entities', show: admin },
         { href: '/admin/users', label: 'Users & permissions', icon: 'users', show: admin },
+        { href: '/recycle-bin', label: 'Recycle bin', icon: 'bin', show: admin },
       ],
     },
   ]
