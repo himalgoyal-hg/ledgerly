@@ -171,6 +171,7 @@ export async function saveMasterRowAction(formData: FormData) {
   if (books && !['HG', 'ACPL', 'MG', 'PG', 'CASH'].includes(books)) throw new Error('Bad books')
   const row = {
     category: f('category'),
+    ...(formData.has('section') ? { section: f('section') || null } : {}),
     books: books || null,
     bankMode: f('bankMode') || null,
     expenseType: f('expenseType') || null,

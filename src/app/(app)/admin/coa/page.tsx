@@ -35,6 +35,7 @@ export default async function CoaPage() {
   if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
 
   const modes = await prisma.headMode.findMany({ orderBy: [{ sortOrder: 'asc' }, { category: 'asc' }] })
+  const sections = [...new Set(modes.map((m) => m.section).filter((x): x is string => !!x))]
   const banks = await prisma.bankAccount.findMany({
     select: { id: true, nickname: true, ledgerAccountId: true },
   })
@@ -105,6 +106,10 @@ export default async function CoaPage() {
               const prev = idx > 1 ? (arr[idx - 1] as (typeof modes)[number] | null) : null
               const sectionHeader =
                 m && m.section && m.section !== (prev?.section ?? null) ? m.section : null
+              const next = idx < arr.length - 1 ? (arr[idx + 1] as (typeof modes)[number] | null) : null
+              // last row of its section → an add-right-here row follows
+              const sectionEnds =
+                m && m.section && (next == null || (next.section ?? null) !== m.section) ? m.section : null
               const fid = m ? `mr-${m.id}` : 'mr-new'
               const heads = m ? (headsByName.get(m.category.toLowerCase()) ?? []) : []
               const bank = m?.bankAccountId ? bankById.get(m.bankAccountId) : null
@@ -140,7 +145,16 @@ export default async function CoaPage() {
                         )}
                       </>
                     ) : (
-                      <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-emerald-400`} />
+                      <div className="flex gap-1">
+                        <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-emerald-400`} />
+                        <input
+                          name="section"
+                          form={fid}
+                          list="section-options"
+                          placeholder="Section (or a new one)"
+                          className={`${cellCls} w-40 border-dashed border-emerald-300`}
+                        />
+                      </div>
                     )}
                   </td>
                   <td className="px-1 py-0.5">
@@ -238,12 +252,49 @@ export default async function CoaPage() {
                     )}
                   </td>
                 </tr>
+                {sectionEnds && (
+                  <tr data-filter-keep="1" className="bg-emerald-50/30">
+                    <td className="px-4 py-0.5" colSpan={8}>
+                      <input
+                        name="category"
+                        form={`mr-sec-${sectionEnds.replace(/[^a-zA-Z0-9]/g, '_')}`}
+                        required
+                        placeholder={`＋ Add in ${sectionEnds}…`}
+                        className={`${cellCls} border-dashed border-emerald-300`}
+                      />
+                    </td>
+                    <td className="px-2 py-0.5 text-right">
+                      <form id={`mr-sec-${sectionEnds.replace(/[^a-zA-Z0-9]/g, '_')}`} action={saveMasterRowAction} className="inline">
+                        <input type="hidden" name="section" value={sectionEnds} />
+                        <input type="hidden" name="bankMode" value="" />
+                        <input type="hidden" name="expenseType" value="" />
+                        <input type="hidden" name="bankBudget" value="" />
+                        <input type="hidden" name="cashBudget" value="" />
+                        <input type="hidden" name="frequency" value="" />
+                        <input type="hidden" name="dayNote" value="" />
+                        <input type="hidden" name="nature" value="" />
+                        <button
+                          type="submit"
+                          title="Adds at the end of this section — fill its columns after"
+                          className="rounded bg-emerald-700 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600"
+                        >
+                          Add
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                )}
                 </Fragment>
               )
             })}
           </tbody>
         </table>
         </div>
+        <datalist id="section-options">
+          {sections.map((sec) => (
+            <option key={sec} value={sec} />
+          ))}
+        </datalist>
         <datalist id="bank-mode-options">
           {BANK_MODES.map((b) => (
             <option key={b} value={b} />

@@ -31,6 +31,8 @@ export interface MasterRow {
   books?: string | null
   /** Claimable-as for income tax; undefined = keep the previous line's value. */
   taxTreatment?: string | null
+  /** Register section; a NEW category slots at that section's end. */
+  section?: string | null
 }
 
 const FREQ: Record<string, string> = {
@@ -195,12 +197,39 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
         cashBudget: r.cashBudget !== 0 ? r.cashBudget.toFixed(2) : null,
       }
-      const last = await tx.headMode.aggregate({ _max: { sortOrder: true } })
-      await tx.headMode.upsert({
-        where: { category: r.category },
-        create: { category: r.category, modeCc: null, sortOrder: (last._max.sortOrder ?? 0) + 1, ...mirror },
-        update: mirror,
-      })
+      const existingHm = await tx.headMode.findUnique({ where: { category: r.category } })
+      if (existingHm) {
+        await tx.headMode.update({
+          where: { category: r.category },
+          data: { ...mirror, ...(r.section !== undefined ? { section: r.section } : {}) },
+        })
+      } else {
+        // a new category slots at the END of its section (rows after shift
+        // down one), or at the very end when no section is named
+        let sortOrder: number
+        if (r.section) {
+          const inSection = await tx.headMode.aggregate({
+            where: { section: r.section },
+            _max: { sortOrder: true },
+          })
+          if (inSection._max.sortOrder != null) {
+            sortOrder = inSection._max.sortOrder + 1
+            await tx.headMode.updateMany({
+              where: { sortOrder: { gte: sortOrder } },
+              data: { sortOrder: { increment: 1 } },
+            })
+          } else {
+            const all = await tx.headMode.aggregate({ _max: { sortOrder: true } })
+            sortOrder = (all._max.sortOrder ?? 0) + 1
+          }
+        } else {
+          const all = await tx.headMode.aggregate({ _max: { sortOrder: true } })
+          sortOrder = (all._max.sortOrder ?? 0) + 1
+        }
+        await tx.headMode.create({
+          data: { category: r.category, modeCc: null, sortOrder, section: r.section ?? null, ...mirror },
+        })
+      }
     },
     { timeout: 60_000 },
   )
