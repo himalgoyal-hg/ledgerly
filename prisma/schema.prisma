@@ -968,6 +968,7 @@ model HeadMode {
   // The rest of the sheet's row, mirrored verbatim so the app can show the
   // WHOLE master — zero-budget and note-only rows included.
   nature     String? // Expense | Income | Liability | Asset | Contra | Personal
+  books      String? // HG | ACPL | MG | PG — which books the plan/head belongs to (blank = derive from bank mode)
   frequency  String? // DAILY..ANNUAL
   dayNote    String?
   bankBudget Decimal? @db.Decimal(14, 2)

@@ -167,8 +167,11 @@ export async function saveMasterRowAction(formData: FormData) {
     if (!Number.isFinite(v)) throw new Error(`Bad amount in ${n}`)
     return v
   }
+  const books = f('books')
+  if (books && !['HG', 'ACPL', 'MG', 'PG'].includes(books)) throw new Error('Bad books')
   const row = {
     category: f('category'),
+    books: books || null,
     bankMode: f('bankMode') || null,
     expenseType: f('expenseType') || null,
     bankBudget: num('bankBudget'),

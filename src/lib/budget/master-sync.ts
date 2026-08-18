@@ -27,6 +27,8 @@ export interface MasterRow {
   frequency: string | null
   dayNote: string | null
   nature: string | null
+  /** Explicit books for the plan/head (HG/ACPL/MG/PG); blank = derive from bank mode. */
+  books?: string | null
 }
 
 const FREQ: Record<string, string> = {
@@ -137,22 +139,26 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: r.category, mode: 'insensitive' } },
       })
       if (active) {
+        const bankSource = r.books || poolOf(r.bankMode, prev?.source ?? null)
         const parts: { source: string; amount: number }[] = []
-        if (r.bankBudget !== 0) parts.push({ source: poolOf(r.bankMode, prev?.source ?? null), amount: r.bankBudget })
+        if (r.bankBudget !== 0) parts.push({ source: bankSource, amount: r.bankBudget })
         if (r.cashBudget !== 0) parts.push({ source: 'CASH', amount: r.cashBudget })
         for (const part of parts) {
           const heads = await tx.ledgerAccount.findMany({
             where: { isGroup: false, archivedAt: null, name: { equals: r.category, mode: 'insensitive' } },
             include: { entity: { select: { code: true } } },
           })
+          // An explicit books choice pins both the plan's pool and where a
+          // missing head is born; otherwise the pool's own books lead.
+          const wantCode = part.source === 'CASH' ? (r.books || 'HG') : part.source
           const head =
-            heads.find((h) => h.entity.code === part.source) ??
+            heads.find((h) => h.entity.code === wantCode) ??
             heads.find((h) => h.entity.code === 'HG') ??
             heads[0] ??
             null
           const entity = head
             ? await tx.entity.findUniqueOrThrow({ where: { id: head.entityId } })
-            : await tx.entity.findFirstOrThrow({ where: { code: part.source === 'CASH' ? 'HG' : part.source } })
+            : await tx.entity.findFirstOrThrow({ where: { code: wantCode } })
           const headAccountId =
             head?.id ??
             (await resolveHeadAccount(tx, { entityId: entity.id, headText: r.category, isOutflow: part.amount > 0 }))
@@ -179,6 +185,7 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         expenseType: r.expenseType,
         bankAccountId,
         nature: r.nature,
+        books: r.books ?? null,
         frequency: r.frequency,
         dayNote: r.dayNote,
         bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
