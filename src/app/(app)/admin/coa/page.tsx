@@ -16,7 +16,7 @@ export default async function CoaPage() {
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
 
-  const [accounts, costCentres] = await Promise.all([
+  const [accounts, costCentres, modes, planLines] = await Promise.all([
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id },
       include: { _count: { select: { lines: true } } },
@@ -26,9 +26,26 @@ export default async function CoaPage() {
       where: { entityId: entity.id, archivedAt: null },
       orderBy: { name: 'asc' },
     }),
+    prisma.headMode.findMany(),
+    prisma.budgetLine.findMany({ where: { archivedAt: null, frequency: { not: 'ONCE' } } }),
   ])
   const groups = accounts.filter((a) => a.isGroup)
   const depth = (code: string) => (code.endsWith('000') ? 0 : code.endsWith('00') ? 1 : code.endsWith('0') ? 2 : 2)
+
+  // The master sheet's word on each head: planned bank/CC mode, expense
+  // type, and the plan line (budget × frequency, due day) — shown right in
+  // the chart so one look answers "how is this head supposed to behave?"
+  const modeByName = new Map(modes.map((m) => [m.category.toLowerCase(), m]))
+  const planByName = new Map<string, (typeof planLines)[number][]>()
+  for (const l of planLines) {
+    const key = l.label.toLowerCase()
+    planByName.set(key, [...(planByName.get(key) ?? []), l])
+  }
+  const freqShort: Record<string, string> = {
+    DAILY: 'daily', WEEKLY: 'weekly', MONTHLY: 'monthly', QUARTERLY: 'quarterly',
+    HALF_YEARLY: 'half-yearly', ANNUAL: 'annual',
+  }
+  const inrFmt = (n: number) => '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
 
   return (
     <div className="space-y-6">
@@ -49,6 +66,7 @@ export default async function CoaPage() {
               <th className="px-4 py-3">Code</th>
               <th className="px-4 py-3">Account</th>
               <th className="px-4 py-3">Kind</th>
+              <th className="px-4 py-3">Plan (master sheet)</th>
               <th className="px-4 py-3">Default cost centre</th>
               <th className="px-4 py-3 text-right">Postings</th>
               <th className="px-4 py-3" />
@@ -72,6 +90,44 @@ export default async function CoaPage() {
                   </span>
                 </td>
                 <td className="px-4 py-1.5 text-xs text-zinc-500">{a.kind}</td>
+                <td className="px-4 py-1.5 text-xs">
+                  {!a.isGroup &&
+                    (() => {
+                      const mode = modeByName.get(a.name.toLowerCase())
+                      const lines = planByName.get(a.name.toLowerCase()) ?? []
+                      if (!mode && lines.length === 0) return <span className="text-zinc-300">—</span>
+                      return (
+                        <div className="flex flex-wrap items-center gap-1">
+                          {mode?.modeBank && (
+                            <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-sky-800" title="Planned bank mode">
+                              {mode.modeBank}
+                            </span>
+                          )}
+                          {mode?.modeCc && (
+                            <span className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-violet-800" title="Planned credit card">
+                              {mode.modeCc}
+                            </span>
+                          )}
+                          {mode?.expenseType && (
+                            <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-zinc-600" title="Expense type">
+                              {mode.expenseType}
+                            </span>
+                          )}
+                          {lines.map((l) => (
+                            <span
+                              key={l.id}
+                              className={`rounded-full border px-2 py-0.5 ${Number(l.amount) < 0 ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50/70 text-amber-800'}`}
+                              title={`Plan: ${Number(l.amount) < 0 ? 'receipt' : 'payment'} from ${l.source}${l.dayNote ? ` — day ${l.dayNote}` : ''}`}
+                            >
+                              {inrFmt(Number(l.amount))} {freqShort[l.frequency] ?? l.frequency}
+                              {Number(l.amount) < 0 ? ' in' : ''}
+                              {l.dayNote ? ` · ${l.dayNote}` : ''}
+                            </span>
+                          ))}
+                        </div>
+                      )
+                    })()}
+                </td>
                 <td className="px-4 py-1.5">
                   {/* v2 prototype: this default auto-fills tagging & cash forms */}
                   {!a.isGroup ? (
