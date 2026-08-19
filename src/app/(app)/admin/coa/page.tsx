@@ -94,8 +94,8 @@ export default async function CoaPage() {
               <th className="px-2 py-2.5 font-semibold">Nature</th>
               <th className="px-2 py-2.5 font-semibold">Bank mode</th>
               <th className="px-2 py-2.5 font-semibold">Cost centre</th>
-              <th className="px-2 py-2.5 font-semibold" title="Yes = this head also gets its own report — Reports → By → Separate report">
-                Separate report
+              <th className="px-2 py-2.5 font-semibold" title="Yes = this head also gets its own report — Reports → By → Accounting Head">
+                Accounting Head
               </th>
               <th className="px-2 py-2.5 text-right font-semibold">Bank budget ₹</th>
               <th className="px-2 py-2.5 text-right font-semibold">Cash budget ₹</th>
@@ -315,7 +315,7 @@ export default async function CoaPage() {
           This register is the master — ✓ saves a row and updates the plan, budgets, modes and cost centres everywhere.
           Books says whose books (or the cash pool) the plan sits in. Negative budget = receipt. The ↗ next to a bank
           mode means it is linked to a real bank account — click it to open that account&apos;s statement ledger.
-          Separate report = Yes gives the head a second tag: its entries also show in their own lens on Reports → By
+          Accounting Head = Yes gives the head a second tag: its entries also show in their own report on Reports → By
           (head / cost centre), asset purchases included.
         </p>
       </div>

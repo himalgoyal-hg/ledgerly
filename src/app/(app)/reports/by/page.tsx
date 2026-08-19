@@ -11,10 +11,10 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 // groups). Every figure is a live ledger query — tagging fills it, nothing
 // is typed. Rows link to the ledger where they can.
 //
-// Second tagging dimension (Himal, 19 Aug): the master register's
-// "Separate report = Yes" heads form their own scope — the same lenses,
-// restricted to those heads, with EVERY nature included so asset buys
-// (laptop, car) count alongside expenses.
+// Second tagging dimension (Himal, 19 Aug — named "Accounting Head"): the
+// master register's Yes-flagged heads plus entries flagged Yes while tagging
+// form their own scope — the same lenses, with EVERY nature included so
+// asset buys (laptop, car) count alongside expenses.
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -22,7 +22,7 @@ const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(
 const LENSES = [
   { key: 'cc', label: 'Cost centre' },
   { key: 'head', label: 'Expense Head' },
-  { key: 'group', label: 'Accounting head' },
+  { key: 'group', label: 'Account group' },
 ] as const
 
 export default async function ByDimensionPage({
@@ -126,7 +126,7 @@ export default async function ByDimensionPage({
     <div className="space-y-4">
       <PageHeader
         kicker="Report"
-        title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Separate report' : ''} — ${entity.code}`}
+        title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Accounting Head' : ''} — ${entity.code}`}
         subtitle={
           sep
             ? `Only what was marked Yes — entries flagged while tagging, plus every line of a master-flagged head. Every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
@@ -150,7 +150,7 @@ export default async function ByDimensionPage({
               All heads
             </Link>
             <Link href={`/reports/by?by=${by}&fy=${fy}&scope=sep`} className={chipClass(sep)}>
-              Separate report
+              Accounting Head
             </Link>
             <LiveFilter selector="[data-live-filter='by']" placeholder="Type to search…" className={`${controlClass} w-40`} />
           </>
@@ -198,7 +198,7 @@ export default async function ByDimensionPage({
         <p className="text-sm text-ink-3">
           {sep ? (
             <>
-              Nothing marked Separate report = Yes in FY {fy}-{String(fy + 1).slice(2)} yet — pick Yes while
+              Nothing marked Accounting Head = Yes in FY {fy}-{String(fy + 1).slice(2)} yet — pick Yes while
               tagging an entry, or flag a whole head on{' '}
               <Link href="/admin/coa" className="text-primary hover:underline">
                 Accounts — master register

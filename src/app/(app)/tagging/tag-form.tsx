@@ -148,15 +148,15 @@ export function TagRowCells(props: {
             form={formId}
             value={sepReport}
             onChange={(e) => setSepReport(e.target.value)}
-            title="Separate report — Yes shows this entry in its own lens on Reports → By (head / cost centre)"
+            title="Accounting Head — Yes shows this entry in its own report on Reports → By (head / cost centre)"
             className={`rounded border px-1 py-1 text-[10px] ${
               sepReport === 'Yes'
                 ? 'border-primary/40 bg-primary-soft font-semibold text-primary'
                 : 'border-line bg-surface text-ink-3'
             }`}
           >
-            <option value="">Sep. report: No</option>
-            <option value="Yes">Sep. report: Yes</option>
+            <option value="">Accounting Head: No</option>
+            <option value="Yes">Accounting Head: Yes</option>
           </select>
           {/* Optional GST / TDS details (spec §3 step 5 / §7) — expands the
               row inline; absolute popovers would clip inside the scroll box.

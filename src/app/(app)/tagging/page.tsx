@@ -468,11 +468,11 @@ export default async function TaggingPage(props: {
             {/* 2nd tag for every ticked row — default No */}
             <select
               name="separateReport"
-              title="Separate report — Yes shows these entries in their own lens on Reports → By"
+              title="Accounting Head — Yes shows these entries in their own report on Reports → By"
               className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2"
             >
-              <option value="">Sep. report: No</option>
-              <option value="Yes">Sep. report: Yes</option>
+              <option value="">Accounting Head: No</option>
+              <option value="Yes">Accounting Head: Yes</option>
             </select>
             {/* Same GST/TDS for every ticked row (spec §7) */}
             <details>

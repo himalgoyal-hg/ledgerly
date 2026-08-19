@@ -94,11 +94,11 @@ export function CashQuickRow(props: {
           the default everywhere */}
       <select
         name="separateReport"
-        title="Separate report — Yes shows this entry in its own lens on Reports → By"
+        title="Accounting Head — Yes shows this entry in its own report on Reports → By"
         className={inputCls}
       >
-        <option value="">Sep. report: No</option>
-        <option value="Yes">Sep. report: Yes</option>
+        <option value="">Accounting Head: No</option>
+        <option value="Yes">Accounting Head: Yes</option>
       </select>
       <button
         type="submit"
