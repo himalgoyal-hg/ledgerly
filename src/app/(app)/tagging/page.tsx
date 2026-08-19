@@ -331,8 +331,9 @@ export default async function TaggingPage(props: {
         <th className="px-2 py-2">A/c</th>
         <th className="px-2 py-2">Narration</th>
         <th className="px-2 py-2 text-right">Amount</th>
-        <th className="w-[27%] min-w-44 px-2 py-2">Expense Head</th>
-        <th className="w-[27%] min-w-44 px-2 py-2">Cost centre</th>
+        <th className="w-[24%] min-w-44 px-2 py-2">Expense Head</th>
+        <th className="w-[22%] min-w-44 px-2 py-2">Cost centre</th>
+        <th className="min-w-24 px-2 py-2">Accounting Head</th>
         <th className="px-2 py-2" />
       </tr>
     </thead>
@@ -532,7 +533,7 @@ export default async function TaggingPage(props: {
         </h2>
         {pendingSlice.length > 0 && (
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[68rem] text-left text-sm">
+            <table className="w-full min-w-[74rem] text-left text-sm">
               {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {pendingSlice.map((txn) => {
@@ -584,7 +585,7 @@ export default async function TaggingPage(props: {
                       {hasSuggestion && (
                         <tr className="border-t-0 bg-primary-soft/70">
                           <td className="px-2 py-1" />
-                          <td colSpan={7} className="px-2 pb-1.5 pt-0.5">
+                          <td colSpan={8} className="px-2 pb-1.5 pt-0.5">
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-primary">
                                 AI
@@ -672,7 +673,7 @@ export default async function TaggingPage(props: {
         <div className="space-y-2">
           <h2 className="font-medium text-ink">Tagged — awaiting post ({tagged.length})</h2>
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[68rem] text-left text-sm">
+            <table className="w-full min-w-[74rem] text-left text-sm">
               {tableHead(false)}
               <tbody className="divide-y divide-line-2">
                 {tagged.map((txn) => (
@@ -735,7 +736,7 @@ export default async function TaggingPage(props: {
         <h2 className="font-medium text-ink">Recently posted</h2>
         {posted.length > 0 && (
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[68rem] text-left text-sm">
+            <table className="w-full min-w-[74rem] text-left text-sm">
               {tableHead(false)}
               <tbody className="divide-y divide-line-2">
                 {posted.map((txn) => {
@@ -813,6 +814,13 @@ export default async function TaggingPage(props: {
                           </td>
                           <td className="px-2 py-1.5 text-xs text-ink-2">
                             {ccName(txn.costCentreId) ?? '—'}
+                          </td>
+                          <td className="px-2 py-1.5 text-xs">
+                            {txn.separateReport ? (
+                              <span className="rounded bg-primary-soft px-1.5 py-0.5 font-semibold text-primary">Yes</span>
+                            ) : (
+                              <span className="text-ink-3">No</span>
+                            )}
                           </td>
                           <td className="px-2 py-1.5">
                             {canEditPosted && txn.docId && deleted && (

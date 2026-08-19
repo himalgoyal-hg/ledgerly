@@ -84,10 +84,10 @@ export function TagRowCells(props: {
 
   return (
     <>
-      {/* The three tiers are identical twins: equal 18% columns (they share
-          the table's slack evenly, keeping narration and amount snug) and
-          the same input styling. */}
-      <td className="w-[27%] px-2 py-1">
+      {/* The tag tiers share the table's slack (narration and amount stay
+          snug) and the same input styling; the Accounting Head Yes/No gets
+          its own column like the sheet would give it. */}
+      <td className="w-[24%] px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
@@ -114,7 +114,7 @@ export function TagRowCells(props: {
       </td>
       {/* Nature rides hidden — auto from the head / master, per Himal
           (18 Aug): it posts correctly without taking a column. */}
-      <td className="w-[27%] px-2 py-1">
+      <td className="w-[22%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -126,6 +126,25 @@ export function TagRowCells(props: {
           className={inputCls}
           onPick={(opt) => setCostCentreId(opt?.id ?? '')}
         />
+      </td>
+      {/* 2nd tag — its own column, like the sheet: Yes routes this entry to
+          the Accounting Head report (Reports → By). No is the default. */}
+      <td className="px-2 py-1">
+        <select
+          name="separateReport"
+          form={formId}
+          value={sepReport}
+          onChange={(e) => setSepReport(e.target.value)}
+          title="Accounting Head — Yes shows this entry in its own report on Reports → By (head / cost centre)"
+          className={`w-full rounded border px-1.5 py-1 text-xs ${
+            sepReport === 'Yes'
+              ? 'border-primary/40 bg-primary-soft font-semibold text-primary'
+              : 'border-line bg-surface text-ink-2'
+          }`}
+        >
+          <option value="">No</option>
+          <option value="Yes">Yes</option>
+        </select>
       </td>
       <td className="px-2 py-1">
         <div className="flex items-start gap-1.5">
@@ -141,23 +160,6 @@ export function TagRowCells(props: {
             </button>
           </form>
           {props.children}
-          {/* 2nd tag — Yes routes this entry to the separate-report lens
-              (Reports → By). No is the default everywhere. */}
-          <select
-            name="separateReport"
-            form={formId}
-            value={sepReport}
-            onChange={(e) => setSepReport(e.target.value)}
-            title="Accounting Head — Yes shows this entry in its own report on Reports → By (head / cost centre)"
-            className={`rounded border px-1 py-1 text-[10px] ${
-              sepReport === 'Yes'
-                ? 'border-primary/40 bg-primary-soft font-semibold text-primary'
-                : 'border-line bg-surface text-ink-3'
-            }`}
-          >
-            <option value="">Accounting Head: No</option>
-            <option value="Yes">Accounting Head: Yes</option>
-          </select>
           {/* Optional GST / TDS details (spec §3 step 5 / §7) — expands the
               row inline; absolute popovers would clip inside the scroll box.
               Prefilled from the stored tag, and the toggle shows what's set
