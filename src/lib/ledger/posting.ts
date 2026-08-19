@@ -16,6 +16,7 @@ export interface LineInput {
   credit?: string
   memo?: string
   costCentreId?: string // tier-3 tag (Phase 3) — carried through reversals
+  separateReport?: boolean // 2nd tagging type — carried through reversals
 }
 
 export interface EntryContent {
@@ -122,14 +123,16 @@ async function postEntry(tx: Prisma.TransactionClient, args: PostArgs) {
           credit: l.credit ?? '0',
           memo: l.memo,
           costCentreId: l.costCentreId,
+          separateReport: l.separateReport ?? false,
         })),
       },
     },
   })
 }
 
-function negate(lines: { accountId: string; debit: unknown; credit: unknown; memo: string | null; costCentreId: string | null }[]): LineInput[] {
-  // Reversal = swap sides. Cost centres ride along so their reports cancel too.
+function negate(lines: { accountId: string; debit: unknown; credit: unknown; memo: string | null; costCentreId: string | null; separateReport?: boolean }[]): LineInput[] {
+  // Reversal = swap sides. Cost centres and the separate-report flag ride
+  // along so their reports cancel too.
   return lines.map((l) => {
     const d = String(l.debit)
     const c = String(l.credit)
@@ -139,6 +142,7 @@ function negate(lines: { accountId: string; debit: unknown; credit: unknown; mem
       credit: parsePaise(d) > 0n ? d : undefined,
       memo: l.memo ?? undefined,
       costCentreId: l.costCentreId ?? undefined,
+      separateReport: l.separateReport ?? false,
     }
   })
 }
@@ -322,6 +326,7 @@ export async function undoJournalDocument(
           credit: parsePaise(String(l.credit)) > 0n ? String(l.credit) : undefined,
           memo: l.memo ?? undefined,
           costCentreId: l.costCentreId ?? undefined,
+          separateReport: l.separateReport ?? false,
         })),
       },
       actorId: args.actorId,
@@ -372,6 +377,10 @@ export async function undoJournalDocument(
         debit: parsePaise(String(l.debit)) > 0n ? String(l.debit) : undefined,
         credit: parsePaise(String(l.credit)) > 0n ? String(l.credit) : undefined,
         memo: l.memo ?? undefined,
+        // tags travel with the restored version (costCentreId was silently
+        // dropped here before — the restore path above always kept it)
+        costCentreId: l.costCentreId ?? undefined,
+        separateReport: l.separateReport ?? false,
       })),
     },
     actorId: args.actorId,

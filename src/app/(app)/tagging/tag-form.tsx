@@ -39,6 +39,7 @@ export function TagRowCells(props: {
     headAccountId?: string | null
     nature?: string | null
     costCentreId?: string | null
+    separateReport?: boolean | null
     // Stored GST/TDS details — prefilled into the panel so a re-save or
     // retag carries them forward instead of silently blanking them.
     gstType?: string | null
@@ -55,6 +56,9 @@ export function TagRowCells(props: {
   const formId = `tag-${props.txnId}`
   const [nature, setNature] = useState(props.defaults?.nature ?? '')
   const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
+  // 2nd tagging type — default No everywhere; Yes sends the posted line to
+  // the separate-report lens on Reports → By (Himal, 19 Aug).
+  const [sepReport, setSepReport] = useState(props.defaults?.separateReport ? 'Yes' : '')
   const [seed, setSeed] = useState(0)
 
   // GST and TDS can ride together on a row (professional fees: taxable +
@@ -137,6 +141,23 @@ export function TagRowCells(props: {
             </button>
           </form>
           {props.children}
+          {/* 2nd tag — Yes routes this entry to the separate-report lens
+              (Reports → By). No is the default everywhere. */}
+          <select
+            name="separateReport"
+            form={formId}
+            value={sepReport}
+            onChange={(e) => setSepReport(e.target.value)}
+            title="Separate report — Yes shows this entry in its own lens on Reports → By (head / cost centre)"
+            className={`rounded border px-1 py-1 text-[10px] ${
+              sepReport === 'Yes'
+                ? 'border-primary/40 bg-primary-soft font-semibold text-primary'
+                : 'border-line bg-surface text-ink-3'
+            }`}
+          >
+            <option value="">Sep. report: No</option>
+            <option value="Yes">Sep. report: Yes</option>
+          </select>
           {/* Optional GST / TDS details (spec §3 step 5 / §7) — expands the
               row inline; absolute popovers would clip inside the scroll box.
               Prefilled from the stored tag, and the toggle shows what's set

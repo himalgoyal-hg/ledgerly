@@ -58,15 +58,16 @@ export default async function ByDimensionPage({
   })
 
   // one query shape per lens: name × month × net movement (Dr − Cr).
-  // Normal scope = expense + income heads; separate scope = only the
-  // Yes-flagged heads, EVERY nature (asset buys count in it too).
+  // Normal scope = expense + income heads; separate scope = ONLY what was
+  // explicitly marked Yes — entries flagged while tagging, plus every line
+  // of a master-flagged head — in EVERY nature (asset buys count too).
   const scopeFilter = sep
-    ? Prisma.sql`AND lower(a.name) = ANY(${sepHeads})`
+    ? sepHeads.length
+      ? Prisma.sql`AND (l."separateReport" OR lower(a.name) = ANY(${sepHeads}))`
+      : Prisma.sql`AND l."separateReport"`
     : Prisma.sql`AND a.kind IN ('EXPENSE', 'INCOME')`
   let rows: { name: string; id: string | null; month: string; amt: string }[] = []
-  if (sep && sepHeads.length === 0) {
-    // nothing flagged Yes yet — fall through to the empty state below
-  } else if (by === 'cc') {
+  if (by === 'cc') {
     rows = await prisma.$queryRaw`
       SELECT COALESCE(cc.name, '(no cost centre)') AS name, cc.id AS id,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
@@ -128,7 +129,7 @@ export default async function ByDimensionPage({
         title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Separate report' : ''} — ${entity.code}`}
         subtitle={
           sep
-            ? `Only heads marked Separate report = Yes on the master register — every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
+            ? `Only what was marked Yes — entries flagged while tagging, plus every line of a master-flagged head. Every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
             : `Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`
         }
         actions={
@@ -195,9 +196,10 @@ export default async function ByDimensionPage({
       </div>
       {table.length === 0 && (
         <p className="text-sm text-ink-3">
-          {sep && sepHeads.length === 0 ? (
+          {sep ? (
             <>
-              No head is marked Separate report = Yes yet — set it on{' '}
+              Nothing marked Separate report = Yes in FY {fy}-{String(fy + 1).slice(2)} yet — pick Yes while
+              tagging an entry, or flag a whole head on{' '}
               <Link href="/admin/coa" className="text-primary hover:underline">
                 Accounts — master register
               </Link>

@@ -90,6 +90,16 @@ export function CashQuickRow(props: {
         onPick={(opt) => setCostCentreId(opt?.id ?? '')}
       />
       <input name="comments" placeholder="Comments" className={`w-36 ${inputCls}`} />
+      {/* 2nd tag — Yes routes the entry to the separate-report lens; No is
+          the default everywhere */}
+      <select
+        name="separateReport"
+        title="Separate report — Yes shows this entry in its own lens on Reports → By"
+        className={inputCls}
+      >
+        <option value="">Sep. report: No</option>
+        <option value="Yes">Sep. report: Yes</option>
+      </select>
       <button
         type="submit"
         className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong"

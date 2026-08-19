@@ -278,6 +278,10 @@ model JournalLine {
   // Tier 3 of tagging (spec §3 step 5) — flows into cost centre reports.
   costCentreId String?
   costCentre   CostCentre? @relation(fields: [costCentreId], references: [id])
+  // The second tagging dimension (Himal, 19 Aug 2026): Yes while tagging →
+  // this line joins the separate-report lens on Reports → By. Default No
+  // everywhere. Carried through reversals so retags cancel there too.
+  separateReport Boolean @default(false)
 
   @@index([accountId])
   @@index([entryId])
@@ -364,6 +368,9 @@ model StatementTransaction {
   headAccountId String?
   nature        String? // expense | income | transfer_own | loan_given | loan_received | capital
   costCentreId  String?
+  // 2nd tagging type (Himal, 19 Aug 2026): Yes → the posted head line joins
+  // the separate-report lens. Default No; rides onto the journal line.
+  separateReport Boolean  @default(false)
   autoTagged    Boolean   @default(false) // "Verified by System"
   taggedById    String?
   taggedAt      DateTime?
@@ -516,6 +523,8 @@ model CashEntry {
   toLocationId  String? // TRANSFER target
   headAccountId String? // RECEIPT / PAYMENT / ADJUSTMENT counter-head
   costCentreId  String?
+  // 2nd tagging type: Yes → the head line joins the separate-report lens
+  separateReport Boolean      @default(false)
   inflow        Boolean       @default(false) // ADJUSTMENT direction (cash increases)
   amount        Decimal       @db.Decimal(14, 2)
   remarks       String? // "Details" — what / who

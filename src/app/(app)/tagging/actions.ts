@@ -23,6 +23,9 @@ function tagFields(formData: FormData) {
   const headAccountId = String(formData.get('headAccountId') ?? '')
   const nature = String(formData.get('nature') ?? '')
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
+  // 2nd tagging type — Yes sends this entry to the separate-report lens;
+  // anything else (including absent) is No, the default everywhere.
+  const separateReport = String(formData.get('separateReport') ?? '') === 'Yes'
   // Creatable comboboxes: text that matched no head / cost centre arrives
   // here and is found-or-created in the books being tagged.
   const headText = String(formData.get('headText') ?? '').trim() || null
@@ -40,7 +43,7 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  return { headAccountId, nature, costCentreId, headText, costCentreText, tax }
+  return { headAccountId, nature, costCentreId, separateReport, headText, costCentreText, tax }
 }
 
 export async function tagTransaction(formData: FormData) {
@@ -118,6 +121,7 @@ export async function bulkTag(formData: FormData) {
   const headText = String(formData.get('headText') ?? '').trim() || null
   if (!pickedHeadId && !headText) throw new Error('Pick a head')
   const natureRaw = String(formData.get('nature') ?? '')
+  const separateReport = String(formData.get('separateReport') ?? '') === 'Yes'
   const field = (name: string) => String(formData.get(name) ?? '').trim() || null
   const tax = {
     gstType: field('gstType'),
@@ -149,7 +153,7 @@ export async function bulkTag(formData: FormData) {
       const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
       if (txn.status !== 'PENDING' || txn.entityId !== head.entityId) continue
       const nature = natureRaw || suggestNature(head, Number(txn.debit) > 0)
-      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, tax, actorId: user.id })
+      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, separateReport, tax, actorId: user.id })
       await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
       tagged++
     }
@@ -406,7 +410,11 @@ export async function undoPosted(formData: FormData) {
     if (headLine) {
       await tx.statementTransaction.update({
         where: { id: txn.id },
-        data: { headAccountId: headLine.accountId, costCentreId: headLine.costCentreId },
+        data: {
+          headAccountId: headLine.accountId,
+          costCentreId: headLine.costCentreId,
+          separateReport: headLine.separateReport,
+        },
       })
     }
     await audit(tx, {

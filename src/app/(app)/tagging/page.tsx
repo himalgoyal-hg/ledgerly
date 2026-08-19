@@ -465,6 +465,15 @@ export default async function TaggingPage(props: {
               placeholder="Cost centre — type or add"
               className={`${controlClass} w-56`}
             />
+            {/* 2nd tag for every ticked row — default No */}
+            <select
+              name="separateReport"
+              title="Separate report — Yes shows these entries in their own lens on Reports → By"
+              className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2"
+            >
+              <option value="">Sep. report: No</option>
+              <option value="Yes">Sep. report: Yes</option>
+            </select>
             {/* Same GST/TDS for every ticked row (spec §7) */}
             <details>
               <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
@@ -690,6 +699,7 @@ export default async function TaggingPage(props: {
                         headAccountId: txn.headAccountId,
                         nature: txn.nature,
                         costCentreId: txn.costCentreId,
+                        separateReport: txn.separateReport,
                         gstType: txn.gstType,
                         gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                         hsn: txn.hsn,
@@ -774,6 +784,7 @@ export default async function TaggingPage(props: {
                             headAccountId: txn.headAccountId,
                             nature: txn.nature,
                             costCentreId: txn.costCentreId,
+                            separateReport: txn.separateReport,
                             gstType: txn.gstType,
                             gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                             hsn: txn.hsn,

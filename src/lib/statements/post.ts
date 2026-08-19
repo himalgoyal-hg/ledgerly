@@ -83,6 +83,9 @@ export async function applyTag(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    /** 2nd tagging type (Himal, 19 Aug): Yes → the posted head line joins
+     *  the separate-report lens. Defaults to No everywhere. */
+    separateReport?: boolean
     tax?: TagTaxInput
     actorId: string
     /**
@@ -135,6 +138,7 @@ export async function applyTag(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId,
+      separateReport: args.separateReport ?? false,
       gstType: hasGst ? (tax.gstType ?? 'intra') : null,
       gstRate: hasGst ? tax.gstRate : null,
       hsn: hasGst ? tax.hsn ?? null : null,
@@ -176,6 +180,7 @@ export async function clearTag(tx: Prisma.TransactionClient, txnId: string) {
       headAccountId: null,
       nature: null,
       costCentreId: null,
+      separateReport: false,
       gstType: null,
       gstRate: null,
       hsn: null,
@@ -213,7 +218,7 @@ async function buildLines(
   tx: Prisma.TransactionClient,
   txn: Pick<
     StatementTransaction,
-    'entityId' | 'debit' | 'credit' | 'costCentreId' | 'gstRate' | 'tdsRate' | 'tdsSection'
+    'entityId' | 'debit' | 'credit' | 'costCentreId' | 'separateReport' | 'gstRate' | 'tdsRate' | 'tdsSection'
   >,
   headAccountId: string,
   bankLedgerAccountId: string,
@@ -221,6 +226,8 @@ async function buildLines(
   const outflow = Number(txn.debit) > 0
   const bankAmount = parsePaise(outflow ? String(txn.debit) : String(txn.credit))
   const cc = txn.costCentreId ?? undefined
+  // the 2nd tag rides the head line only — bank/tax lines stay unmarked
+  const sep = txn.separateReport
 
   // Both taxes on one row: bank amount = taxable + GST − TDS.
   if (txn.gstRate && txn.tdsRate) {
@@ -234,7 +241,7 @@ async function buildLines(
       const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc },
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
           { accountId: inputCredit.id, debit: formatPaise(gst) },
           { accountId: tdsPayable.id, credit: formatPaise(tds) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
@@ -255,7 +262,7 @@ async function buildLines(
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
         { accountId: tdsReceivable.id, debit: formatPaise(tds) },
-        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
         { accountId: output.id, credit: formatPaise(gst) },
       ],
       // Register the GST side (GSTR); their TDS deduction isn't our register.
@@ -275,7 +282,7 @@ async function buildLines(
       const inputCredit = await getSystemAccount(tx, txn.entityId, '1500')
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc },
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
           { accountId: inputCredit.id, debit: formatPaise(gst) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
         ],
@@ -286,7 +293,7 @@ async function buildLines(
     return {
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
-        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
         { accountId: output.id, credit: formatPaise(gst) },
       ],
       tax: { direction: 'output', taxableValue: formatPaise(taxable), gstAmount: formatPaise(gst), tdsAmount: '0', withholdsTds: false },
@@ -300,7 +307,7 @@ async function buildLines(
       const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(gross), costCentreId: cc },
+          { accountId: headAccountId, debit: formatPaise(gross), costCentreId: cc, separateReport: sep },
           { accountId: tdsPayable.id, credit: formatPaise(tds) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
         ],
@@ -313,7 +320,7 @@ async function buildLines(
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
         { accountId: tdsReceivable.id, debit: formatPaise(tds) },
-        { accountId: headAccountId, credit: formatPaise(gross), costCentreId: cc },
+        { accountId: headAccountId, credit: formatPaise(gross), costCentreId: cc, separateReport: sep },
       ],
       tax: null, // their deduction, not our register
     }
@@ -323,12 +330,12 @@ async function buildLines(
   return {
     lines: outflow
       ? [
-          { accountId: headAccountId, debit: amount, costCentreId: cc },
+          { accountId: headAccountId, debit: amount, costCentreId: cc, separateReport: sep },
           { accountId: bankLedgerAccountId, credit: amount },
         ]
       : [
           { accountId: bankLedgerAccountId, debit: amount },
-          { accountId: headAccountId, credit: amount, costCentreId: cc },
+          { accountId: headAccountId, credit: amount, costCentreId: cc, separateReport: sep },
         ],
     tax: null,
   }
@@ -476,6 +483,8 @@ export async function retagPostedTransaction(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    /** 2nd tagging type — the form's Yes/No is the source of truth on retag. */
+    separateReport?: boolean
     tax?: TagTaxInput
     actorId: string
   },
@@ -533,6 +542,7 @@ export async function retagPostedTransaction(
       debit: txn.debit,
       credit: txn.credit,
       costCentreId,
+      separateReport: args.separateReport ?? false,
       gstRate: taxFields.gstRate,
       tdsRate: taxFields.tdsRate,
       tdsSection: taxFields.tdsSection,
@@ -556,6 +566,7 @@ export async function retagPostedTransaction(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId,
+      separateReport: args.separateReport ?? false,
       ...taxFields,
       autoTagged: false,
       taggedById: args.actorId,

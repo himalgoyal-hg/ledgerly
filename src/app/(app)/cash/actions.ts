@@ -62,6 +62,7 @@ export async function createCashEntryAction(formData: FormData) {
       toLocationId: String(formData.get('toLocationId') ?? '') || null,
       headAccountId,
       costCentreId,
+      separateReport: String(formData.get('separateReport') ?? '') === 'Yes',
       inflow: String(formData.get('inflow') ?? '') === 'true',
       amount: String(formData.get('amount') ?? ''),
       remarks: String(formData.get('remarks') ?? '') || null,
@@ -129,6 +130,7 @@ export async function quickCashEntryAction(formData: FormData) {
       locationId,
       headAccountId,
       costCentreId: ccId, // null → head's default rides along inside createCashEntry
+      separateReport: String(formData.get('separateReport') ?? '') === 'Yes',
       amount: Math.abs(value).toFixed(2),
       remarks: details,
       actorId: user.id,

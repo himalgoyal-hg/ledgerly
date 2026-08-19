@@ -18,6 +18,8 @@ export async function createCashEntry(
     toLocationId?: string | null
     headAccountId?: string | null
     costCentreId?: string | null
+    /** 2nd tagging type — Yes sends the head line to the separate-report lens. */
+    separateReport?: boolean
     inflow?: boolean
     amount: string
     remarks?: string | null
@@ -41,6 +43,8 @@ export async function createCashEntry(
     }
   }
   const cc = ccId ?? undefined
+  // the 2nd tag rides the head line only — the cash-location line stays unmarked
+  const sep = args.separateReport ?? false
 
   let lines: LineInput[]
   let summary: string
@@ -49,7 +53,7 @@ export async function createCashEntry(
       if (!args.headAccountId) throw new OpsError('Pick where the cash came from')
       lines = [
         { accountId: location.ledgerAccountId, debit: amount },
-        { accountId: args.headAccountId, credit: amount, costCentreId: cc },
+        { accountId: args.headAccountId, credit: amount, costCentreId: cc, separateReport: sep },
       ]
       summary = `Cash receipt — ${location.name}`
       break
@@ -57,7 +61,7 @@ export async function createCashEntry(
     case 'PAYMENT': {
       if (!args.headAccountId) throw new OpsError('Pick what the cash paid for')
       lines = [
-        { accountId: args.headAccountId, debit: amount, costCentreId: cc },
+        { accountId: args.headAccountId, debit: amount, costCentreId: cc, separateReport: sep },
         { accountId: location.ledgerAccountId, credit: amount },
       ]
       summary = `Cash payment — ${location.name}`
@@ -84,10 +88,10 @@ export async function createCashEntry(
       lines = args.inflow
         ? [
             { accountId: location.ledgerAccountId, debit: amount },
-            { accountId: args.headAccountId, credit: amount, costCentreId: cc },
+            { accountId: args.headAccountId, credit: amount, costCentreId: cc, separateReport: sep },
           ]
         : [
-            { accountId: args.headAccountId, debit: amount, costCentreId: cc },
+            { accountId: args.headAccountId, debit: amount, costCentreId: cc, separateReport: sep },
             { accountId: location.ledgerAccountId, credit: amount },
           ]
       summary = `Cash adjustment — ${location.name} (${args.reason.trim()})`
@@ -110,6 +114,7 @@ export async function createCashEntry(
       toLocationId: args.toLocationId ?? null,
       headAccountId: args.headAccountId ?? null,
       costCentreId: args.costCentreId ?? null,
+      separateReport: sep,
       inflow: args.kind === 'RECEIPT' || (args.kind === 'ADJUSTMENT' && Boolean(args.inflow)),
       amount,
       remarks: args.remarks ?? null,
