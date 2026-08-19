@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
+import { LiveFilter } from '@/components/live-filter'
 import { CellInput } from './cell-input'
 import { Badge, PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
@@ -108,9 +109,12 @@ export default async function FinanceTasksPage() {
         title="Finance tasks"
         subtitle="Monthly payment checklist — fill the cell (amount / Yes / note) when a payment is done. Nothing posts from here."
         actions={
-          <Badge tone="neutral">
-            {tasks.length} bills · {months.length} months
-          </Badge>
+          <>
+            <Badge tone="neutral">
+              {tasks.length} bills · {months.length} months
+            </Badge>
+            <LiveFilter selector="[data-live-filter='tasks']" placeholder="Type to search months…" />
+          </>
         }
       />
 
@@ -194,6 +198,7 @@ export default async function FinanceTasksPage() {
           columns (no due day), 9rem for regular payment columns. */}
       <div className={tableWrapClass}>
         <table
+          data-live-filter="tasks"
           className="w-full table-fixed text-left text-sm"
           style={{ minWidth: `${9 + tasks.reduce((s, t) => s + (t.dueDay === null ? 16 : 9), 0)}rem` }}
         >
@@ -260,7 +265,8 @@ export default async function FinanceTasksPage() {
               return (
                 <tr
                   key={mk}
-                  className={`align-top ${isNow ? 'bg-warning-soft/40' : mk > nowKey ? 'text-ink-3' : 'even:bg-surface-2/40'}`}
+                  data-filter-keep={isNow ? '1' : undefined}
+                  className={`align-top ${isNow ? 'bg-warning-soft/40' : mk > nowKey ? 'text-ink-3' : 'even:bg-surface-2/40 hover:bg-primary-soft/40'}`}
                 >
                   <td className={`sticky left-0 z-10 whitespace-nowrap px-2 py-1.5 text-xs font-medium ${isNow ? 'bg-warning-soft text-warning' : 'bg-surface text-ink-2'}`}>
                     {monthLabel(mk)}
@@ -289,7 +295,7 @@ export default async function FinanceTasksPage() {
               )
             })}
             {/* the next row of the sheet — one click away */}
-            <tr>
+            <tr data-filter-keep="1">
               <td colSpan={tasks.length + 1} className="px-2 py-2">
                 <form action={addFinanceMonthAction} className="flex items-center gap-2">
                   <button
