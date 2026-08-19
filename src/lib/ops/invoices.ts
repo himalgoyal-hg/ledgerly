@@ -5,6 +5,7 @@ import { parsePaise, formatPaise } from '@/lib/ledger/money'
 import { rateBp, gstOnNet } from '@/lib/tax/calc'
 import { writeTaxLine } from '@/lib/tax/register'
 import { getPartyAccount } from './party'
+import { resolveDefaultCostCentre } from './cost-centres'
 import { OpsError } from './reimburse'
 
 // Invoices & receivables (spec §6.6 + §7.1): auto numbering per entity,
@@ -40,6 +41,13 @@ export async function createInvoice(
   if (taxable < 0n) throw new OpsError('Amount must be positive')
   const posts = taxable > 0n
   if (posts && !args.incomeAccountId) throw new OpsError('Pick the income head')
+  // A blank cost centre falls back to the head's default — the master
+  // register's word — the same safety net tagging and cash entry have.
+  const costCentreId = await resolveDefaultCostCentre(tx, {
+    entityId: args.entityId,
+    headAccountId: args.incomeAccountId,
+    costCentreId: args.costCentreId,
+  })
   const gst = posts && args.gstRate ? gstOnNet(taxable, rateBp(args.gstRate)) : 0n
   const total = taxable + gst
 
@@ -61,7 +69,7 @@ export async function createInvoice(
       amount: formatPaise(total),
       narration: args.narration ?? null,
       incomeAccountId: args.incomeAccountId ?? null,
-      costCentreId: args.costCentreId ?? null,
+      costCentreId,
       debtorAccountId: debtor.id,
       gstType: gst > 0n ? (args.gstType ?? 'intra') : null,
       gstRate: gst > 0n ? args.gstRate : null,
@@ -75,7 +83,7 @@ export async function createInvoice(
 
   const lines: LineInput[] = [
     { accountId: debtor.id, debit: formatPaise(total) },
-    { accountId: args.incomeAccountId!, credit: formatPaise(taxable), costCentreId: args.costCentreId ?? undefined },
+    { accountId: args.incomeAccountId!, credit: formatPaise(taxable), costCentreId: costCentreId ?? undefined },
   ]
   if (gst > 0n) {
     const output = await getSystemAccount(tx, args.entityId, '2210')

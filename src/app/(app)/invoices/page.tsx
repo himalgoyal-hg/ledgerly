@@ -13,8 +13,7 @@ import {
   deleteInvoiceAction,
 } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
-import { HeadCombobox } from '@/components/head-combobox'
-import { SmartCombobox } from '@/components/smart-combobox'
+import { HeadCostCentrePicker } from '@/components/head-cost-centre-picker'
 import { InvoiceRow } from './invoice-row'
 import { LiveFilter } from '@/components/live-filter'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
@@ -217,19 +216,18 @@ export default async function InvoicesPage() {
             <input name="date" type="date" required className={inputCls} />
             <label className="text-xs text-ink-3">due</label>
             <input name="dueDate" type="date" required className={inputCls} />
-            <HeadCombobox
-              heads={incomeHeads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
-              name="incomeAccountId"
+            <HeadCostCentrePicker
+              heads={incomeHeads.map((h) => ({
+                id: h.id,
+                code: h.code,
+                name: h.name,
+                kind: h.kind,
+                defaultCostCentreId: h.defaultCostCentreId,
+              }))}
+              costCentres={costCentres}
+              headName="incomeAccountId"
               required
-              placeholder="Income head — type or add"
-              createName="headText"
-              className={`w-56 ${inputCls}`}
-            />
-            <SmartCombobox
-              options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
-              name="costCentreId"
-              createName="costCentreText"
-              placeholder="Cost centre — type or add"
+              headPlaceholder="Income head — type or add"
               className={`w-56 ${inputCls}`}
             />
             <input name="narration" placeholder="Description" className={`w-44 ${inputCls}`} />

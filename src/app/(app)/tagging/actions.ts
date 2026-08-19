@@ -195,6 +195,7 @@ export async function acceptAllSuggestions(formData: FormData) {
         headAccountId: txn.aiHeadAccountId!,
         nature: txn.aiNature!,
         costCentreId: txn.aiCostCentreId,
+        costCentreIsSuggestion: true,
         actorId: user.id,
       })
       await tx.statementTransaction.update({ where: { id: txn.id }, data: { tagSource: 'ai' } })
@@ -261,6 +262,7 @@ export async function acceptAiSuggestion(formData: FormData) {
       headAccountId: txn.aiHeadAccountId,
       nature: txn.aiNature,
       costCentreId: txn.aiCostCentreId,
+      costCentreIsSuggestion: true,
       actorId: user.id,
     })
     await tx.statementTransaction.update({

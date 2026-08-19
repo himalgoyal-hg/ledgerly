@@ -48,6 +48,28 @@ export function purposeKeys(args: {
 }
 
 /**
+ * The master register's bank mode for a head, as a ledger account id — the
+ * account Himal's master says this category is normally paid from. It
+ * outranks the hand-kept PaymentPreference list: the master is the single
+ * source of truth, and this is exactly the "which account does this go
+ * from" question it already answers per category.
+ */
+async function masterPreferredAccount(
+  entityId: string,
+  headAccountId: string | null | undefined,
+): Promise<string | null> {
+  if (!headAccountId) return null
+  const head = await prisma.ledgerAccount.findUnique({ where: { id: headAccountId } })
+  if (!head) return null
+  const row = await prisma.headMode.findFirst({
+    where: { category: { equals: head.name, mode: 'insensitive' } },
+  })
+  if (!row?.bankAccountId) return null
+  const bank = await prisma.bankAccount.findUnique({ where: { id: row.bankAccountId } })
+  return bank && bank.entityId === entityId && !bank.archivedAt ? bank.ledgerAccountId : null
+}
+
+/**
  * Commitments falling due within the window (spec §8.3): unpaid bills. Each
  * is reserved against the account its mapping points at; unmapped
  * commitments reserve against the entity's largest balance, which is where
@@ -81,7 +103,14 @@ async function reservations(entityId: string, accountIds: string[], balances: Ma
     const payable = new Prisma.Decimal(String(bill.amount))
       .plus(String(bill.gstAmount))
       .minus(String(bill.tdsAmount))
-    add(prefFor(purposeKeys({ module: 'bill', expenseAccountId: bill.expenseAccountId })), payable)
+    // Reserve where the master says this head is paid from, so a due bill
+    // weighs on the right account; the preference list is the fallback.
+    const fromMaster = await masterPreferredAccount(entityId, bill.expenseAccountId)
+    add(
+      (fromMaster && accountIds.includes(fromMaster) ? fromMaster : null) ??
+        prefFor(purposeKeys({ module: 'bill', expenseAccountId: bill.expenseAccountId })),
+      payable,
+    )
   }
   return { reserved, preferences }
 }
@@ -136,10 +165,15 @@ export async function suggestPaymentSource(args: {
   }
 
   const keys = purposeKeys(args)
+  // The master's bank mode for this head wins; the hand-kept preference
+  // list is the fallback for purposes the master has no row for.
+  const fromMaster = await masterPreferredAccount(args.entityId, args.expenseAccountId)
   const preferredId =
+    (fromMaster && accountIds.includes(fromMaster) ? fromMaster : null) ??
     keys
       .map((key) => preferences.find((p) => p.purpose === key && accountIds.includes(p.ledgerAccountId)))
-      .find(Boolean)?.ledgerAccountId ?? null
+      .find(Boolean)?.ledgerAccountId ??
+    null
   const amount = args.amount ? new Prisma.Decimal(args.amount) : null
 
   const base: SourceOption[] = candidates.map((candidate) => {

@@ -31,3 +31,24 @@ export async function resolveCostCentre(
   const created = await tx.costCentre.create({ data: { entityId: args.entityId, name } })
   return created.id
 }
+
+/**
+ * The master's word as the fallback: an entry submitted with no cost centre
+ * takes the head's default — which applyMasterRow keeps equal to the master
+ * register's type for that category. Tagging (statements/post.ts) and cash
+ * entry (ops/cash.ts) have always done this inline; invoices and
+ * reimbursements now share it, so no screen can post a blank cost centre
+ * while the master has an opinion. A stale default (archived, or belonging
+ * to other books) is skipped rather than trusted.
+ */
+export async function resolveDefaultCostCentre(
+  tx: Prisma.TransactionClient,
+  args: { entityId: string; headAccountId?: string | null; costCentreId?: string | null },
+): Promise<string | null> {
+  if (args.costCentreId) return args.costCentreId
+  if (!args.headAccountId) return null
+  const head = await tx.ledgerAccount.findUnique({ where: { id: args.headAccountId } })
+  if (!head?.defaultCostCentreId) return null
+  const cc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
+  return cc && cc.entityId === args.entityId && !cc.archivedAt ? cc.id : null
+}

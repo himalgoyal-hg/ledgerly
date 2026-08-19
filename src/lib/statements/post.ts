@@ -85,17 +85,42 @@ export async function applyTag(
     costCentreId?: string | null
     tax?: TagTaxInput
     actorId: string
+    /**
+     * The incoming cost centre is a remembered guess (an AI/history
+     * suggestion frozen when it was generated), not this human's choice —
+     * so the head's CURRENT default, which the master register keeps
+     * up to date, outranks it. Without this a suggestion made before a
+     * master edit and accepted after it would carry the old cost centre
+     * into a real tag, a learned rule and a posted line.
+     */
+    costCentreIsSuggestion?: boolean
   },
 ) {
   const txn = await loadTaggable(tx, args.txnId)
   if (txn.status === 'POSTED') throw new TagError('Already posted — use retag instead')
   if (!isNature(args.nature)) throw new TagError('Unknown nature')
-  const head = await assertHeadTaggable(tx, txn.entityId, args.headAccountId, args.costCentreId ?? null)
+  // A suggested cost centre skips validation here — it may name a centre
+  // since deleted or archived; the resolve below drops it in favour of the
+  // head's live default rather than failing the whole accept.
+  const head = await assertHeadTaggable(
+    tx,
+    txn.entityId,
+    args.headAccountId,
+    args.costCentreIsSuggestion ? null : (args.costCentreId ?? null),
+  )
   // v2 prototype: a blank cost centre falls back to the head's default (a
-  // stale default — archived or wrong entity — is silently skipped).
-  let costCentreId = args.costCentreId ?? null
+  // stale default — archived or wrong entity — is silently skipped). A
+  // suggested one defers to that default too, so the master always wins
+  // over a guess remembered from before.
+  let costCentreId = args.costCentreIsSuggestion ? null : (args.costCentreId ?? null)
   if (!costCentreId && head.defaultCostCentreId) {
     const cc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
+    if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
+  }
+  // Head has no default: the suggestion's own guess is better than nothing,
+  // but only if it still names a live centre in these books.
+  if (!costCentreId && args.costCentreIsSuggestion && args.costCentreId) {
+    const cc = await tx.costCentre.findUnique({ where: { id: args.costCentreId } })
     if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
   }
   const tax = args.tax ?? {}

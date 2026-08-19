@@ -93,41 +93,13 @@ export async function restoreAccount(formData: FormData) {
   revalidatePath('/admin/coa')
 }
 
-/**
- * Set (or clear) the account's default cost centre (v2 prototype): tagging
- * and cash entries fill it in whenever the cost centre is left blank.
- */
-export async function setDefaultCostCentre(formData: FormData) {
-  const admin = await requireAdmin()
-  const id = String(formData.get('id') ?? '')
-
-  await auditedTransaction(async (tx) => {
-    const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id } })
-    if (account.isGroup) throw new Error('Defaults go on leaf accounts, not groups')
-    const costCentreId = await resolveCostCentre(tx, {
-      entityId: account.entityId,
-      costCentreId: String(formData.get('costCentreId') ?? '') || null,
-      costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
-    })
-    let ccName = '— none —'
-    if (costCentreId) {
-      const cc = await tx.costCentre.findUniqueOrThrow({ where: { id: costCentreId } })
-      ccName = cc.name
-    }
-    await tx.ledgerAccount.update({ where: { id }, data: { defaultCostCentreId: costCentreId } })
-    await audit(tx, {
-      actorId: admin.id,
-      action: 'account.default_cost_centre',
-      targetType: 'LedgerAccount',
-      targetId: id,
-      summary: `Default cost centre for ${account.code} · ${account.name}: ${ccName}`,
-      before: { defaultCostCentreId: account.defaultCostCentreId },
-      after: { defaultCostCentreId: costCentreId },
-    })
-  })
-  revalidatePath('/admin/coa')
-  revalidatePath('/tagging')
-}
+// setDefaultCostCentre used to live here — a per-head cost-centre setter
+// that wrote LedgerAccount.defaultCostCentreId directly. Removed 19 Aug
+// 2026: it bypassed the master register entirely (no HeadMode row updated,
+// no retro-propagation to tags, rules, cash entries or posted lines), so
+// any screen wired to it would have silently desynced the books from the
+// master. Cost centres are set on the master row — saveMasterRowAction →
+// applyMasterRow — which is the only path that keeps everything in step.
 
 /** Rename a ledger account — code, kind and history stay put. */
 export async function renameAccount(formData: FormData) {

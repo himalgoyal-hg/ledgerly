@@ -3,6 +3,7 @@ import { COA } from '@/lib/ledger/coa'
 import { createJournalDocument } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
 import { getPartyAccount } from './party'
+import { resolveDefaultCostCentre } from './cost-centres'
 
 // Reimbursements (spec §6.1). Members submit; Admin approves/rejects.
 // Approve posts Dr Expense / Cr Member Payable — the expense hits P&L
@@ -58,6 +59,13 @@ export async function approveClaim(
   const payable = await getPartyAccount(
     tx, claim.entityId, COA.PAYABLES_GROUP, memberPayableName(member.name),
   )
+  // A blank cost centre falls back to the head's default — the master
+  // register's word — the same safety net tagging and cash entry have.
+  const costCentreId = await resolveDefaultCostCentre(tx, {
+    entityId: claim.entityId,
+    headAccountId: args.expenseAccountId,
+    costCentreId: args.costCentreId,
+  })
   const amount = formatPaise(parsePaise(String(claim.amount)))
   const { doc } = await createJournalDocument(tx, {
     entityId: claim.entityId,
@@ -68,7 +76,7 @@ export async function approveClaim(
       date: claim.date,
       narration: `Reimbursement — ${member.name}: ${claim.category}`,
       lines: [
-        { accountId: args.expenseAccountId, debit: amount, costCentreId: args.costCentreId ?? undefined },
+        { accountId: args.expenseAccountId, debit: amount, costCentreId: costCentreId ?? undefined },
         { accountId: payable.id, credit: amount },
       ],
     },
@@ -80,7 +88,7 @@ export async function approveClaim(
       reviewedById: args.actorId,
       reviewedAt: new Date(),
       expenseAccountId: args.expenseAccountId,
-      costCentreId: args.costCentreId ?? null,
+      costCentreId,
       docId: doc.id,
     },
   })

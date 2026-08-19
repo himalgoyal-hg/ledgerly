@@ -488,6 +488,13 @@ export async function syncFromMaster(csvText?: string): Promise<MasterSyncSummar
       if (head.defaultCostCentreId !== cc.id) {
         await prisma.ledgerAccount.update({ where: { id: head.id }, data: { defaultCostCentreId: cc.id } })
         costCentresSet++
+        // Reach back the way applyMasterRow does, so this retired importer
+        // can never leave already-classified rows pointing at the old
+        // centre while the head says otherwise.
+        await prisma.statementTransaction.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: cc.id } })
+        await prisma.tagRule.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: cc.id } })
+        await prisma.cashEntry.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: cc.id } })
+        await prisma.journalLine.updateMany({ where: { accountId: head.id }, data: { costCentreId: cc.id } })
       }
     }
   }

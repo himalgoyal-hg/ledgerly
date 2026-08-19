@@ -6,8 +6,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { memberPayableName } from '@/lib/ops/reimburse'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
-import { HeadCombobox } from '@/components/head-combobox'
-import { SmartCombobox } from '@/components/smart-combobox'
+import { HeadCostCentrePicker } from '@/components/head-cost-centre-picker'
 import { SourceSelect } from '../source-select'
 import { PageHeader, chipClass, controlClass } from '@/components/ui'
 import {
@@ -202,19 +201,17 @@ export default async function ReimbursementsPage(props: {
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <form action={approveClaimAction} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="claimId" value={claim.id} />
-                  <HeadCombobox
-                    heads={heads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
-                    name="expenseAccountId"
+                  <HeadCostCentrePicker
+                    heads={heads.map((h) => ({
+                      id: h.id,
+                      code: h.code,
+                      name: h.name,
+                      kind: h.kind,
+                      defaultCostCentreId: h.defaultCostCentreId,
+                    }))}
+                    costCentres={costCentres}
+                    headName="expenseAccountId"
                     required
-                    placeholder="Expense head — type or add"
-                    createName="headText"
-                    className={`${controlClass} w-56`}
-                  />
-                  <SmartCombobox
-                    options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
-                    name="costCentreId"
-                    createName="costCentreText"
-                    placeholder="Cost centre — type or add"
                     className={`${controlClass} w-56`}
                   />
                   <button type="submit" className="rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
