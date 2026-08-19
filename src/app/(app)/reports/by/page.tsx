@@ -9,6 +9,11 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 // by Cost centre, by Expense Head, or by Accounting head (the chart's top
 // groups). Every figure is a live ledger query — tagging fills it, nothing
 // is typed. Rows link to the ledger where they can.
+//
+// The cc and head lenses also include ASSET/LIABILITY lines that carry a
+// cost centre (Himal, 19 Aug): a laptop or car bought through the business
+// is an asset in the books, but its master row can say Optional-Lifestyle —
+// the personal lens must see that spend even though the P&L never will.
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -55,7 +60,8 @@ export default async function ByDimensionPage({
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
       LEFT JOIN "CostCentre" cc ON cc.id = l."costCentreId"
-      WHERE e."entityId" = ${entity.id} AND a.kind IN ('EXPENSE', 'INCOME')
+      WHERE e."entityId" = ${entity.id}
+        AND (a.kind IN ('EXPENSE', 'INCOME') OR l."costCentreId" IS NOT NULL)
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else if (by === 'head') {
@@ -66,7 +72,8 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      WHERE e."entityId" = ${entity.id} AND a.kind IN ('EXPENSE', 'INCOME')
+      WHERE e."entityId" = ${entity.id}
+        AND (a.kind IN ('EXPENSE', 'INCOME') OR l."costCentreId" IS NOT NULL)
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else {
