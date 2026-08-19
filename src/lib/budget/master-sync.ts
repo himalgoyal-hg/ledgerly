@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { nextChildCode } from '@/lib/ledger/coa'
 import { syncBudgetForHead } from '@/lib/budget/plan'
+import { NATURE_GROUP, stripCcType, CC_TYPE_ALIAS } from '@/lib/budget/nature'
 
 // RETIRED (18 Aug 2026): the Google-Sheet pull is switched off — the app's
 // own master register on Accounts is the single source of truth, edited via
@@ -108,16 +109,6 @@ function resolveBank(
   const tokens = m.split(/[^a-z0-9]+/).filter((t) => t && !['bank', 'account', 'balance'].includes(t))
   const hit = banks.find((b) => tokens.length > 0 && tokens.every((t) => norm(b.nickname).includes(t)))
   return hit?.id ?? null
-}
-
-// nature → where a master-born head lives in the chart
-const NATURE_GROUP: Record<string, { code: string; kind: 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE' }> = {
-  Expense: { code: '5000', kind: 'EXPENSE' },
-  Income: { code: '4000', kind: 'INCOME' },
-  Asset: { code: '1900', kind: 'ASSET' },
-  Liability: { code: '2300', kind: 'LIABILITY' },
-  Contra: { code: '5000', kind: 'EXPENSE' },
-  Personal: { code: '5000', kind: 'EXPENSE' },
 }
 
 function poolOf(bankMode: string | null, oldPool: string | null): string {
@@ -293,8 +284,8 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
     }
   }
   if (r.expenseType) {
-    const strip = (s: string) => s.toLowerCase().trim().replace(/^optional-?\s*/, '')
-    const ALIAS: Record<string, string> = { investment: 'invesment' }
+    const strip = stripCcType
+    const ALIAS = CC_TYPE_ALIAS
     const heads = await prisma.ledgerAccount.findMany({
       where: { isGroup: false, archivedAt: null, name: { equals: r.category, mode: 'insensitive' } },
     })
@@ -479,8 +470,8 @@ export async function syncFromMaster(csvText?: string): Promise<MasterSyncSummar
   }
 
   // Default cost centres from the sheet's column, on every same-named head.
-  const strip = (s: string) => s.toLowerCase().trim().replace(/^optional-?\s*/, '')
-  const ALIAS: Record<string, string> = { investment: 'invesment' }
+  const strip = stripCcType
+  const ALIAS = CC_TYPE_ALIAS
   let costCentresSet = 0
   for (const r of rows.filter((x) => x.expenseType)) {
     const heads = await prisma.ledgerAccount.findMany({
