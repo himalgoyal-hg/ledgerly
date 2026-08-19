@@ -9,6 +9,7 @@ import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
 import { ReportHeader, DateRangeFilters } from '../report-chrome'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Cash Flow (spec §10), direct method: every entry touching bank or cash
 // contributes its counter-lines. Transfers between own accounts have no
@@ -19,7 +20,7 @@ export default async function CashFlowPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const view = params.view === 'ahead' ? 'ahead' : 'history'
@@ -125,28 +126,28 @@ export default async function CashFlowPage(props: {
   const rangeSuffix = query.toString() ? `&${query}` : ''
 
   const bucket = (title: string, data: { lines: CashFlowLine[]; total: string }) => (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+        <thead className={theadClass}>
           <tr>
             <th className="px-4 py-2">{title}</th>
             <th className="px-4 py-2 text-right">Cash in / (out)</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100">
+        <tbody className="divide-y divide-line-2">
           {data.lines.map((line) => (
             <tr key={line.accountId}>
               <td className="px-4 py-2">
                 <Link
                   href={`/reports/ledger?accountId=${line.accountId}${rangeSuffix}`}
-                  className="text-zinc-800 hover:underline"
+                  className="text-ink hover:underline"
                 >
-                  <span className="font-mono text-xs text-zinc-400">{line.code}</span> {line.name}
+                  <span className="font-mono text-xs text-ink-3">{line.code}</span> {line.name}
                 </Link>
               </td>
               <td
                 className={`w-40 px-4 py-2 text-right ${
-                  Number(line.amount) >= 0 ? 'text-emerald-700' : 'text-red-600'
+                  Number(line.amount) >= 0 ? 'text-success' : 'text-danger'
                 }`}
               >
                 {Number(line.amount) >= 0
@@ -157,13 +158,13 @@ export default async function CashFlowPage(props: {
           ))}
           {data.lines.length === 0 && (
             <tr>
-              <td colSpan={2} className="px-4 py-3 text-center text-sm text-zinc-400">
+              <td colSpan={2} className="px-4 py-3 text-center text-sm text-ink-3">
                 No movement.
               </td>
             </tr>
           )}
         </tbody>
-        <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+        <tfoot className="border-t border-line font-medium text-ink">
           <tr>
             <td className="px-4 py-2">Net {title.toLowerCase()}</td>
             <td className="px-4 py-2 text-right">{displayINR(data.total)}</td>
@@ -188,20 +189,16 @@ export default async function CashFlowPage(props: {
       />
 
       {/* Two views, one screen: what happened, and what the plan says next */}
-      <div className="flex gap-1 border-b border-zinc-200 pb-2 print:hidden">
+      <div className="flex gap-1 border-b border-line pb-2 print:hidden">
         <Link
           href={`/reports/cash-flow${query.toString() ? `?${query}` : ''}`}
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            view === 'history' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
-          }`}
+          className={chipClass(view === 'history')}
         >
           History
         </Link>
         <Link
           href={`/reports/cash-flow?view=ahead${query.toString() ? `&${query}` : ''}`}
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            view === 'ahead' ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100'
-          }`}
+          className={chipClass(view === 'ahead')}
         >
           Cash ahead
         </Link>
@@ -209,26 +206,26 @@ export default async function CashFlowPage(props: {
 
       {view === 'history' && (
       <div className="flex flex-wrap gap-3">
-        <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-          <div className="text-xs text-zinc-500">Opening cash & bank</div>
-          <div className="text-lg font-semibold text-zinc-900">{displayINR(cf.opening)}</div>
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+          <div className="text-xs text-ink-2">Opening cash & bank</div>
+          <div className="text-lg font-semibold text-ink">{displayINR(cf.opening)}</div>
         </div>
-        <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-          <div className="text-xs text-zinc-500">Net movement</div>
+        <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+          <div className="text-xs text-ink-2">Net movement</div>
           <div
             className={`text-lg font-semibold ${
-              Number(cf.netMovement) >= 0 ? 'text-emerald-700' : 'text-red-600'
+              Number(cf.netMovement) >= 0 ? 'text-success' : 'text-danger'
             }`}
           >
             {displayINR(cf.netMovement)}
           </div>
         </div>
-        <div className="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-3 shadow-sm">
-          <div className="text-xs text-zinc-400">Closing cash & bank</div>
+        <div className="rounded-2xl border border-line bg-primary px-4 py-3 shadow-card">
+          <div className="text-xs text-white/70">Closing cash & bank</div>
           <div className="text-lg font-semibold text-white">{displayINR(cf.closing)}</div>
         </div>
         {!cf.reconciles && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="rounded-2xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
             Movements do not reconcile with the balances — check the audit log.
           </div>
         )}
@@ -239,9 +236,9 @@ export default async function CashFlowPage(props: {
           today's cash, the plan's net movement, the projected closing. */}
       {view === 'ahead' && cashProjection && cashProjection.months.length > 0 && (
         <div className="flex flex-wrap gap-3 print:hidden">
-          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-500">Bank today</div>
-            <div className="text-lg font-semibold text-zinc-900">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+            <div className="text-xs text-ink-2">Bank today</div>
+            <div className="text-lg font-semibold text-ink">
               {displayINR(
                 pools
                   .filter((p) => p.pool !== 'CASH')
@@ -249,27 +246,27 @@ export default async function CashFlowPage(props: {
                   .toFixed(2),
               )}
             </div>
-            <div className="mt-0.5 text-[10px] text-zinc-400">
+            <div className="mt-0.5 text-[10px] text-ink-3">
               {pools
                 .filter((p) => p.pool !== 'CASH' && p.balanceNow !== 0)
                 .map((p) => `${p.pool} ${displayINR(p.balanceNow.toFixed(0))}`)
                 .join(' · ')}
             </div>
           </div>
-          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-500">Cash today</div>
-            <div className="text-lg font-semibold text-zinc-900">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+            <div className="text-xs text-ink-2">Cash today</div>
+            <div className="text-lg font-semibold text-ink">
               {displayINR((pools.find((p) => p.pool === 'CASH')?.balanceNow ?? 0).toFixed(2))}
             </div>
           </div>
-          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-500">Bank + cash today</div>
-            <div className="text-lg font-semibold text-zinc-900">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+            <div className="text-xs text-ink-2">Bank + cash today</div>
+            <div className="text-lg font-semibold text-ink">
               {displayINR(cashProjection.balanceNow.toFixed(2))}
             </div>
           </div>
-          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-500">
+          <div className="rounded-2xl border border-line bg-surface px-4 py-3 shadow-card">
+            <div className="text-xs text-ink-2">
               Planned net movement (next {cashProjection.months.length} mo)
             </div>
             {(() => {
@@ -277,20 +274,20 @@ export default async function CashFlowPage(props: {
                 cashProjection.months[cashProjection.months.length - 1].closing -
                 cashProjection.balanceNow
               return (
-                <div className={`text-lg font-semibold ${net >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                <div className={`text-lg font-semibold ${net >= 0 ? 'text-success' : 'text-danger'}`}>
                   {displayINR(net.toFixed(2))}
                 </div>
               )
             })()}
           </div>
-          <div className="rounded-xl border border-zinc-300 bg-zinc-900 px-4 py-3 shadow-sm">
-            <div className="text-xs text-zinc-400">
+          <div className="rounded-2xl border border-line bg-primary px-4 py-3 shadow-card">
+            <div className="text-xs text-white/70">
               Projected closing ({shortMonth(cashProjection.months[cashProjection.months.length - 1].month)})
             </div>
             <div
               className={`text-lg font-semibold ${
                 cashProjection.months[cashProjection.months.length - 1].closing < 0
-                  ? 'text-red-400'
+                  ? 'text-danger'
                   : 'text-white'
               }`}
             >
@@ -302,56 +299,56 @@ export default async function CashFlowPage(props: {
 
       {/* The sheet's Cashflow block: Op / Incoming / Outgoing / Closing × months */}
       {view === 'ahead' && cashProjection && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
+        <div className={`${tableWrapClass} print:hidden`}>
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+              <tr className="border-b border-line text-[10px] uppercase tracking-wider text-ink-3">
                 <th className="px-3 py-2">Cashflow</th>
                 {cashProjection.months.map((m) => (
                   <th key={m.month} className="px-2 py-2 text-right">{shortMonth(m.month)}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody className="divide-y divide-line-2">
               {([
                 ['Bank', bankMonths],
                 ['Cash', cashMonths],
                 ['Total', cashProjection.months],
               ] as const).map(([label, months]) => (
                 <Fragment key={label}>
-                  <tr className={label === 'Total' ? 'border-t-2 border-zinc-300 bg-zinc-50/80' : 'bg-zinc-50/50'}>
-                    <td colSpan={months.length + 1} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  <tr className={label === 'Total' ? 'border-t-2 border-line bg-surface-2/80' : 'bg-surface-2/60'}>
+                    <td colSpan={months.length + 1} className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-ink-2">
                       {label}
                     </td>
                   </tr>
                   <tr>
-                    <td className="px-3 py-1 text-xs text-zinc-500">Opening Balance</td>
+                    <td className="px-3 py-1 text-xs text-ink-2">Opening Balance</td>
                     {months.map((m) => (
-                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-zinc-600">
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-ink-2">
                         {displayINR(m.opening.toFixed(0))}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-1 text-xs text-zinc-500">Incoming</td>
+                    <td className="px-3 py-1 text-xs text-ink-2">Incoming</td>
                     {months.map((m) => (
-                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-emerald-700">
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-success">
                         {displayINR(m.inflow.toFixed(0))}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="px-3 py-1 text-xs text-zinc-500">Outgoing</td>
+                    <td className="px-3 py-1 text-xs text-ink-2">Outgoing</td>
                     {months.map((m) => (
-                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-red-600">
+                      <td key={m.month} className="px-2 py-1 text-right text-xs tabular-nums text-danger">
                         {m.outflow ? `-${displayINR(m.outflow.toFixed(0))}` : displayINR('0')}
                       </td>
                     ))}
                   </tr>
-                  <tr className={label === 'Total' ? 'bg-zinc-100/80 font-semibold' : 'font-medium'}>
-                    <td className="px-3 py-1 text-xs text-zinc-800">Closing</td>
+                  <tr className={label === 'Total' ? 'bg-surface-2 font-semibold' : 'font-medium'}>
+                    <td className="px-3 py-1 text-xs text-ink">Closing</td>
                     {months.map((m) => (
-                      <td key={m.month} className={`px-2 py-1 text-right text-xs tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                      <td key={m.month} className={`px-2 py-1 text-right text-xs tabular-nums ${m.closing < 0 ? 'text-danger' : 'text-ink'}`}>
                         {displayINR(m.closing.toFixed(0))}
                       </td>
                     ))}
@@ -361,14 +358,14 @@ export default async function CashFlowPage(props: {
             </tbody>
           </table>
           {/* pool-by-pool drill-down, tucked away */}
-          <details className="border-t border-zinc-100">
-            <summary className="cursor-pointer px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-700">
+          <details className="border-t border-line-2">
+            <summary className="cursor-pointer px-3 py-1.5 text-xs text-ink-3 hover:text-ink-2">
               Pool by pool (closings) ▾
             </summary>
             <div className="overflow-x-auto px-3 pb-2">
               <table className="w-full min-w-[40rem] text-left text-xs">
                 <thead>
-                  <tr className="text-[10px] uppercase tracking-wider text-zinc-400">
+                  <tr className="text-[10px] uppercase tracking-wider text-ink-3">
                     <th className="px-2 py-1">Pool</th>
                     <th className="px-2 py-1 text-right">Today</th>
                     {pools[0]?.months.map((m) => (
@@ -376,17 +373,17 @@ export default async function CashFlowPage(props: {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-50">
+                <tbody className="divide-y divide-line-2">
                   {pools.map((p) => (
                     <tr key={p.pool}>
-                      <td className="px-2 py-1 font-medium text-zinc-700">{p.pool}</td>
-                      <td className="px-2 py-1 text-right tabular-nums text-zinc-600">
+                      <td className="px-2 py-1 font-medium text-ink-2">{p.pool}</td>
+                      <td className="px-2 py-1 text-right tabular-nums text-ink-2">
                         {displayINR(p.balanceNow.toFixed(0))}
                       </td>
                       {p.months.map((m) => (
                         <td
                           key={m.month}
-                          className={`px-2 py-1 text-right tabular-nums ${m.closing < 0 ? 'font-semibold text-red-600' : 'text-zinc-600'}`}
+                          className={`px-2 py-1 text-right tabular-nums ${m.closing < 0 ? 'font-semibold text-danger' : 'text-ink-2'}`}
                           title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
                         >
                           {displayINR(m.closing.toFixed(0))}
@@ -405,10 +402,10 @@ export default async function CashFlowPage(props: {
           their OWN columns (the sheet's shape). Saving runs the same master
           propagation as the Accounts register. */}
       {view === 'ahead' && cashProjection && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
+        <div className={`${tableWrapClass} print:hidden`}>
           <table className="w-full min-w-[64rem] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+              <tr className="border-b border-line-2 text-[10px] uppercase tracking-wider text-ink-3">
                 <th className="w-[22%] px-2 py-1.5">Recurring — expense head</th>
                 <th className="px-2 py-1.5 text-right">Bank budget ₹</th>
                 <th className="px-2 py-1.5 text-right">Cash budget ₹</th>
@@ -419,7 +416,7 @@ export default async function CashFlowPage(props: {
                 <th className="px-2 py-1.5" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-50">
+            <tbody className="divide-y divide-line-2">
               {[null, ...recurringCats].map((row) => {
                 const formId = row ? `cp-${row.label.replace(/[^a-zA-Z0-9]/g, '_')}` : 'cp-new-rec'
                 const monthly = row
@@ -427,7 +424,7 @@ export default async function CashFlowPage(props: {
                     lineMonthly({ amount: String(row.cash) as never, frequency: row.frequency })
                   : 0
                 return (
-                  <tr key={row?.label ?? 'new'} className={row ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
+                  <tr key={row?.label ?? 'new'} className={row ? 'hover:bg-surface-2/60' : 'bg-success-soft/40'}>
                     <td className="px-2 py-0.5">
                       <input
                         name="category"
@@ -436,7 +433,7 @@ export default async function CashFlowPage(props: {
                         list="head-options"
                         defaultValue={row?.label ?? ''}
                         placeholder="Type — tagging heads suggest themselves"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -446,7 +443,7 @@ export default async function CashFlowPage(props: {
                         inputMode="decimal"
                         defaultValue={row?.bank ? String(Math.round(row.bank)) : ''}
                         title="Per frequency period; negative = receipt"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs tabular-nums"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-right text-xs tabular-nums"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -456,7 +453,7 @@ export default async function CashFlowPage(props: {
                         inputMode="decimal"
                         defaultValue={row?.cash ? String(Math.round(row.cash)) : ''}
                         title="Paid from the cash pool"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs tabular-nums"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-right text-xs tabular-nums"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -466,7 +463,7 @@ export default async function CashFlowPage(props: {
                         list="claimable-options"
                         defaultValue={row?.taxTreatment ?? ''}
                         placeholder="Drawing / HG Business Expense…"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -474,7 +471,7 @@ export default async function CashFlowPage(props: {
                         name="frequency"
                         form={formId}
                         defaultValue={row?.frequency ?? 'MONTHLY'}
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       >
                         {FREQUENCIES.filter((f) => f !== 'ONCE').map((f) => (
                           <option key={f} value={f}>{freqLabel[f]}</option>
@@ -491,10 +488,10 @@ export default async function CashFlowPage(props: {
                         defaultId={row?.dayNote ?? ''}
                         formId={formId}
                         placeholder="Day"
-                        className="w-24 rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-24 rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       />
                     </td>
-                    <td className="whitespace-nowrap px-2 py-1 text-right text-xs tabular-nums text-zinc-500">
+                    <td className="whitespace-nowrap px-2 py-1 text-right text-xs tabular-nums text-ink-2">
                       {row ? displayINR(monthly.toFixed(2)) : ''}
                     </td>
                     <td className="px-2 py-0.5">
@@ -504,8 +501,8 @@ export default async function CashFlowPage(props: {
                             type="submit"
                             className={`whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium ${
                               row
-                                ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100'
-                                : 'bg-emerald-700 text-white hover:bg-emerald-600'
+                                ? 'border border-line text-ink-2 hover:bg-surface-2'
+                                : 'bg-success text-white hover:opacity-90'
                             }`}
                           >
                             {row ? 'Save' : 'Add'}
@@ -517,7 +514,7 @@ export default async function CashFlowPage(props: {
                             <button
                               type="submit"
                               title="Remove from the plan (recycle bin)"
-                              className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
+                              className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
                             >
                               ✕
                             </button>
@@ -546,10 +543,10 @@ export default async function CashFlowPage(props: {
 
       {/* One-time — the sheet's right block: name, amount, the actual date */}
       {view === 'ahead' && cashProjection && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
+        <div className={`${tableWrapClass} print:hidden`}>
           <table className="w-full min-w-[36rem] text-left text-sm">
             <thead>
-              <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+              <tr className="border-b border-line-2 text-[10px] uppercase tracking-wider text-ink-3">
                 <th className="w-[36%] px-2 py-1.5">One-time</th>
                 <th className="px-2 py-1.5 text-right">₹ (+out / −in)</th>
                 <th className="px-2 py-1.5">Date</th>
@@ -557,14 +554,14 @@ export default async function CashFlowPage(props: {
                 <th className="px-2 py-1.5" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-50">
+            <tbody className="divide-y divide-line-2">
               {[null, ...planLines.filter((l) => l.frequency === 'ONCE')].map((line) => {
                 const formId = line ? `cp-${line.id}` : 'cp-new-once'
                 const dateValue = line?.onMonth
                   ? `${line.onMonth}-${/^\d{1,2}$/.test(line.dayNote ?? '') ? String(line.dayNote).padStart(2, '0') : '01'}`
                   : ''
                 return (
-                  <tr key={line?.id ?? 'new'} className={line ? 'hover:bg-zinc-50/60' : 'bg-emerald-50/40'}>
+                  <tr key={line?.id ?? 'new'} className={line ? 'hover:bg-surface-2/60' : 'bg-success-soft/40'}>
                     <td className="px-2 py-0.5">
                       <input
                         name="label"
@@ -573,7 +570,7 @@ export default async function CashFlowPage(props: {
                         list="head-options"
                         defaultValue={line?.label ?? ''}
                         placeholder="Type — tagging heads suggest themselves"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -585,7 +582,7 @@ export default async function CashFlowPage(props: {
                         defaultValue={line ? String(line.amount) : ''}
                         placeholder="₹"
                         title="Positive = goes out, negative = comes in"
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-right text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-right text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -595,7 +592,7 @@ export default async function CashFlowPage(props: {
                         type="date"
                         required
                         defaultValue={dateValue}
-                        className="rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       />
                     </td>
                     <td className="px-2 py-0.5">
@@ -603,7 +600,7 @@ export default async function CashFlowPage(props: {
                         name="source"
                         form={formId}
                         defaultValue={line?.source ?? 'CASH'}
-                        className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs"
+                        className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs"
                       >
                         {POOL_OPTIONS.map((o) => (
                           <option key={o}>{o}</option>
@@ -619,8 +616,8 @@ export default async function CashFlowPage(props: {
                             type="submit"
                             className={`whitespace-nowrap rounded px-2 py-0.5 text-[11px] font-medium ${
                               line
-                                ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100'
-                                : 'bg-emerald-700 text-white hover:bg-emerald-600'
+                                ? 'border border-line text-ink-2 hover:bg-surface-2'
+                                : 'bg-success text-white hover:opacity-90'
                             }`}
                           >
                             {line ? 'Save' : 'Add'}
@@ -632,7 +629,7 @@ export default async function CashFlowPage(props: {
                             <button
                               type="submit"
                               title="Remove from the plan"
-                              className="rounded border border-red-200 px-1.5 py-0.5 text-[11px] text-red-600 hover:bg-red-50"
+                              className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
                             >
                               ✕
                             </button>

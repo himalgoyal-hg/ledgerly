@@ -7,6 +7,7 @@ import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Fragment } from 'react'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { PageHeader } from '@/components/ui'
 
 // Accounts IS the master register (Himal, 18 Aug 2026): every category with
 // its books, bank mode, cost centre, budgets, frequency, day and nature —
@@ -32,7 +33,7 @@ const FREQ_LABEL: Record<string, string> = {
 export default async function CoaPage() {
   const user = await requireAdmin()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
+  if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
 
   const modes = await prisma.headMode.findMany({ orderBy: [{ sortOrder: 'asc' }, { category: 'asc' }] })
   const sections = [...new Set(modes.map((m) => m.section).filter((x): x is string => !!x))]
@@ -51,30 +52,28 @@ export default async function CoaPage() {
   }
 
   const cellCls =
-    'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
+    'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900">Accounts — master register</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            The single source of the plan. Edit a cell, hit ✓ — cash flow, budgets, reports and tagging follow.
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        kicker="Setup & masters"
+        title="Accounts — master register"
+        subtitle="The single source of the plan. Edit a cell, hit ✓ — cash flow, budgets, reports and tagging follow."
+        actions={
+          <>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-sm font-semibold text-ink">Expense Heads</h2>
+              <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11px] font-medium tabular-nums text-ink-2">
+                {modes.length}
+              </span>
+            </div>
+            <LiveFilter selector="[data-live-filter='master']" placeholder="Type to search heads…" />
+          </>
+        }
+      />
 
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        {/* toolbar: what this is, how many, and the live search — one bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50/60 px-4 py-2.5">
-          <div className="flex items-baseline gap-2">
-            <h2 className="text-sm font-semibold text-zinc-800">Expense Heads</h2>
-            <span className="rounded-full bg-zinc-200/70 px-2 py-0.5 text-[11px] font-medium tabular-nums text-zinc-600">
-              {modes.length}
-            </span>
-          </div>
-          <LiveFilter selector="[data-live-filter='master']" placeholder="Type to search heads…" />
-        </div>
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
         <div className="overflow-x-auto">
         <table data-live-filter="master" className="w-full min-w-[76rem] table-fixed text-left text-sm">
           <colgroup>
@@ -89,7 +88,7 @@ export default async function CoaPage() {
             <col className="w-[8%]" />
           </colgroup>
           <thead>
-            <tr className="border-b border-zinc-200 bg-white text-[10px] uppercase tracking-wider text-zinc-500">
+            <tr className="border-b border-line bg-surface text-[10px] uppercase tracking-wider text-ink-3">
               <th className="px-4 py-2.5 font-semibold">Expense Head</th>
               <th className="px-2 py-2.5 font-semibold">Nature</th>
               <th className="px-2 py-2.5 font-semibold">Bank mode</th>
@@ -101,7 +100,7 @@ export default async function CoaPage() {
               <th className="px-2 py-2.5" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {[null, ...modes].map((m, idx, arr) => {
               const prev = idx > 1 ? (arr[idx - 1] as (typeof modes)[number] | null) : null
               const sectionHeader =
@@ -116,8 +115,8 @@ export default async function CoaPage() {
               return (
                 <Fragment key={m?.id ?? 'new'}>
                 {sectionHeader && (
-                  <tr data-filter-keep="1" className="border-t border-zinc-200 bg-zinc-100/70">
-                    <td colSpan={9} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  <tr data-filter-keep="1" className="border-t border-line bg-surface-2/60">
+                    <td colSpan={9} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       {sectionHeader}
                     </td>
                   </tr>
@@ -126,11 +125,11 @@ export default async function CoaPage() {
                   data-filter-keep={m ? undefined : '1'}
                   className={
                     m
-                      ? 'even:bg-zinc-50/40 hover:bg-sky-50/40'
-                      : 'border-l-2 border-emerald-500 bg-emerald-50/50'
+                      ? 'even:bg-surface-2/40 hover:bg-primary-soft/40'
+                      : 'border-l-2 border-success bg-surface-2/60'
                   }
                 >
-                  <td className="px-4 py-1 text-xs font-medium text-zinc-800">
+                  <td className="px-4 py-1 text-xs font-medium text-ink">
                     {m ? (
                       <>
                         <input type="hidden" name="category" form={fid} value={m.category} />
@@ -146,14 +145,14 @@ export default async function CoaPage() {
                       </>
                     ) : (
                       <div className="flex gap-1">
-                        <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-emerald-400`} />
+                        <input name="category" form={fid} required placeholder="＋ New expense head…" className={`${cellCls} border-dashed border-success/40`} />
                         <SmartCombobox
                           options={sections.map((sec) => ({ id: sec, label: sec }))}
                           name="section"
                           createName="sectionNew"
                           formId={fid}
                           placeholder="Section — pick or type a new one"
-                          className={`${cellCls} w-44 border-dashed border-emerald-300 bg-white`}
+                          className={`${cellCls} w-44 border-dashed border-success/30 bg-surface`}
                         />
                       </div>
                     )}
@@ -165,14 +164,14 @@ export default async function CoaPage() {
                       defaultId={m?.nature ?? ''}
                       formId={fid}
                       placeholder="Nature"
-                      className={`${cellCls} bg-white`}
+                      className={`${cellCls} bg-surface`}
                     />
                   </td>
                   <td className="px-1 py-0.5">
                     <div className="flex items-center gap-1">
                       <input name="bankMode" form={fid} list="bank-mode-options" defaultValue={m?.modeBank ?? ''} placeholder="HDFC 2762 / Cash" className={cellCls} />
                       {bank?.ledgerAccountId && (
-                        <Link href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`} title={`Linked to ${bank.nickname}`} className="text-sky-600 hover:text-sky-800">
+                        <Link href={`/admin/ledgers?accountId=${bank.ledgerAccountId}`} title={`Linked to ${bank.nickname}`} className="text-primary hover:text-primary-strong">
                           ↗
                         </Link>
                       )}
@@ -185,7 +184,7 @@ export default async function CoaPage() {
                       defaultId={m?.expenseType ?? ''}
                       formId={fid}
                       placeholder="Cost centre"
-                      className={`${cellCls} bg-white`}
+                      className={`${cellCls} bg-surface`}
                     />
                   </td>
                   <td className="px-1 py-0.5">
@@ -195,7 +194,7 @@ export default async function CoaPage() {
                       inputMode="decimal"
                       defaultValue={m?.bankBudget == null ? '' : String(Math.round(Number(m.bankBudget)))}
                       title="− = receipt"
-                      className={`${cellCls} text-right tabular-nums ${Number(m?.bankBudget) < 0 ? 'font-medium text-emerald-700' : ''}`}
+                      className={`${cellCls} text-right tabular-nums ${Number(m?.bankBudget) < 0 ? 'font-medium text-success' : ''}`}
                     />
                   </td>
                   <td className="px-1 py-0.5">
@@ -214,7 +213,7 @@ export default async function CoaPage() {
                       defaultId={m?.frequency ?? ''}
                       formId={fid}
                       placeholder="Frequency"
-                      className={`${cellCls} bg-white`}
+                      className={`${cellCls} bg-surface`}
                     />
                   </td>
                   <td className="px-1 py-0.5">
@@ -227,7 +226,7 @@ export default async function CoaPage() {
                       defaultId={m?.dayNote ?? ''}
                       formId={fid}
                       placeholder="Day"
-                      className={`${cellCls} bg-white`}
+                      className={`${cellCls} bg-surface`}
                     />
                   </td>
                   <td className="whitespace-nowrap px-2 py-0.5 text-right">
@@ -235,7 +234,7 @@ export default async function CoaPage() {
                       <button
                         type="submit"
                         title="Save — updates plan, budgets, modes and cost centres everywhere"
-                        className={`rounded px-2 py-0.5 text-[11px] font-medium ${m ? 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100' : 'bg-emerald-700 text-white hover:bg-emerald-600'}`}
+                        className={`rounded px-2 py-0.5 text-[11px] font-medium ${m ? 'border border-line text-ink-2 hover:bg-surface-2' : 'bg-success text-white hover:opacity-90'}`}
                       >
                         {m ? '✓' : 'Add'}
                       </button>
@@ -245,7 +244,7 @@ export default async function CoaPage() {
                         <input type="hidden" name="category" value={m.category} />
                         <ConfirmButton
                           message={`Remove "${m.category}" from the master? Its plan lines and FY budgets clear; the head and its postings stay.`}
-                          className="rounded border border-red-100 px-1.5 py-0.5 text-[11px] text-red-400 hover:bg-red-50 hover:text-red-600"
+                          className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger/70 hover:bg-danger-soft hover:text-danger"
                         >
                           ✕
                         </ConfirmButton>
@@ -254,14 +253,14 @@ export default async function CoaPage() {
                   </td>
                 </tr>
                 {sectionEnds && (
-                  <tr data-filter-keep="1" className="bg-emerald-50/30">
+                  <tr data-filter-keep="1" className="bg-surface-2/60">
                     <td className="px-4 py-0.5" colSpan={8}>
                       <input
                         name="category"
                         form={`mr-sec-${sectionEnds.replace(/[^a-zA-Z0-9]/g, '_')}`}
                         required
                         placeholder={`＋ Add in ${sectionEnds}…`}
-                        className={`${cellCls} border-dashed border-emerald-300`}
+                        className={`${cellCls} border-dashed border-success/30`}
                       />
                     </td>
                     <td className="px-2 py-0.5 text-right">
@@ -277,7 +276,7 @@ export default async function CoaPage() {
                         <button
                           type="submit"
                           title="Adds at the end of this section — fill its columns after"
-                          className="rounded bg-emerald-700 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-emerald-600"
+                          className="rounded bg-success px-2 py-0.5 text-[11px] font-medium text-white hover:opacity-90"
                         >
                           Add
                         </button>
@@ -296,7 +295,7 @@ export default async function CoaPage() {
             <option key={b} value={b} />
           ))}
         </datalist>
-        <p className="border-t border-zinc-100 px-4 py-2 text-[11px] text-zinc-400">
+        <p className="border-t border-line-2 px-4 py-2 text-[11px] text-ink-3">
           This register is the master — ✓ saves a row and updates the plan, budgets, modes and cost centres everywhere.
           Books says whose books (or the cash pool) the plan sits in. Negative budget = receipt. The ↗ next to a bank
           mode means it is linked to a real bank account — click it to open that account&apos;s statement ledger.

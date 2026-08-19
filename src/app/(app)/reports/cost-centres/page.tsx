@@ -2,6 +2,7 @@ import { requireUser } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { costCentreReport } from '@/lib/reports/analysis'
+import { tableWrapClass, theadClass } from '@/components/ui'
 import { ReportHeader, DateRangeFilters } from '../report-chrome'
 
 // Expense by cost centre (spec §10). Untagged spend is shown, not hidden —
@@ -12,7 +13,7 @@ export default async function CostCentreReportPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const report = await costCentreReport(entity.id, {
@@ -39,9 +40,9 @@ export default async function CostCentreReportPage(props: {
         exportHref={`/reports/export?report=cost-centres&${query}`}
       />
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-2">Cost centre</th>
               <th className="px-4 py-2 text-right">Expense</th>
@@ -50,26 +51,26 @@ export default async function CostCentreReportPage(props: {
               <th className="w-40 px-4 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {report.rows.map((row) => (
               <tr key={row.costCentreId ?? 'untagged'}>
-                <td className="px-4 py-2 text-zinc-800">
+                <td className="px-4 py-2 text-ink">
                   {row.name}
                   {row.costCentreId === null && (
-                    <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    <span className="ml-2 rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-warning">
                       untagged
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-right text-zinc-700">{displayINR(row.expense)}</td>
-                <td className="px-4 py-2 text-right text-zinc-500">{displayINR(row.income)}</td>
-                <td className="px-4 py-2 text-right font-medium text-zinc-900">
+                <td className="px-4 py-2 text-right text-ink-2">{displayINR(row.expense)}</td>
+                <td className="px-4 py-2 text-right text-ink-2">{displayINR(row.income)}</td>
+                <td className="px-4 py-2 text-right font-medium text-ink">
                   {displayINR(row.net)}
                 </td>
                 <td className="px-4 py-2">
-                  <div className="h-2 w-full rounded bg-zinc-100">
+                  <div className="h-2 w-full rounded bg-surface-2">
                     <div
-                      className="h-2 rounded bg-zinc-400"
+                      className="h-2 rounded bg-ink-3"
                       style={{ width: `${Math.round((Math.abs(Number(row.net)) / max) * 100)}%` }}
                     />
                   </div>
@@ -78,13 +79,13 @@ export default async function CostCentreReportPage(props: {
             ))}
             {report.rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-3">
                   No income or expense postings in this range.
                 </td>
               </tr>
             )}
           </tbody>
-          <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+          <tfoot className="border-t border-line font-medium text-ink">
             <tr>
               <td className="px-4 py-2" colSpan={3}>
                 Total net spend

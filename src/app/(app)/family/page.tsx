@@ -4,6 +4,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { balanceSheet } from '@/lib/reports/statements'
 import { balanceTiles } from '@/lib/reports/dashboard'
 import { profitAndLoss } from '@/lib/reports/statements'
+import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
 
 // "All entities (family)" view from the v2 prototype: every set of books
 // stands alone; the total is the family position.
@@ -43,7 +44,7 @@ export default async function FamilyPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-zinc-900">Family view — all entities</h1>
+      <PageHeader kicker="Family" title="Family view — all entities" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
@@ -52,17 +53,17 @@ export default async function FamilyPage() {
           ['Total assets', T((r) => r.assets), 'including bank balances'],
           ['Total liabilities', T((r) => r.liab), 'loans & dues'],
         ].map(([label, v, hint]) => (
-          <div key={String(label)} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-zinc-500">{label}</p>
-            <p className="mt-1 text-2xl font-semibold text-zinc-900">{displayINR(Number(v).toFixed(2))}</p>
-            <p className="mt-1 text-xs text-zinc-400">{hint}</p>
+          <div key={String(label)} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <p className="text-sm text-ink-2">{label}</p>
+            <p className="mt-1 text-2xl font-semibold text-ink">{displayINR(Number(v).toFixed(2))}</p>
+            <p className="mt-1 text-xs text-ink-3">{hint}</p>
           </div>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full min-w-[760px] text-sm">
-          <thead className="border-b border-zinc-200 text-left text-xs uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-3 py-2.5">Entity</th>
               <th className={cellR}>Cash &amp; bank</th>
@@ -74,11 +75,11 @@ export default async function FamilyPage() {
               <th className={cellR}>Surplus</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {per.map((r) => (
-              <tr key={r.id} className="hover:bg-zinc-50">
-                <td className="px-3 py-2 font-medium text-zinc-800">
-                  {r.name} <span className="text-xs text-zinc-400">({r.code})</span>
+              <tr key={r.id} className="hover:bg-surface-2/60">
+                <td className="px-3 py-2 font-medium text-ink">
+                  {r.name} <span className="text-xs text-ink-3">({r.code})</span>
                 </td>
                 <td className={cellR}>{displayINR(r.cash.toFixed(2))}</td>
                 <td className={cellR}>{displayINR(r.assets.toFixed(2))}</td>
@@ -86,12 +87,12 @@ export default async function FamilyPage() {
                 <td className={`${cellR} font-semibold`}>{displayINR(r.capital.toFixed(2))}</td>
                 <td className={cellR}>{displayINR(r.income.toFixed(2))}</td>
                 <td className={cellR}>{displayINR(r.expense.toFixed(2))}</td>
-                <td className={`${cellR} ${r.profit < 0 ? 'text-red-600' : 'text-emerald-700'}`}>
+                <td className={`${cellR} ${r.profit < 0 ? 'text-danger' : 'text-success'}`}>
                   {displayINR(r.profit.toFixed(2))}
                 </td>
               </tr>
             ))}
-            <tr className="bg-zinc-50 font-semibold">
+            <tr className="bg-surface-2/60 font-semibold">
               <td className="px-3 py-2">Family total</td>
               <td className={cellR}>{displayINR(T((r) => r.cash).toFixed(2))}</td>
               <td className={cellR}>{displayINR(T((r) => r.assets).toFixed(2))}</td>
@@ -104,7 +105,7 @@ export default async function FamilyPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-ink-3">
         Inter-entity loans appear on both sides and net off in the family total.
       </p>
     </div>

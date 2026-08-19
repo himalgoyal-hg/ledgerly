@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { displayINR } from '@/lib/ledger/money'
 import type { StatementSection } from '@/lib/reports/statements'
+import { PageHeader, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Shared report furniture: the header with date filters, export and print,
 // and the section table used by P&L / Balance Sheet.
@@ -14,29 +15,27 @@ export function ReportHeader(props: {
   exportHref?: string
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          {props.title} — {props.entityLabel}
-        </h1>
-        {props.subtitle && <p className="mt-1 text-sm text-zinc-500">{props.subtitle}</p>}
-      </div>
-      <div className="flex flex-wrap items-center gap-2 print:hidden">
-        {props.filters && (
-          <form className="flex flex-wrap items-center gap-2">{props.filters}</form>
-        )}
-        {props.exportHref && (
-          <Link
-            href={props.exportHref}
-            prefetch={false}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
-          >
-            Export CSV
-          </Link>
-        )}
-        <PrintButton />
-      </div>
-    </div>
+    <PageHeader
+      title={`${props.title} — ${props.entityLabel}`}
+      subtitle={props.subtitle}
+      actions={
+        <>
+          {props.filters && (
+            <form className="flex flex-wrap items-center gap-2">{props.filters}</form>
+          )}
+          {props.exportHref && (
+            <Link
+              href={props.exportHref}
+              prefetch={false}
+              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
+            >
+              Export CSV
+            </Link>
+          )}
+          <PrintButton />
+        </>
+      }
+    />
   )
 }
 
@@ -44,10 +43,10 @@ export function ReportHeader(props: {
 function PrintButton() {
   return (
     <details className="relative">
-      <summary className="cursor-pointer list-none rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">
+      <summary className="cursor-pointer list-none rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
         Print / PDF
       </summary>
-      <p className="absolute right-0 z-10 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-2 text-xs text-zinc-500 shadow-md">
+      <p className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-line bg-surface p-2 text-xs text-ink-2 shadow-md">
         Use your browser&apos;s Print (⌘P) and choose &quot;Save as PDF&quot;. Filters,
         navigation and buttons are hidden in print.
       </p>
@@ -62,18 +61,18 @@ export function DateRangeFilters(props: { from?: string; to?: string }) {
         type="date"
         name="from"
         defaultValue={props.from}
-        className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+        className={controlClass}
       />
-      <span className="text-xs text-zinc-400">to</span>
+      <span className="text-xs text-ink-3">to</span>
       <input
         type="date"
         name="to"
         defaultValue={props.to}
-        className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+        className={controlClass}
       />
       <button
         type="submit"
-        className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+        className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
       >
         Apply
       </button>
@@ -89,37 +88,37 @@ export function SectionTable(props: { section: StatementSection; range: string }
   }
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+    <div className={tableWrapClass}>
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+        <thead className={theadClass}>
           <tr>
             <th className="px-4 py-2">{props.section.title}</th>
             <th className="px-4 py-2 text-right">Amount</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-zinc-100">
+        <tbody className="divide-y divide-line-2">
           {[...byGroup.entries()].map(([group, lines]) => (
             <tr key={group}>
               <td colSpan={2} className="p-0">
                 <table className="w-full">
                   <tbody>
                     <tr>
-                      <td className="bg-zinc-50 px-4 py-1 text-xs font-medium uppercase text-zinc-500">
+                      <td className="bg-surface-2/60 px-4 py-1 text-xs font-medium uppercase text-ink-2">
                         {group}
                       </td>
                     </tr>
                     {lines.map((line) => (
-                      <tr key={line.accountId} className="border-t border-zinc-50">
+                      <tr key={line.accountId} className="border-t border-line-2">
                         <td className="px-4 py-2">
                           <Link
                             href={`/reports/ledger?accountId=${line.accountId}${props.range}`}
-                            className="text-zinc-800 hover:underline"
+                            className="text-ink hover:underline"
                           >
-                            <span className="font-mono text-xs text-zinc-400">{line.code}</span>{' '}
+                            <span className="font-mono text-xs text-ink-3">{line.code}</span>{' '}
                             {line.name}
                           </Link>
                         </td>
-                        <td className="w-40 px-4 py-2 text-right text-zinc-700">
+                        <td className="w-40 px-4 py-2 text-right text-ink-2">
                           {displayINR(line.amount)}
                         </td>
                       </tr>
@@ -131,13 +130,13 @@ export function SectionTable(props: { section: StatementSection; range: string }
           ))}
           {props.section.lines.length === 0 && (
             <tr>
-              <td colSpan={2} className="px-4 py-4 text-center text-sm text-zinc-400">
+              <td colSpan={2} className="px-4 py-4 text-center text-sm text-ink-3">
                 Nothing in this range.
               </td>
             </tr>
           )}
         </tbody>
-        <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+        <tfoot className="border-t border-line font-medium text-ink">
           <tr>
             <td className="px-4 py-2">Total {props.section.title.toLowerCase()}</td>
             <td className="px-4 py-2 text-right">{displayINR(props.section.total)}</td>

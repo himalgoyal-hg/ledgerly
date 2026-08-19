@@ -54,6 +54,58 @@ export function CardHeader(props: {
   )
 }
 
+/* -------------------------------- PageHeader --------------------------------
+   Every screen opens with this: optional uppercase kicker, the page title in
+   the dashboard's title style, an optional one-line subtitle, and an actions
+   slot (filters, export, add buttons) that hides in print. */
+
+export function PageHeader(props: {
+  kicker?: string
+  title: React.ReactNode
+  subtitle?: React.ReactNode
+  actions?: React.ReactNode
+  className?: string
+}) {
+  return (
+    <div className={cx('flex flex-wrap items-end justify-between gap-3', props.className)}>
+      <div className="min-w-0">
+        {props.kicker && (
+          <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-ink-3">{props.kicker}</p>
+        )}
+        <h1 className="mt-0.5 text-2xl font-semibold tracking-tight text-ink">{props.title}</h1>
+        {props.subtitle && <p className="mt-1 text-sm text-ink-2">{props.subtitle}</p>}
+      </div>
+      {props.actions && <div className="flex flex-wrap items-center gap-2 print:hidden">{props.actions}</div>}
+    </div>
+  )
+}
+
+/* ------------------------- Canonical control classes -------------------------
+   Class strings, not components, so they compose with <input>, <select>,
+   <Link> and datalist-driven fields alike. Every register and report shares
+   these; a screen never invents its own input or chip look. */
+
+/** Text inputs, selects, textareas. */
+export const controlClass =
+  'rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-3 ' +
+  'focus:border-primary focus:outline-none disabled:opacity-50'
+
+/** Filter chips / pill toggles (lens pickers, FY switches, view tabs). */
+export function chipClass(active: boolean) {
+  return cx(
+    'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+    active
+      ? 'border-primary bg-primary text-white'
+      : 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink',
+  )
+}
+
+/** The card every data table sits in. */
+export const tableWrapClass = 'overflow-x-auto rounded-2xl border border-line bg-surface shadow-card'
+
+/** Table header row. Pair with `px-* py-*` on each th. */
+export const theadClass = 'border-b border-line text-left text-xs uppercase tracking-wide text-ink-3'
+
 /* ---------------------------------- Badge ----------------------------------- */
 
 export type BadgeTone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger'

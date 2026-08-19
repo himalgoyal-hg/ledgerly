@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { controlClass } from '@/components/ui'
 
 // The Excel-style quick entry row: Date | Details | Location | Amount ± |
 // Expense Head | Cost centre | Comments | Add. One signed amount replaces
@@ -24,7 +25,7 @@ export interface CcOption {
   label: string
 }
 
-const inputCls = 'rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm'
+const inputCls = controlClass
 
 export function CashQuickRow(props: {
   locations: QuickLocation[]
@@ -91,7 +92,7 @@ export function CashQuickRow(props: {
       <input name="comments" placeholder="Comments" className={`w-36 ${inputCls}`} />
       <button
         type="submit"
-        className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+        className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong"
       >
         Add
       </button>

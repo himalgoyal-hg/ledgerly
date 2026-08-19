@@ -104,7 +104,7 @@ export function HeadCombobox(props: {
           if (creating) props.onCreateText?.(text.trim())
         }}
         className={
-          props.className ?? 'min-w-48 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm'
+          props.className ?? 'min-w-48 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
         }
       />
       <datalist id={listId}>
@@ -125,7 +125,7 @@ export function HeadCombobox(props: {
         />
       )}
       {creating && (
-        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-emerald-600">
+        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-success">
           ➕ “{text.trim()}” — new head, created on save
         </span>
       )}

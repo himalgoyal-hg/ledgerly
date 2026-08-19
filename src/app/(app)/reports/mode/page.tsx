@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import Link from 'next/link'
+import { PageHeader, chipClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Actual vs Plan Mode — the Finance-setup sheet's promise, checked against
 // the books: each category says which bank account (and credit card) its
@@ -108,38 +109,32 @@ export default async function ActualVsPlanModePage({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Actual vs Plan Mode</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          The Finance-setup sheet says which account each category should move on; the tagged entries say where the money
-          actually moved. ⚠ means a payment came from a different account than planned.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Report"
+        title="Actual vs Plan Mode"
+        subtitle="The Finance-setup sheet says which account each category should move on; the tagged entries say where the money actually moved. ⚠ means a payment came from a different account than planned."
+      />
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Entries in</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Entries in</span>
         {monthRows.map((r) => (
           <Link
             key={r.m}
             href={`/reports/mode?month=${r.m}`}
-            className={`rounded-full border px-2.5 py-0.5 text-xs ${
-              r.m === month
-                ? 'border-zinc-900 bg-zinc-900 text-white'
-                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100'
-            }`}
+            className={chipClass(r.m === month)}
           >
             {monthLabel(r.m)}
           </Link>
         ))}
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto text-xs text-ink-2">
           {rows.length ? (offCount ? `⚠ ${offCount} categor${offCount > 1 ? 'ies' : 'y'} off-plan` : 'all on plan ✓') : ''}
         </span>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full min-w-[56rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+          <thead className={theadClass}>
+            <tr className="text-[10px]">
               <th className="px-2 py-2">Category</th>
               <th className="px-2 py-2">Expense type</th>
               <th className="px-2 py-2">Planned mode (Bank · CC)</th>
@@ -148,14 +143,14 @@ export default async function ActualVsPlanModePage({
               <th className="px-2 py-2">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {rows.map((r) => (
-              <tr key={r.head} className={r.status === 'off' ? 'bg-amber-50/50' : 'hover:bg-zinc-50/60'}>
-                <td className="px-2 py-1.5 font-medium text-zinc-800">{r.head}</td>
-                <td className="px-2 py-1.5 text-xs text-zinc-500">{r.mode?.expenseType ?? '—'}</td>
-                <td className="px-2 py-1.5 text-xs text-zinc-600">
+              <tr key={r.head} className={r.status === 'off' ? 'bg-warning-soft/50' : 'hover:bg-surface-2/60'}>
+                <td className="px-2 py-1.5 font-medium text-ink">{r.head}</td>
+                <td className="px-2 py-1.5 text-xs text-ink-2">{r.mode?.expenseType ?? '—'}</td>
+                <td className="px-2 py-1.5 text-xs text-ink-2">
                   {r.planned ?? '—'}
-                  {r.mode?.modeCc ? <span className="text-zinc-400"> · {r.mode.modeCc}</span> : null}
+                  {r.mode?.modeCc ? <span className="text-ink-3"> · {r.mode.modeCc}</span> : null}
                 </td>
                 <td className="px-2 py-1.5 text-xs">
                   <div className="flex flex-wrap gap-1">
@@ -164,10 +159,10 @@ export default async function ActualVsPlanModePage({
                         key={a.acct}
                         className={`rounded-full border px-2 py-0.5 ${
                           a.ok === false
-                            ? 'border-amber-300 bg-amber-50 text-amber-800'
+                            ? 'border-warning/30 bg-warning-soft text-warning'
                             : a.ok === true
-                              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                              : 'border-zinc-200 bg-zinc-50 text-zinc-600'
+                              ? 'border-success/30 bg-success-soft text-success'
+                              : 'border-line bg-surface-2/60 text-ink-2'
                         }`}
                         title={a.ok === false ? `Planned: ${r.planned}` : undefined}
                       >
@@ -177,17 +172,17 @@ export default async function ActualVsPlanModePage({
                     ))}
                   </div>
                 </td>
-                <td className="px-2 py-1.5 text-right tabular-nums text-zinc-700">{inr(r.total)}</td>
+                <td className="px-2 py-1.5 text-right tabular-nums text-ink-2">{inr(r.total)}</td>
                 <td className="px-2 py-1.5 text-xs">
-                  {r.status === 'ok' && <span className="text-emerald-700">✓ as planned</span>}
-                  {r.status === 'off' && <span className="font-medium text-amber-700">⚠ different account</span>}
-                  {r.status === 'none' && <span className="text-zinc-400">no planned mode</span>}
+                  {r.status === 'ok' && <span className="text-success">✓ as planned</span>}
+                  {r.status === 'off' && <span className="font-medium text-warning">⚠ different account</span>}
+                  {r.status === 'none' && <span className="text-ink-3">no planned mode</span>}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={6} className="px-3 py-6 text-center text-sm text-ink-3">
                   No tagged movement in {monthLabel(month)} — upload and tag that month&apos;s statements first.
                 </td>
               </tr>
@@ -195,7 +190,7 @@ export default async function ActualVsPlanModePage({
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-zinc-400">
+      <p className="text-[11px] text-ink-3">
         Planned modes come from the Finance-setup sheet (81 categories). Matching is by account number and name — Meena =
         MG, Cash = any cash location.
       </p>

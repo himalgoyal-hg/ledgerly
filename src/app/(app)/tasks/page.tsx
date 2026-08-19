@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
 import { CellInput } from './cell-input'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   saveFinanceCellAction,
   createFinanceTaskAction,
@@ -15,7 +16,7 @@ import {
 // IS an input — type the amount/"Yes"/note, Enter, saved. Nothing posts;
 // the checklist just tracks that the payment happened.
 
-const inputCls = 'rounded-md border border-zinc-300 px-2 py-1.5 text-sm'
+const inputCls = controlClass
 
 const ord = (d: number) => {
   const s = ['th', 'st', 'nd', 'rd'][d % 100 > 10 && d % 100 < 14 ? 0 : Math.min(d % 10, 4) % 4] ?? 'th'
@@ -70,16 +71,15 @@ export default async function FinanceTasksPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Finance tasks</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Monthly payment checklist — fill the cell (amount / Yes / note) when a payment is done. Nothing posts from here.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Operations"
+        title="Finance tasks"
+        subtitle="Monthly payment checklist — fill the cell (amount / Yes / note) when a payment is done. Nothing posts from here."
+      />
 
       {/* This month at a glance — the reason the sheet exists */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-        <h2 className="text-sm font-medium text-zinc-900">
+      <div className="rounded-2xl border border-line bg-surface p-3 shadow-card">
+        <h2 className="text-sm font-medium text-ink">
           {monthLabel(nowKey)} — {pendingCount ? `${pendingCount} payment${pendingCount > 1 ? 's' : ''} pending` : 'all done ✓'}
         </h2>
         <div className="mt-2 flex flex-wrap gap-1.5">
@@ -91,10 +91,10 @@ export default async function FinanceTasksPage() {
                 title={task.account ?? undefined}
                 className={`rounded-full border px-2.5 py-1 text-xs ${
                   value
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    ? 'border-success/30 bg-success-soft text-success'
                     : (task.dueDay ?? 32) <= now.getDate()
-                      ? 'border-amber-300 bg-amber-50 text-amber-800'
-                      : 'border-zinc-200 bg-zinc-50 text-zinc-600'
+                      ? 'border-warning/30 bg-warning-soft text-warning'
+                      : 'border-line bg-surface-2/60 text-ink-2'
                 }`}
               >
                 {ord(task.dueDay!)} · {task.name}
@@ -106,69 +106,69 @@ export default async function FinanceTasksPage() {
 
       {/* New bill / task — the sheet's column format: name, paying account,
           due day, and (fill-what-you-know) the first month's value */}
-      <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+      <details className="rounded-2xl border border-line bg-surface shadow-card">
+        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2/60">
           ＋ New bill / task (a new column in the register)
         </summary>
-        <form action={createFinanceTaskAction} className="border-t border-zinc-100 p-4">
+        <form action={createFinanceTaskAction} className="border-t border-line-2 p-4">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bill / task *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Bill / task *</span>
               <input name="name" required placeholder="New EMI Rs. 12,000 / Netflix…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Paid from</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Paid from</span>
               <input name="account" placeholder="7838 account / MG Axis bank / cash" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due day</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Due day</span>
               <input name="dueDay" inputMode="numeric" placeholder="7" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Month (optional)</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Month (optional)</span>
               <input name="firstMonth" type="month" defaultValue={nowKey} className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount / note (optional)</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Amount / note (optional)</span>
               <input name="firstValue" placeholder="₹12,000 / Yes" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <div className="flex items-end">
-              <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+              <button type="submit" className={buttonClass('primary')}>
                 Add
               </button>
             </div>
           </div>
-          <p className="mt-2 text-[11px] text-zinc-400">
+          <p className="mt-2 text-[11px] text-ink-3">
             Fill what you have — name is enough; the amount and other cells can be filled later, right in the grid.
           </p>
         </form>
       </details>
 
       {/* The register — the sheet itself: months × tasks, every cell an input */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full text-left text-sm" style={{ minWidth: `${10 + tasks.length * 9}rem` }}>
-          <thead>
-            <tr className="border-b border-zinc-200 align-bottom text-[10px] uppercase tracking-wider text-zinc-400">
-              <th className="sticky left-0 z-10 bg-white px-2 py-2">Month</th>
+          <thead className={theadClass}>
+            <tr className="align-bottom">
+              <th className="sticky left-0 z-10 bg-surface px-2 py-2">Month</th>
               {tasks.map((t) => (
                 <th key={t.id} className={`px-1.5 py-2 font-medium ${t.dueDay === null ? 'min-w-[16rem]' : 'min-w-[7rem]'}`}>
                   <div className="normal-case tracking-normal">
-                    <div className="text-[10px] text-zinc-400">
+                    <div className="text-[10px] text-ink-3">
                       {t.account ?? ' '}
                       {t.dueDay ? ` · due ${ord(t.dueDay)}` : ''}
                     </div>
-                    <div className="mt-0.5 flex items-start gap-1 text-xs font-semibold text-zinc-700">
+                    <div className="mt-0.5 flex items-start gap-1 text-xs font-semibold text-ink-2">
                       <span>{t.name}</span>
                       {/* header ✎ — edit the column in place */}
                       <details className="relative">
-                        <summary className="cursor-pointer list-none text-zinc-300 hover:text-zinc-600">✎</summary>
-                        <div className="absolute left-0 top-5 z-20 w-56 rounded-lg border border-zinc-200 bg-white p-2 shadow-lg">
+                        <summary className="cursor-pointer list-none text-ink-3 hover:text-ink-2">✎</summary>
+                        <div className="absolute left-0 top-5 z-20 w-56 rounded-lg border border-line bg-surface p-2 shadow-lg">
                           <form action={updateFinanceTaskAction} className="space-y-1.5">
                             <input type="hidden" name="taskId" value={t.id} />
                             <input name="name" defaultValue={t.name} required className={`w-full ${inputCls}`} />
                             <input name="account" defaultValue={t.account ?? ''} placeholder="Paid from" className={`w-full ${inputCls}`} />
                             <input name="dueDay" defaultValue={t.dueDay ?? ''} inputMode="numeric" placeholder="Due day" className={`w-full ${inputCls}`} />
-                            <button type="submit" className="w-full rounded-md bg-zinc-900 px-2 py-1 text-xs font-medium text-white hover:bg-zinc-700">
+                            <button type="submit" className="w-full rounded-lg bg-primary px-2 py-1 text-xs font-medium text-white hover:bg-primary-strong">
                               Save
                             </button>
                           </form>
@@ -176,7 +176,7 @@ export default async function FinanceTasksPage() {
                             <input type="hidden" name="taskId" value={t.id} />
                             <ConfirmButton
                               message={`Remove "${t.name}" from the register? History stays in the database.`}
-                              className="w-full rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                              className="w-full rounded-lg border border-danger/30 px-2 py-1 text-xs text-danger hover:bg-danger-soft"
                             >
                               Remove column
                             </ConfirmButton>
@@ -195,17 +195,17 @@ export default async function FinanceTasksPage() {
               return (
                 <tr
                   key={mk}
-                  className={`border-b border-zinc-100 align-top ${isNow ? 'bg-amber-50/40' : mk > nowKey ? 'text-zinc-400' : ''}`}
+                  className={`border-b border-line-2 align-top ${isNow ? 'bg-warning-soft/40' : mk > nowKey ? 'text-ink-3' : ''}`}
                 >
-                  <td className={`sticky left-0 z-10 whitespace-nowrap px-2 py-1 text-xs font-medium ${isNow ? 'bg-amber-50 text-amber-900' : 'bg-white text-zinc-700'}`}>
+                  <td className={`sticky left-0 z-10 whitespace-nowrap px-2 py-1 text-xs font-medium ${isNow ? 'bg-warning-soft text-warning' : 'bg-surface text-ink-2'}`}>
                     {monthLabel(mk)}
-                    {isNow && <span className="ml-1 text-[9px] uppercase text-amber-600">now</span>}
+                    {isNow && <span className="ml-1 text-[9px] uppercase text-warning">now</span>}
                   </td>
                   {tasks.map((t) => {
                     const value = cellMap.get(t.id)?.get(mk) ?? ''
                     const overdue = isNow && !value && t.dueDay !== null && t.dueDay <= now.getDate()
                     return (
-                      <td key={t.id} className={`px-0.5 py-0.5 ${overdue ? 'bg-amber-100/60' : ''}`}>
+                      <td key={t.id} className={`px-0.5 py-0.5 ${overdue ? 'bg-warning-soft/60' : ''}`}>
                         {/* Excel-style: the cell IS the input — type, Enter, saved; blank clears */}
                         <form action={saveFinanceCellAction}>
                           <input type="hidden" name="taskId" value={t.id} />
@@ -229,7 +229,7 @@ export default async function FinanceTasksPage() {
                 <form action={addFinanceMonthAction} className="flex items-center gap-2">
                   <button
                     type="submit"
-                    className="rounded-md border border-dashed border-zinc-300 px-3 py-1 text-xs text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50 hover:text-zinc-800"
+                    className="rounded-lg border border-dashed border-line px-3 py-1 text-xs text-ink-2 hover:border-ink-3 hover:bg-surface-2/60 hover:text-ink"
                   >
                     ＋ Add {monthLabel(nextMonthKey)}
                   </button>
@@ -237,7 +237,7 @@ export default async function FinanceTasksPage() {
                     name="month"
                     type="month"
                     title="Or pick a different month to add"
-                    className="rounded-md border border-zinc-200 px-2 py-0.5 text-xs text-zinc-500"
+                    className="rounded-lg border border-line px-2 py-0.5 text-xs text-ink-2"
                   />
                 </form>
               </td>
@@ -245,7 +245,7 @@ export default async function FinanceTasksPage() {
           </tbody>
         </table>
       </div>
-      <p className="text-[11px] text-zinc-400">
+      <p className="text-[11px] text-ink-3">
         Type in a cell and press Enter to save; clear it to remove. ✎ edits a column, ＋ adds a new one.
       </p>
     </div>

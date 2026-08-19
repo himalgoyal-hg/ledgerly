@@ -14,6 +14,7 @@ import {
   bulkTaskColumnsAction,
 } from './actions'
 import { BinSelectAll } from './select-all'
+import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
 
 // 🗑 The one recycle bin. Delete anything anywhere — a cash entry, a tagged
 // posting, a plan line, a finance-task column — and it waits here, out of
@@ -63,29 +64,27 @@ export default async function RecycleBinPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">🗑 Recycle bin</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Everything deleted anywhere waits here — restore it, or remove it for good. Balances already reversed when the
-          delete happened; the ledger keeps every original and reversal.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Setup & masters"
+        title="🗑 Recycle bin"
+        subtitle="Everything deleted anywhere waits here — restore it, or remove it for good. Balances already reversed when the delete happened; the ledger keeps every original and reversal."
+      />
 
       {total === 0 && (
-        <p className="rounded-xl border border-zinc-200 bg-white p-6 text-center text-sm text-zinc-400 shadow-sm">
+        <p className="rounded-2xl border border-line bg-surface p-6 text-center text-sm text-ink-3 shadow-card">
           The bin is empty — nothing deleted anywhere.
         </p>
       )}
 
       {docs.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <form id="bin-docs" action={bulkDocsAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+        <div className={tableWrapClass}>
+          <form id="bin-docs" action={bulkDocsAction} className="flex flex-wrap items-center gap-2 border-b border-line-2 px-3 py-1.5 text-xs">
             <BinSelectAll formId="bin-docs" />
             <button
               type="submit"
               name="op"
               value="restore"
-              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+              className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2"
             >
               Restore selected
             </button>
@@ -93,14 +92,14 @@ export default async function RecycleBinPage() {
               name="op"
               value="purge"
               message="Remove ALL selected forever? This cannot be undone."
-              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+              className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
             >
               Remove selected forever
             </ConfirmButton>
           </form>
           <table className="w-full min-w-[52rem] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+            <thead className={theadClass}>
+              <tr>
                 <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Deleted postings ({docs.length})</th>
                 <th className="px-2 py-2">Books</th>
@@ -111,37 +110,37 @@ export default async function RecycleBinPage() {
                 <th className="px-2 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody className="divide-y divide-line-2">
               {docs.map((d) => {
                 const first = d.entries[0]
                 const amount = first ? first.lines.reduce((t, l) => t + Number(l.debit), 0) : 0
                 return (
-                  <tr key={d.id} className="text-xs hover:bg-zinc-50/60">
+                  <tr key={d.id} className="text-xs hover:bg-surface-2/60">
                     <td className="px-2 py-1.5">
-                      <input type="checkbox" name="docIds" value={d.id} form="bin-docs" className="accent-zinc-900" aria-label="Select" />
+                      <input type="checkbox" name="docIds" value={d.id} form="bin-docs" className="accent-primary" aria-label="Select" />
                     </td>
-                    <td className="max-w-[20rem] truncate px-3 py-1.5 font-medium text-zinc-700" title={first?.narration}>
+                    <td className="max-w-[20rem] truncate px-3 py-1.5 font-medium text-ink-2" title={first?.narration}>
                       {cashRemarks.get(d.id) || first?.narration || '(no narration)'}
                     </td>
                     <td className="px-2 py-1.5">
-                      <span className="rounded bg-zinc-100 px-1.5 text-[10px] font-medium text-zinc-500">
+                      <span className="rounded bg-surface-2 px-1.5 text-[10px] font-medium text-ink-2">
                         {code.get(d.entityId)}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-500">
+                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-ink-2">
                       {first?.date.toISOString().slice(0, 10)}
                     </td>
-                    <td className="px-2 py-1.5 text-zinc-500">{SOURCE_LABEL[d.sourceType] ?? d.sourceType}</td>
-                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-zinc-700">
+                    <td className="px-2 py-1.5 text-ink-2">{SOURCE_LABEL[d.sourceType] ?? d.sourceType}</td>
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-ink-2">
                       {displayINR(amount.toFixed(2))}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-400">
+                    <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-ink-3">
                       {d.deletedAt?.toISOString().slice(0, 10)}
                     </td>
                     <td className="whitespace-nowrap px-2 py-1.5 text-right">
                       <form action={restoreDocAction} className="inline">
                         <input type="hidden" name="docId" value={d.id} />
-                        <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                        <button type="submit" className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2">
                           Restore
                         </button>
                       </form>
@@ -149,7 +148,7 @@ export default async function RecycleBinPage() {
                         <input type="hidden" name="docId" value={d.id} />
                         <ConfirmButton
                           message={`Remove "${cashRemarks.get(d.id) ?? first?.narration ?? 'this entry'}" forever? The ledger keeps the original and its reversal; this cannot be undone.`}
-                          className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                          className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
                         >
                           Remove forever
                         </ConfirmButton>
@@ -164,14 +163,14 @@ export default async function RecycleBinPage() {
       )}
 
       {planLines.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <form id="bin-lines" action={bulkPlanLinesAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+        <div className={tableWrapClass}>
+          <form id="bin-lines" action={bulkPlanLinesAction} className="flex flex-wrap items-center gap-2 border-b border-line-2 px-3 py-1.5 text-xs">
             <BinSelectAll formId="bin-lines" />
             <button
               type="submit"
               name="op"
               value="restore"
-              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+              className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2"
             >
               Restore selected
             </button>
@@ -179,14 +178,14 @@ export default async function RecycleBinPage() {
               name="op"
               value="purge"
               message="Remove ALL selected forever? This cannot be undone."
-              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+              className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
             >
               Remove selected forever
             </ConfirmButton>
           </form>
           <table className="w-full min-w-[40rem] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+            <thead className={theadClass}>
+              <tr>
                 <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Removed plan lines ({planLines.length})</th>
                 <th className="px-2 py-2">Pool</th>
@@ -196,25 +195,25 @@ export default async function RecycleBinPage() {
                 <th className="px-2 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody className="divide-y divide-line-2">
               {planLines.map((l) => (
-                <tr key={l.id} className="text-xs hover:bg-zinc-50/60">
+                <tr key={l.id} className="text-xs hover:bg-surface-2/60">
                   <td className="px-2 py-1.5">
-                    <input type="checkbox" name="ids" value={l.id} form="bin-lines" className="accent-zinc-900" aria-label="Select" />
+                    <input type="checkbox" name="ids" value={l.id} form="bin-lines" className="accent-primary" aria-label="Select" />
                   </td>
-                  <td className="px-3 py-1.5 font-medium text-zinc-700">{l.label}</td>
-                  <td className="px-2 py-1.5 text-zinc-500">{l.source}</td>
-                  <td className="px-2 py-1.5 text-zinc-500">{l.frequency.toLowerCase()}{l.onMonth ? ` (${l.onMonth})` : ''}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-zinc-700">
+                  <td className="px-3 py-1.5 font-medium text-ink-2">{l.label}</td>
+                  <td className="px-2 py-1.5 text-ink-2">{l.source}</td>
+                  <td className="px-2 py-1.5 text-ink-2">{l.frequency.toLowerCase()}{l.onMonth ? ` (${l.onMonth})` : ''}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-ink-2">
                     {displayINR(String(l.amount))}
                   </td>
-                  <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-400">
+                  <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-ink-3">
                     {l.archivedAt?.toISOString().slice(0, 10)}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right">
                     <form action={restorePlanLineAction} className="inline">
                       <input type="hidden" name="id" value={l.id} />
-                      <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                      <button type="submit" className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2">
                         Restore
                       </button>
                     </form>
@@ -222,7 +221,7 @@ export default async function RecycleBinPage() {
                       <input type="hidden" name="id" value={l.id} />
                       <ConfirmButton
                         message={`Remove plan line "${l.label}" forever? This cannot be undone.`}
-                        className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                        className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
                       >
                         Remove forever
                       </ConfirmButton>
@@ -236,14 +235,14 @@ export default async function RecycleBinPage() {
       )}
 
       {taskColumns.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <form id="bin-cols" action={bulkTaskColumnsAction} className="flex flex-wrap items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-xs">
+        <div className={tableWrapClass}>
+          <form id="bin-cols" action={bulkTaskColumnsAction} className="flex flex-wrap items-center gap-2 border-b border-line-2 px-3 py-1.5 text-xs">
             <BinSelectAll formId="bin-cols" />
             <button
               type="submit"
               name="op"
               value="restore"
-              className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+              className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2"
             >
               Restore selected
             </button>
@@ -251,14 +250,14 @@ export default async function RecycleBinPage() {
               name="op"
               value="purge"
               message="Remove ALL selected forever? This cannot be undone."
-              className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+              className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
             >
               Remove selected forever
             </ConfirmButton>
           </form>
           <table className="w-full min-w-[36rem] text-left text-sm">
-            <thead>
-              <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+            <thead className={theadClass}>
+              <tr>
                 <th className="w-8 px-2 py-2" />
                 <th className="px-3 py-2">Removed finance-task columns ({taskColumns.length})</th>
                 <th className="px-2 py-2">Paid from</th>
@@ -267,22 +266,22 @@ export default async function RecycleBinPage() {
                 <th className="px-2 py-2" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-100">
+            <tbody className="divide-y divide-line-2">
               {taskColumns.map((t) => (
-                <tr key={t.id} className="text-xs hover:bg-zinc-50/60">
+                <tr key={t.id} className="text-xs hover:bg-surface-2/60">
                   <td className="px-2 py-1.5">
-                    <input type="checkbox" name="ids" value={t.id} form="bin-cols" className="accent-zinc-900" aria-label="Select" />
+                    <input type="checkbox" name="ids" value={t.id} form="bin-cols" className="accent-primary" aria-label="Select" />
                   </td>
-                  <td className="px-3 py-1.5 font-medium text-zinc-700">{t.name}</td>
-                  <td className="px-2 py-1.5 text-zinc-500">{t.account ?? '—'}</td>
-                  <td className="px-2 py-1.5 text-zinc-500">{t.dueDay ?? '—'}</td>
-                  <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-zinc-400">
+                  <td className="px-3 py-1.5 font-medium text-ink-2">{t.name}</td>
+                  <td className="px-2 py-1.5 text-ink-2">{t.account ?? '—'}</td>
+                  <td className="px-2 py-1.5 text-ink-2">{t.dueDay ?? '—'}</td>
+                  <td className="whitespace-nowrap px-2 py-1.5 tabular-nums text-ink-3">
                     {t.archivedAt?.toISOString().slice(0, 10)}
                   </td>
                   <td className="whitespace-nowrap px-2 py-1.5 text-right">
                     <form action={restoreTaskColumnAction} className="inline">
                       <input type="hidden" name="id" value={t.id} />
-                      <button type="submit" className="rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100">
+                      <button type="submit" className="rounded border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2">
                         Restore
                       </button>
                     </form>
@@ -290,7 +289,7 @@ export default async function RecycleBinPage() {
                       <input type="hidden" name="id" value={t.id} />
                       <ConfirmButton
                         message={`Remove column "${t.name}" and ALL its month cells forever? This cannot be undone.`}
-                        className="rounded border border-red-200 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-50"
+                        className="rounded border border-danger/30 px-2 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
                       >
                         Remove forever
                       </ConfirmButton>

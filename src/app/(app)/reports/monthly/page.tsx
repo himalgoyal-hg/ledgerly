@@ -6,6 +6,7 @@ import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
 import { BudgetCells } from './budget-cells'
 import { LiveFilter } from '@/components/live-filter'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Expenses M/M — the sheet's tab, computed instead of typed: heads × FY
 // months straight from tagged entries, budget columns from Budget vs
@@ -26,7 +27,7 @@ export default async function MonthlyMatrixPage({
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
+  if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
 
   // FY starts April: Aug 2026 sits in FY 2026-27
   const now = new Date()
@@ -47,64 +48,63 @@ export default async function MonthlyMatrixPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900">Expenses M/M — {entity.code}</h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Straight from tagged entries — tag a statement row and it shows up here. Budget columns come from Budget vs Actual.
-          </p>
-        </div>
-        <form className="flex items-center gap-1 text-sm">
-          <label className="text-xs text-zinc-400">FY</label>
-          <select
-            name="fy"
-            defaultValue={fy}
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm"
-          >
-            {[currentFy - 2, currentFy - 1, currentFy].map((y) => (
-              <option key={y} value={y}>
-                {y}-{String(y + 1).slice(2)}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs hover:bg-zinc-100">
-            Go
-          </button>
-        </form>
-      </div>
+      <PageHeader
+        kicker="Report"
+        title={`Expenses M/M — ${entity.code}`}
+        subtitle="Straight from tagged entries — tag a statement row and it shows up here. Budget columns come from Budget vs Actual."
+        actions={
+          <form className="flex items-center gap-1 text-sm">
+            <label className="text-xs text-ink-3">FY</label>
+            <select
+              name="fy"
+              defaultValue={fy}
+              className={controlClass}
+            >
+              {[currentFy - 2, currentFy - 1, currentFy].map((y) => (
+                <option key={y} value={y}>
+                  {y}-{String(y + 1).slice(2)}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2 hover:text-ink">
+              Go
+            </button>
+          </form>
+        }
+      />
 
       {/* New budget line — pick a head or type a new one, give ₹/month or ₹/year */}
       {admin && (
-        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+        <details className="rounded-2xl border border-line bg-surface shadow-card">
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2/60">
             ＋ Add budget (type a new head to create it right here)
           </summary>
-          <form action={setFyBudgetAction} className="flex flex-wrap items-end gap-3 border-t border-zinc-100 p-4">
+          <form action={setFyBudgetAction} className="flex flex-wrap items-end gap-3 border-t border-line-2 p-4">
             <input type="hidden" name="entityId" value={entity.id} />
             <input type="hidden" name="fy" value={fy} />
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Expense head *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Expense head *</span>
               <HeadCombobox
                 heads={expenseHeads}
                 name="accountId"
                 createName="headText"
                 required
                 placeholder="Type to search — or create new"
-                className="mt-1 w-64 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                className={`${controlClass} mt-1 w-64`}
               />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount ₹ *</span>
-              <input name="amount" required inputMode="decimal" placeholder="5000" className="mt-1 w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-right text-sm" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Amount ₹ *</span>
+              <input name="amount" required inputMode="decimal" placeholder="5000" className={`${controlClass} mt-1 w-28 text-right`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Per</span>
-              <select name="kind" className="mt-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Per</span>
+              <select name="kind" className={`${controlClass} mt-1`}>
                 <option value="monthly">month (× 12 = year)</option>
                 <option value="year">year (÷ 12 = monthly)</option>
               </select>
             </label>
-            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+            <button type="submit" className={buttonClass('primary')}>
               Add budget
             </button>
           </form>
@@ -112,10 +112,10 @@ export default async function MonthlyMatrixPage({
       )}
 
       <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='mm']" placeholder="Search expense heads…" /></div>
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table data-live-filter="mm" className="w-full min-w-[1100px] text-xs">
-          <thead className="border-b border-zinc-200 text-left uppercase text-zinc-500">
-            <tr className="text-[9px] text-zinc-400">
+          <thead className={theadClass}>
+            <tr className="text-[9px]">
               <th colSpan={2}></th>
               <th colSpan={12}></th>
               <th colSpan={2} className="px-2 pt-1.5 text-center font-medium normal-case">
@@ -129,7 +129,7 @@ export default async function MonthlyMatrixPage({
               <th className={cellR}>Total</th>
               <th className="px-2 py-2">Expenses</th>
               {m.months.map((k, i) => (
-                <th key={k.key} className={`${cellR} ${i === m.recentIdx ? 'text-zinc-800' : ''}`}>
+                <th key={k.key} className={`${cellR} ${i === m.recentIdx ? 'text-ink' : ''}`}>
                   {k.label}
                 </th>
               ))}
@@ -139,13 +139,13 @@ export default async function MonthlyMatrixPage({
               <th className={cellR}>Variance</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 text-sm">
+          <tbody className="divide-y divide-line-2 text-sm">
             {m.rows.map((r) => (
-              <tr key={r.name} className="hover:bg-zinc-50">
+              <tr key={r.name} className="hover:bg-surface-2/60">
                 <td className={`${cellR} font-semibold`}>{inr(r.total)}</td>
-                <td className="px-2 py-1.5 text-zinc-800">{r.name}</td>
+                <td className="px-2 py-1.5 text-ink">{r.name}</td>
                 {r.cells.map((c, i) => (
-                  <td key={i} className={`${cellR} ${i === m.recentIdx ? 'bg-amber-50/60 text-zinc-700' : 'text-zinc-600'}`}>
+                  <td key={i} className={`${cellR} ${i === m.recentIdx ? 'bg-warning-soft/60 text-ink-2' : 'text-ink-2'}`}>
                     {inr(c)}
                   </td>
                 ))}
@@ -162,15 +162,15 @@ export default async function MonthlyMatrixPage({
                   />
                 ) : (
                   <>
-                    <td className={`${cellR} text-zinc-500`}>{inr(r.monthlyBudget)}</td>
-                    <td className={`${cellR} ${r.recentVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.recentVariance)}</td>
-                    <td className={`${cellR} text-zinc-500`}>{inr(r.yearBudget)}</td>
-                    <td className={`${cellR} ${r.yearVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>{signed(r.yearVariance)}</td>
+                    <td className={`${cellR} text-ink-2`}>{inr(r.monthlyBudget)}</td>
+                    <td className={`${cellR} ${r.recentVariance < 0 ? 'text-danger' : 'text-ink-2'}`}>{signed(r.recentVariance)}</td>
+                    <td className={`${cellR} text-ink-2`}>{inr(r.yearBudget)}</td>
+                    <td className={`${cellR} ${r.yearVariance < 0 ? 'text-danger' : 'text-ink-2'}`}>{signed(r.yearVariance)}</td>
                   </>
                 )}
               </tr>
             ))}
-            <tr data-filter-keep="1" className="bg-zinc-50 font-semibold">
+            <tr data-filter-keep="1" className="bg-surface-2/60 font-semibold">
               <td className={cellR}>{inr(m.grand)}</td>
               <td className="px-2 py-1.5">Total</td>
               {m.colTotals.map((c, i) => (
@@ -179,13 +179,13 @@ export default async function MonthlyMatrixPage({
               <td className={cellR}>{inr(m.budgetGrand / 12)}</td>
               <td className={cellR}></td>
               <td className={cellR}>{inr(m.budgetGrand)}</td>
-              <td className={`${cellR} ${m.budgetGrand - m.grand < 0 ? 'text-red-600' : ''}`}>{signed(m.budgetGrand - m.grand)}</td>
+              <td className={`${cellR} ${m.budgetGrand - m.grand < 0 ? 'text-danger' : ''}`}>{signed(m.budgetGrand - m.grand)}</td>
             </tr>
           </tbody>
         </table>
       </div>
       {m.rows.length === 0 && (
-        <p className="text-sm text-zinc-400">No tagged expenses or budgets in FY {fy}-{String(fy + 1).slice(2)} yet.</p>
+        <p className="text-sm text-ink-3">No tagged expenses or budgets in FY {fy}-{String(fy + 1).slice(2)} yet.</p>
       )}
     </div>
   )

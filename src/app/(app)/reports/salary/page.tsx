@@ -3,6 +3,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { salaryReport } from '@/lib/reports/analysis'
 import { ReportHeader } from '../report-chrome'
+import { controlClass, theadClass } from '@/components/ui'
 
 // Salary report (spec §10): approved and paid runs for a year, per person,
 // with the TDS section each deduction sits under.
@@ -17,7 +18,7 @@ export default async function SalaryReportPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const year = Number(params.year) || new Date().getUTCFullYear()
@@ -37,11 +38,11 @@ export default async function SalaryReportPage(props: {
               type="number"
               name="year"
               defaultValue={year}
-              className="w-24 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              className={`${controlClass} w-24`}
             />
             <button
               type="submit"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+              className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
             >
               Apply
             </button>
@@ -52,27 +53,27 @@ export default async function SalaryReportPage(props: {
 
       <div className="space-y-4">
         {report.months.map((month) => (
-          <div key={month.runId} className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-            <div className="flex flex-wrap items-center gap-3 border-b border-zinc-200 px-4 py-2">
-              <h2 className="text-sm font-medium text-zinc-900">
+          <div key={month.runId} className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+            <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-2">
+              <h2 className="text-sm font-medium text-ink">
                 {MONTHS[month.month - 1]} {year}
               </h2>
               <span
                 className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                   month.status === 'PAID'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : 'bg-sky-100 text-sky-700'
+                    ? 'bg-success-soft text-success'
+                    : 'bg-primary-soft text-primary'
                 }`}
               >
                 {month.status.toLowerCase()}
               </span>
-              <span className="ml-auto text-xs text-zinc-500">
+              <span className="ml-auto text-xs text-ink-2">
                 gross {displayINR(month.gross)} · TDS {displayINR(month.tds)} · net{' '}
                 {displayINR(month.net)}
               </span>
             </div>
             <table className="w-full text-left text-sm">
-              <thead className="text-xs uppercase text-zinc-400">
+              <thead className={theadClass}>
                 <tr>
                   <th className="px-4 py-1 font-medium">Person</th>
                   <th className="px-4 py-1 font-medium">Type</th>
@@ -82,18 +83,18 @@ export default async function SalaryReportPage(props: {
                   <th className="px-4 py-1 text-right font-medium">Net</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-50">
+              <tbody className="divide-y divide-line-2">
                 {month.lines.map((line) => (
                   <tr key={`${month.runId}-${line.name}`}>
-                    <td className="px-4 py-1.5 text-zinc-800">{line.name}</td>
-                    <td className="px-4 py-1.5 text-xs text-zinc-500">
+                    <td className="px-4 py-1.5 text-ink">{line.name}</td>
+                    <td className="px-4 py-1.5 text-xs text-ink-2">
                       {line.type === 'SALARY' ? 'Salary' : 'Consultant'}
-                      <span className="ml-1 text-zinc-400">u/s {line.section}</span>
+                      <span className="ml-1 text-ink-3">u/s {line.section}</span>
                     </td>
-                    <td className="px-4 py-1.5 text-xs text-zinc-500">{line.costCentre}</td>
-                    <td className="px-4 py-1.5 text-right text-zinc-700">{displayINR(line.gross)}</td>
-                    <td className="px-4 py-1.5 text-right text-zinc-500">− {displayINR(line.tds)}</td>
-                    <td className="px-4 py-1.5 text-right font-medium text-zinc-900">
+                    <td className="px-4 py-1.5 text-xs text-ink-2">{line.costCentre}</td>
+                    <td className="px-4 py-1.5 text-right text-ink-2">{displayINR(line.gross)}</td>
+                    <td className="px-4 py-1.5 text-right text-ink-2">− {displayINR(line.tds)}</td>
+                    <td className="px-4 py-1.5 text-right font-medium text-ink">
                       {displayINR(line.net)}
                     </td>
                   </tr>
@@ -103,7 +104,7 @@ export default async function SalaryReportPage(props: {
           </div>
         ))}
         {report.months.length === 0 && (
-          <p className="text-sm text-zinc-400">No approved salary runs in {year}.</p>
+          <p className="text-sm text-ink-3">No approved salary runs in {year}.</p>
         )}
       </div>
     </div>

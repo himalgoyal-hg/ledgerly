@@ -21,7 +21,7 @@ export function SourceSelect(props: {
         name={props.name ?? 'sourceAccountId'}
         required
         defaultValue={best?.ledgerAccountId ?? ''}
-        className={`rounded-md border border-zinc-300 bg-white ${size}`}
+        className={`rounded-lg border border-line bg-surface ${size}`}
       >
         <option value="">— pay from —</option>
         {options.map((option) => (
@@ -33,13 +33,13 @@ export function SourceSelect(props: {
       </select>
 
       {best && (
-        <span className="text-[10px] text-zinc-400">
+        <span className="text-[10px] text-ink-3">
           suggested: {best.label}
           {best.reasons.length > 0 && ` — ${best.reasons.join(', ')}`}
         </span>
       )}
       {warning && (
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+        <span className="rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-warning">
           {warning}
         </span>
       )}

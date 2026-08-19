@@ -40,7 +40,7 @@ export interface InvoiceRowData {
   badge: { label: string; tone: 'red' | 'amber' | 'zinc' } | null
 }
 
-const inputCls = 'w-full min-w-16 rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs'
+const inputCls = 'w-full min-w-16 rounded border border-line bg-surface px-1 py-0.5 text-xs'
 const cellCls = 'whitespace-nowrap px-1.5 py-1'
 
 export function InvoiceRow(props: {
@@ -55,58 +55,58 @@ export function InvoiceRow(props: {
 
   if (!editing) {
     return (
-      <tr className={`align-top ${d.settled ? 'text-zinc-500' : ''} hover:bg-zinc-50/60`}>
-        <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
+      <tr className={`align-top ${d.settled ? 'text-ink-2' : ''} hover:bg-surface-2/60`}>
+        <td className={`${cellCls} font-mono text-xs text-ink-2`}>{d.number}</td>
         <td className={cellCls}>
-          <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{d.books}</span>
+          <span className="rounded bg-surface-2 px-1 text-[10px] font-medium text-ink-2">{d.books}</span>
         </td>
-        <td className={`${cellCls} text-xs tabular-nums text-zinc-500`}>{d.dateIso}</td>
+        <td className={`${cellCls} text-xs tabular-nums text-ink-2`}>{d.dateIso}</td>
         <td className="px-1.5 py-1">
           <span
-            className="block max-w-40 truncate font-medium text-zinc-800"
+            className="block max-w-40 truncate font-medium text-ink"
             title={d.narration ? `${d.customer} — ${d.narration}` : d.customer}
           >
             {d.customer}
           </span>
         </td>
-        <td className="px-1.5 py-1 text-xs text-zinc-600">{d.country || '—'}</td>
+        <td className="px-1.5 py-1 text-xs text-ink-2">{d.country || '—'}</td>
         <td className={cellCls}>
-          <span className="text-xs tabular-nums text-zinc-500">{d.dueIso}</span>{' '}
+          <span className="text-xs tabular-nums text-ink-2">{d.dueIso}</span>{' '}
           {d.badge && (
             <span
               className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                 d.badge.tone === 'red'
-                  ? 'bg-red-100 text-red-700'
+                  ? 'bg-danger-soft text-danger'
                   : d.badge.tone === 'amber'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'bg-zinc-100 text-zinc-500'
+                    ? 'bg-warning-soft text-warning'
+                    : 'bg-surface-2 text-ink-2'
               }`}
             >
               {d.badge.label}
             </span>
           )}
           {d.settled && (
-            <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+            <span className="rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
               settled
             </span>
           )}
         </td>
         <td className={`${cellCls} text-right tabular-nums`}>{d.invDisp}</td>
         <td className={`${cellCls} text-right tabular-nums`}>
-          {d.recdDisp || <span className="text-zinc-300">—</span>}
-          {d.shortDisp && <span className="ml-1 text-[10px] text-red-500">{d.shortDisp}</span>}
+          {d.recdDisp || <span className="text-ink-3">—</span>}
+          {d.shortDisp && <span className="ml-1 text-[10px] text-danger">{d.shortDisp}</span>}
         </td>
         <td className={`${cellCls} text-right tabular-nums`}>
-          {d.inrDisp || <span className="text-zinc-300">—</span>}
+          {d.inrDisp || <span className="text-ink-3">—</span>}
         </td>
         <td className={`${cellCls} text-right tabular-nums`}>
-          {d.rateDisp || <span className="text-zinc-300">—</span>}
+          {d.rateDisp || <span className="text-ink-3">—</span>}
         </td>
         <td className={`${cellCls} text-right tabular-nums`}>
-          {d.chargesDisp || <span className="text-zinc-300">—</span>}
+          {d.chargesDisp || <span className="text-ink-3">—</span>}
         </td>
         <td className={`${cellCls} text-right font-medium tabular-nums`}>
-          {d.effDisp || <span className="text-zinc-300">—</span>}
+          {d.effDisp || <span className="text-ink-3">—</span>}
         </td>
         <td className="px-1.5 py-1 text-xs">{d.firc || '—'}</td>
         <td className="px-1.5 py-1 text-xs">{d.fcDisposal || '—'}</td>
@@ -118,8 +118,8 @@ export function InvoiceRow(props: {
               onClick={() => setEditing(true)}
               className={`whitespace-nowrap rounded px-2 py-1 text-[11px] font-medium ${
                 !d.settled && d.fx
-                  ? 'bg-emerald-700 text-white hover:bg-emerald-600'
-                  : 'border border-zinc-300 text-zinc-600 hover:bg-zinc-100'
+                  ? 'bg-success text-white hover:opacity-90'
+                  : 'border border-line text-ink-2 hover:bg-surface-2'
               }`}
             >
               {!d.settled && d.fx ? 'Record / edit' : 'edit'}
@@ -132,10 +132,10 @@ export function InvoiceRow(props: {
   }
 
   return (
-    <tr className="bg-amber-50/40 align-top">
-      <td className={`${cellCls} font-mono text-xs text-zinc-500`}>{d.number}</td>
+    <tr className="bg-warning-soft/40 align-top">
+      <td className={`${cellCls} font-mono text-xs text-ink-2`}>{d.number}</td>
       <td className={cellCls}>
-        <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{d.books}</span>
+        <span className="rounded bg-surface-2 px-1 text-[10px] font-medium text-ink-2">{d.books}</span>
       </td>
       <td className="px-1.5 py-0.5">
         <input name="date" type="date" form={formId} defaultValue={d.dateIso} className={inputCls} />
@@ -148,7 +148,7 @@ export function InvoiceRow(props: {
             defaultValue={d.customer}
             disabled={d.posted}
             title={d.posted ? 'Posted invoice — client is fixed' : 'Client'}
-            className={`${inputCls} disabled:bg-zinc-100 disabled:text-zinc-400`}
+            className={`${inputCls} disabled:bg-surface-2 disabled:text-ink-3`}
           />
           <input
             name="narration"
@@ -191,7 +191,7 @@ export function InvoiceRow(props: {
             className={`${inputCls} text-right`}
           />
         ) : (
-          <span className="block text-right text-xs text-zinc-300">—</span>
+          <span className="block text-right text-xs text-ink-3">—</span>
         )}
       </td>
       <td className="px-1.5 py-0.5">
@@ -208,7 +208,7 @@ export function InvoiceRow(props: {
           <span className="block px-1 text-right text-xs tabular-nums">{d.inrDisp}</span>
         )}
       </td>
-      <td className={`${cellCls} text-right text-[10px] text-zinc-400`}>auto</td>
+      <td className={`${cellCls} text-right text-[10px] text-ink-3`}>auto</td>
       <td className="px-1.5 py-0.5">
         {d.fx ? (
           <div className="flex gap-0.5">
@@ -232,10 +232,10 @@ export function InvoiceRow(props: {
             />
           </div>
         ) : (
-          <span className="block text-right text-xs text-zinc-300">—</span>
+          <span className="block text-right text-xs text-ink-3">—</span>
         )}
       </td>
-      <td className={`${cellCls} text-right text-[10px] text-zinc-400`}>auto</td>
+      <td className={`${cellCls} text-right text-[10px] text-ink-3`}>auto</td>
       <td className="px-1.5 py-0.5">
         <select name="firc" form={formId} defaultValue={d.firc} className={inputCls}>
           <option value="">FIRC —</option>
@@ -265,7 +265,7 @@ export function InvoiceRow(props: {
             className={inputCls}
           />
         ) : (
-          <span className="block text-right text-xs text-zinc-300">—</span>
+          <span className="block text-right text-xs text-ink-3">—</span>
         )}
       </td>
       <td className="px-1.5 py-0.5">
@@ -274,7 +274,7 @@ export function InvoiceRow(props: {
             <input type="hidden" name="invoiceId" value={d.id} />
             <button
               type="submit"
-              className="whitespace-nowrap rounded bg-zinc-900 px-2 py-1 text-[11px] font-medium text-white hover:bg-zinc-700"
+              className="whitespace-nowrap rounded bg-primary px-2 py-1 text-[11px] font-medium text-white hover:bg-primary-strong"
             >
               Save
             </button>
@@ -282,7 +282,7 @@ export function InvoiceRow(props: {
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100"
+            className="whitespace-nowrap rounded border border-line px-2 py-1 text-[11px] text-ink-2 hover:bg-surface-2"
           >
             ✕
           </button>

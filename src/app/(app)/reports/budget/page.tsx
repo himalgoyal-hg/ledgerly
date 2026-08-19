@@ -3,6 +3,7 @@ import { requireUser, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { budgetVsActual } from '@/lib/reports/analysis'
+import { buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import { ReportHeader } from '../report-chrome'
 import { setBudget } from './actions'
 
@@ -21,7 +22,7 @@ export default async function BudgetPage(props: {
   const user = await requireUser()
   const admin = isAdmin(user)
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const year = Number(params.year) || new Date().getUTCFullYear()
@@ -63,12 +64,12 @@ export default async function BudgetPage(props: {
               type="number"
               name="year"
               defaultValue={year}
-              className="w-24 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              className={`${controlClass} w-24`}
             />
             <select
               name="month"
               defaultValue={String(monthFilter)}
-              className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              className={controlClass}
             >
               <option value="0">Full year</option>
               {MONTHS.map((m, i) => (
@@ -77,7 +78,7 @@ export default async function BudgetPage(props: {
             </select>
             <button
               type="submit"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+              className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2"
             >
               Apply
             </button>
@@ -87,18 +88,18 @@ export default async function BudgetPage(props: {
       />
 
       {admin && (
-        <details className="rounded-xl border border-zinc-200 bg-white shadow-sm print:hidden">
-          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+        <details className="rounded-2xl border border-line bg-surface shadow-card print:hidden">
+          <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2/60">
             ＋ Set a budget target
           </summary>
-          <div className="border-t border-zinc-100 p-4">
+          <div className="border-t border-line-2 p-4">
           <form action={setBudget} className="mt-3 flex flex-wrap items-center gap-2">
             <input type="hidden" name="entityId" value={entity.id} />
             <input type="hidden" name="year" value={year} />
             <select
               name="accountId"
               required
-              className="min-w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              className={`${controlClass} min-w-56`}
             >
               <option value="">— account —</option>
               {accounts.map((a) => (
@@ -107,7 +108,7 @@ export default async function BudgetPage(props: {
                 </option>
               ))}
             </select>
-            <select name="month" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <select name="month" className={controlClass}>
               <option value="">Whole year</option>
               {MONTHS.map((m, i) => (
                 <option key={m} value={i + 1}>{m} {year}</option>
@@ -117,9 +118,9 @@ export default async function BudgetPage(props: {
               name="amount"
               inputMode="decimal"
               placeholder="Amount ₹ (blank clears)"
-              className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              className={`${controlClass} w-44`}
             />
-            <select name="frequency" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+            <select name="frequency" className={controlClass}>
               <option value="ANNUAL">per year</option>
               <option value="MONTHLY">per month</option>
               <option value="WEEKLY">per week</option>
@@ -128,12 +129,12 @@ export default async function BudgetPage(props: {
             </select>
             <button
               type="submit"
-              className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+              className={buttonClass('primary')}
             >
               Save target
             </button>
           </form>
-          <p className="mt-2 text-xs text-zinc-400">
+          <p className="mt-2 text-xs text-ink-3">
             Whole-year targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and
             spread over the twelve months. Picking a specific month takes the amount as-is.
           </p>
@@ -141,9 +142,9 @@ export default async function BudgetPage(props: {
         </details>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-2">Account</th>
               <th className="px-4 py-2 text-right">Budget</th>
@@ -152,16 +153,16 @@ export default async function BudgetPage(props: {
               <th className="w-44 px-4 py-2">Used</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {report.rows.map((row) => {
               const over = Number(row.variance) < 0
               const pct = row.usedPct ?? 0
               return (
                 <tr key={row.accountId}>
                   <td className="px-4 py-2">
-                    <span className="font-mono text-xs text-zinc-400">{row.code}</span> {row.name}
+                    <span className="font-mono text-xs text-ink-3">{row.code}</span> {row.name}
                   </td>
-                  <td className="px-4 py-2 text-right text-zinc-500">
+                  <td className="px-4 py-2 text-right text-ink-2">
                     {admin ? (
                       // Excel-style: the number IS the input — type, Enter,
                       // saved (blank clears). Year view spreads the annual
@@ -181,12 +182,12 @@ export default async function BudgetPage(props: {
                               ? 'Target for this month — Enter to save, blank clears'
                               : 'Whole-year target, spread over 12 months — Enter to save, blank clears'
                           }
-                          className="w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right tabular-nums text-zinc-700 hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none"
+                          className="w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right tabular-nums text-ink-2 hover:border-line focus:border-primary focus:bg-surface focus:outline-none"
                         />
                         <button
                           type="submit"
                           title="Save"
-                          className="rounded border border-zinc-200 px-1 text-[10px] text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700"
+                          className="rounded border border-line px-1 text-[10px] text-ink-3 hover:bg-surface-2 hover:text-ink-2"
                         >
                           ✓
                         </button>
@@ -195,10 +196,10 @@ export default async function BudgetPage(props: {
                       displayINR(row.budget)
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right text-zinc-800">{displayINR(row.actual)}</td>
+                  <td className="px-4 py-2 text-right text-ink">{displayINR(row.actual)}</td>
                   <td
                     className={`px-4 py-2 text-right font-medium ${
-                      over ? 'text-red-600' : 'text-emerald-700'
+                      over ? 'text-danger' : 'text-success'
                     }`}
                   >
                     {over
@@ -207,13 +208,13 @@ export default async function BudgetPage(props: {
                   </td>
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2">
-                      <div className="h-2 flex-1 rounded bg-zinc-100">
+                      <div className="h-2 flex-1 rounded bg-surface-2">
                         <div
-                          className={`h-2 rounded ${over ? 'bg-red-500' : 'bg-emerald-500'}`}
+                          className={`h-2 rounded ${over ? 'bg-danger' : 'bg-success'}`}
                           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
                         />
                       </div>
-                      <span className="w-12 text-right text-xs text-zinc-500">
+                      <span className="w-12 text-right text-xs text-ink-2">
                         {row.usedPct === null ? '—' : `${row.usedPct}%`}
                       </span>
                     </div>
@@ -223,7 +224,7 @@ export default async function BudgetPage(props: {
             })}
             {report.rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-sm text-ink-3">
                   No budgets set for {year}.
                   {admin && ' Set targets below.'}
                 </td>
@@ -231,7 +232,7 @@ export default async function BudgetPage(props: {
             )}
           </tbody>
           {report.rows.length > 0 && (
-            <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+            <tfoot className="border-t border-line font-medium text-ink">
               <tr>
                 <td className="px-4 py-2">Totals</td>
                 <td className="px-4 py-2 text-right">{displayINR(report.budgetTotal)}</td>

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
+import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
 import {
   saveNetCapitalLineAction,
   addNetCapitalLineAction,
@@ -13,9 +14,9 @@ import {
 // posts to the books.
 
 const cellInput =
-  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-xs tabular-nums hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
+  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-xs tabular-nums hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 const nameInput =
-  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
+  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
 const inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 })
 const fmt = (n: number) => (n < 0 ? `-₹${inr.format(-Math.round(n))}` : `₹${inr.format(Math.round(n))}`)
@@ -60,12 +61,11 @@ export default async function NetCapitalPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Net capital — Books of Himal</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Sources vs application of capital. Edit any figure in its row — totals and the nets recompute. Nothing posts to the books.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Statement"
+        title="Net capital — Books of Himal"
+        subtitle="Sources vs application of capital. Edit any figure in its row — totals and the nets recompute. Nothing posts to the books."
+      />
 
       {/* The sheet's bottom lines, always in view */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -76,12 +76,12 @@ export default async function NetCapitalPage() {
           { label: 'Net available', value: netAvailable, note: 'own capital − tax-paid assets showing' },
           { label: 'Bank balance', value: bank, note: 'HG + MG' },
         ].map((t) => (
-          <div key={t.label} className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{t.label}</div>
-            <div className={`mt-1 text-lg font-semibold tabular-nums ${t.value < 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+          <div key={t.label} className="rounded-2xl border border-line bg-surface p-3 shadow-card">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">{t.label}</div>
+            <div className={`mt-1 text-lg font-semibold tabular-nums ${t.value < 0 ? 'text-danger' : 'text-ink'}`}>
               {fmt(t.value)}
             </div>
-            <div className="text-[10px] text-zinc-400">{t.note}</div>
+            <div className="text-[10px] text-ink-3">{t.note}</div>
           </div>
         ))}
       </div>
@@ -90,12 +90,12 @@ export default async function NetCapitalPage() {
         const rows = bySection(s.key)
         const [tNew, tTotal, tSyn] = totalsFor(s.key)
         return (
-          <div key={s.key} className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div key={s.key} className={tableWrapClass}>
             <table className="w-full min-w-[64rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+              <thead className={theadClass}>
+                <tr>
                   <th className="px-2 py-2" colSpan={2}>
-                    <span className="text-xs font-semibold normal-case tracking-normal text-zinc-800">{s.title}</span>
+                    <span className="text-xs font-semibold normal-case tracking-normal text-ink">{s.title}</span>
                   </th>
                   <th className="px-1.5 py-2 text-right">New ₹</th>
                   <th className="px-1.5 py-2 text-right">Total ₹</th>
@@ -109,7 +109,7 @@ export default async function NetCapitalPage() {
                 {rows.map((l) => {
                   const fid = `ln-${l.id}`
                   return (
-                    <tr key={l.id} className="border-b border-zinc-100 hover:bg-zinc-50/50">
+                    <tr key={l.id} className="border-b border-line-2 hover:bg-surface-2/60">
                       <td className="w-64 px-0.5 py-0.5">
                         <form id={fid} action={saveNetCapitalLineAction}>
                           <input type="hidden" name="lineId" value={l.id} />
@@ -117,7 +117,7 @@ export default async function NetCapitalPage() {
                         <input name="name" form={fid} defaultValue={l.name} required className={nameInput} />
                       </td>
                       <td className="w-24 px-0.5 py-0.5">
-                        <input name="taxStatus" form={fid} defaultValue={l.taxStatus ?? ''} placeholder="Tax status" className={`${nameInput} text-[11px] text-zinc-500`} />
+                        <input name="taxStatus" form={fid} defaultValue={l.taxStatus ?? ''} placeholder="Tax status" className={`${nameInput} text-[11px] text-ink-2`} />
                       </td>
                       {(['amountNew', 'amountTotal', 'synergy', 'fyFigure', 'remaining'] as const).map((col) => (
                         <td key={col} className="w-28 px-0.5 py-0.5">
@@ -131,14 +131,14 @@ export default async function NetCapitalPage() {
                         </td>
                       ))}
                       <td className="whitespace-nowrap px-1 py-0.5 text-right">
-                        <button type="submit" form={fid} title="Save row" className="rounded border border-zinc-200 px-1.5 text-[10px] text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700">
+                        <button type="submit" form={fid} title="Save row" className="rounded border border-line px-1.5 text-[10px] text-ink-3 hover:bg-surface-2 hover:text-ink-2">
                           ✓
                         </button>
                         <form action={deleteNetCapitalLineAction} className="ml-1 inline">
                           <input type="hidden" name="lineId" value={l.id} />
                           <ConfirmButton
                             message={`Remove "${l.name}" from the statement?`}
-                            className="rounded border border-red-100 px-1.5 text-[10px] text-red-400 hover:bg-red-50 hover:text-red-600"
+                            className="rounded border border-danger/30 px-1.5 text-[10px] text-danger/70 hover:bg-danger-soft hover:text-danger"
                           >
                             ✕
                           </ConfirmButton>
@@ -147,7 +147,7 @@ export default async function NetCapitalPage() {
                     </tr>
                   )
                 })}
-                <tr className="border-b border-zinc-100 bg-zinc-50/60 text-xs font-semibold text-zinc-800">
+                <tr className="border-b border-line-2 bg-surface-2/60 text-xs font-semibold text-ink">
                   <td className="px-2 py-1.5" colSpan={2}>Total</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{tNew ? fmt(tNew) : ''}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">{tTotal ? fmt(tTotal) : ''}</td>
@@ -159,15 +159,15 @@ export default async function NetCapitalPage() {
                   <td className="px-0.5 py-1" colSpan={8}>
                     <form action={addNetCapitalLineAction} className="flex flex-wrap items-center gap-1.5 px-1">
                       <input type="hidden" name="section" value={s.key} />
-                      <input name="name" required placeholder="＋ Add line…" className="w-56 rounded-md border border-dashed border-zinc-300 px-2 py-1 text-xs focus:border-zinc-400 focus:outline-none" />
-                      <input name="taxStatus" placeholder="Tax status" className="w-24 rounded-md border border-zinc-200 px-2 py-1 text-xs" />
-                      <input name="amountNew" inputMode="decimal" placeholder="New ₹" className="w-28 rounded-md border border-zinc-200 px-2 py-1 text-right text-xs" />
-                      <input name="amountTotal" inputMode="decimal" placeholder="Total ₹" className="w-28 rounded-md border border-zinc-200 px-2 py-1 text-right text-xs" />
-                      <input name="synergy" inputMode="decimal" placeholder="Synergy ₹" className="w-28 rounded-md border border-zinc-200 px-2 py-1 text-right text-xs" />
-                      <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1 text-xs font-medium text-white hover:bg-zinc-700">
+                      <input name="name" required placeholder="＋ Add line…" className="w-56 rounded-lg border border-dashed border-line px-2 py-1 text-xs focus:border-primary focus:outline-none" />
+                      <input name="taxStatus" placeholder="Tax status" className="w-24 rounded-lg border border-line px-2 py-1 text-xs" />
+                      <input name="amountNew" inputMode="decimal" placeholder="New ₹" className="w-28 rounded-lg border border-line px-2 py-1 text-right text-xs" />
+                      <input name="amountTotal" inputMode="decimal" placeholder="Total ₹" className="w-28 rounded-lg border border-line px-2 py-1 text-right text-xs" />
+                      <input name="synergy" inputMode="decimal" placeholder="Synergy ₹" className="w-28 rounded-lg border border-line px-2 py-1 text-right text-xs" />
+                      <button type="submit" className="rounded-lg bg-primary px-3 py-1 text-xs font-medium text-white hover:bg-primary-strong">
                         Add
                       </button>
-                      <span className="text-[10px] text-zinc-400">fill what you have — name is enough</span>
+                      <span className="text-[10px] text-ink-3">fill what you have — name is enough</span>
                     </form>
                   </td>
                 </tr>
@@ -178,18 +178,18 @@ export default async function NetCapitalPage() {
       })}
 
       {/* the sheet's closing arithmetic, spelled out */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-3 text-xs text-zinc-600 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-3 text-xs text-ink-2 shadow-card">
         <div className="grid gap-1 md:grid-cols-2">
           <div>
-            Sources {fmt(srcNew)} − Application {fmt(appNew)} = <b className="text-zinc-900">Net capital remaining {fmt(srcNew - appNew)}</b> (New)
+            Sources {fmt(srcNew)} − Application {fmt(appNew)} = <b className="text-ink">Net capital remaining {fmt(srcNew - appNew)}</b> (New)
           </div>
           <div>
-            Sources {fmt(srcTotal)} − Application {fmt(appTotal)} = <b className="text-zinc-900">{fmt(srcTotal - appTotal)}</b> (Total)
-            <span className="ml-2 text-zinc-400">Synergy: {fmt(srcSyn)} − {fmt(appSyn)} = {fmt(srcSyn - appSyn)}</span>
+            Sources {fmt(srcTotal)} − Application {fmt(appTotal)} = <b className="text-ink">{fmt(srcTotal - appTotal)}</b> (Total)
+            <span className="ml-2 text-ink-3">Synergy: {fmt(srcSyn)} − {fmt(appSyn)} = {fmt(srcSyn - appSyn)}</span>
           </div>
           <div>
             Own capital {fmt(ownCapital)} − Tax-paid assets showing {fmt(taxpaid)} ={' '}
-            <b className={netAvailable < 0 ? 'text-red-600' : 'text-zinc-900'}>Net available {fmt(netAvailable)}</b>
+            <b className={netAvailable < 0 ? 'text-danger' : 'text-ink'}>Net available {fmt(netAvailable)}</b>
           </div>
           <div>Type in any cell and hit ✓ (or Enter) to save the row; ✕ removes it.</div>
         </div>

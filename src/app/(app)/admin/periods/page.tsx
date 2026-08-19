@@ -2,13 +2,14 @@ import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { lockPeriod, unlockPeriod } from './actions'
+import { PageHeader } from '@/components/ui'
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default async function PeriodsPage() {
   const user = await requireAdmin()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
+  if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
 
   const locks = await prisma.periodLock.findMany({ where: { entityId: entity.id } })
   const isLocked = (y: number, m: number) =>
@@ -23,19 +24,15 @@ export default async function PeriodsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Period locks — {entity.name} ({entity.code})
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Lock a month after filing (GST). Locked months reject posting, edit,
-          delete and undo — enforced in the database. Unlocks are audit-logged.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Admin"
+        title={`Period locks — ${entity.name} (${entity.code})`}
+        subtitle="Lock a month after filing (GST). Locked months reject posting, edit, delete and undo — enforced in the database. Unlocks are audit-logged."
+      />
 
       {fys.map((startYear) => (
-        <div key={startYear} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium text-zinc-900">
+        <div key={startYear} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+          <h2 className="font-medium text-ink">
             FY {startYear}–{String((startYear + 1) % 100).padStart(2, '0')}
           </h2>
           <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6 lg:grid-cols-12">
@@ -52,8 +49,8 @@ export default async function PeriodsPage() {
                     type="submit"
                     className={
                       locked
-                        ? 'w-full rounded-md bg-zinc-900 px-2 py-2 text-xs font-medium text-white hover:bg-zinc-700'
-                        : 'w-full rounded-md border border-zinc-200 px-2 py-2 text-xs text-zinc-600 hover:bg-zinc-100'
+                        ? 'w-full rounded-lg bg-primary px-2 py-2 text-xs font-medium text-white hover:bg-primary-strong'
+                        : 'w-full rounded-lg border border-line px-2 py-2 text-xs text-ink-2 hover:bg-surface-2'
                     }
                     title={locked ? 'Click to unlock (audit-logged)' : 'Click to lock'}
                   >

@@ -13,6 +13,7 @@ import { SelectAll } from './select-all'
 import { TxnDetails } from './txn-details'
 import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   tagTransaction,
   untagTransaction,
@@ -43,7 +44,7 @@ export default async function TaggingPage(props: {
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
   const entity = await getCurrentEntity(user)
   if (!entity) {
-    return <p className="text-sm text-zinc-500">No books to work on yet.</p>
+    return <p className="text-sm text-ink-2">No books to work on yet.</p>
   }
 
   const sp = await props.searchParams
@@ -237,15 +238,15 @@ export default async function TaggingPage(props: {
   const filtered = Boolean(q || bank || month)
 
   const kpiTiles: [string, string, string, string][] = [
-    ['Entries in view', String(inView), bank ? (bankName(bank) ?? '') : 'all accounts', 'border-zinc-800'],
-    ['Untagged', String(pending.length), `${suggestionCount} have a suggestion`, 'border-blue-600'],
+    ['Entries in view', String(inView), bank ? (bankName(bank) ?? '') : 'all accounts', 'border-ink'],
+    ['Untagged', String(pending.length), `${suggestionCount} have a suggestion`, 'border-primary'],
     [
       'Net movement',
       displayINR(Math.abs(net).toFixed(2)),
       net > 0 ? 'net outflow' : 'net inflow',
-      'border-zinc-400',
+      'border-ink-3',
     ],
-    ['Awaiting post', String(tagged.length), 'tagged, not yet posted', 'border-teal-600'],
+    ['Awaiting post', String(tagged.length), 'tagged, not yet posted', 'border-success'],
   ]
 
   // Leading cells of every row (date / account / narration / amount) — one
@@ -288,11 +289,11 @@ export default async function TaggingPage(props: {
       .join('\n')
     return (
       <>
-        <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-zinc-500">
+        <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-ink-2">
           {txn.date.toISOString().slice(0, 10)}
         </td>
         <td className="px-2 py-1.5">
-          <span className="whitespace-nowrap rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+          <span className="whitespace-nowrap rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-2">
             {bankName(txn.bankAccountId)}
           </span>
         </td>
@@ -304,7 +305,7 @@ export default async function TaggingPage(props: {
               <TxnDetails data={detail} />
             </span>
             {desc.kind && (
-              <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+              <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-2">
                 {desc.kind}
               </span>
             )}
@@ -313,7 +314,7 @@ export default async function TaggingPage(props: {
         </td>
         <td
           className={`whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums ${
-            outflow ? 'text-red-600' : 'text-emerald-600'
+            outflow ? 'text-danger' : 'text-success'
           }`}
         >
           {outflow ? 'Out' : 'In'} {displayINR(String(outflow ? txn.debit : txn.credit))}
@@ -323,8 +324,8 @@ export default async function TaggingPage(props: {
   }
 
   const tableHead = (withCheckbox: boolean) => (
-    <thead>
-      <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-400">
+    <thead className={theadClass}>
+      <tr>
         {withCheckbox && <th className="w-8 px-2 py-2" />}
         <th className="px-2 py-2">Date</th>
         <th className="px-2 py-2">A/c</th>
@@ -339,68 +340,61 @@ export default async function TaggingPage(props: {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900">
-            Tagging queue — {entity.name} ({entity.code})
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Pick head, nature and cost centre — the engine posts the books
-            underneath. Every manual tag teaches the auto-verifier.
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {awaitingSuggestion > 0 && (
-            <form action={requestAiSuggestions}>
-              <input type="hidden" name="entityId" value={entity.id} />
-              <button
-                type="submit"
-                title="Matches pending rows against your own past tags (and asks AI too, when a key is configured)"
-                className="rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-800 hover:bg-sky-100"
-              >
-                {aiReady
-                  ? `Suggest tags with AI (${Math.min(awaitingSuggestion, 25)})`
-                  : `Suggest tags from my history (${awaitingSuggestion})`}
-              </button>
-            </form>
-          )}
-          {tagged.length > 0 && (
-            <form action={postAll}>
-              <input type="hidden" name="entityId" value={entity.id} />
-              <button
-                type="submit"
-                className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-              >
-                Post All Confirmed ({tagged.length})
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
+      <PageHeader
+        kicker="Books"
+        title={`Tagging queue — ${entity.name} (${entity.code})`}
+        subtitle="Pick head, nature and cost centre — the engine posts the books underneath. Every manual tag teaches the auto-verifier."
+        actions={
+          <>
+            {awaitingSuggestion > 0 && (
+              <form action={requestAiSuggestions}>
+                <input type="hidden" name="entityId" value={entity.id} />
+                <button
+                  type="submit"
+                  title="Matches pending rows against your own past tags (and asks AI too, when a key is configured)"
+                  className="rounded-lg border border-primary/30 bg-primary-soft px-3 py-2 text-sm font-medium text-primary hover:bg-primary/15"
+                >
+                  {aiReady
+                    ? `Suggest tags with AI (${Math.min(awaitingSuggestion, 25)})`
+                    : `Suggest tags from my history (${awaitingSuggestion})`}
+                </button>
+              </form>
+            )}
+            {tagged.length > 0 && (
+              <form action={postAll}>
+                <input type="hidden" name="entityId" value={entity.id} />
+                <button type="submit" className={buttonClass('primary')}>
+                  Post All Confirmed ({tagged.length})
+                </button>
+              </form>
+            )}
+          </>
+        }
+      />
 
       {/* KPIs (v2 prototype) — one slim strip, not four tall cards: the
           vertical space belongs to the entries below. */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-2xl border border-line bg-surface px-3 py-1.5 shadow-card">
         {kpiTiles.map(([label, value, sub, accent]) => (
           <div key={label} className={`flex items-baseline gap-1.5 border-l-2 pl-2 ${accent}`}>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">
               {label}
             </span>
-            <span className="text-sm font-semibold tabular-nums text-zinc-900">{value}</span>
-            <span className="text-[10px] text-zinc-400">{sub}</span>
+            <span className="text-sm font-semibold tabular-nums text-ink">{value}</span>
+            <span className="text-[10px] text-ink-3">{sub}</span>
           </div>
         ))}
       </div>
 
       {/* Search & filters (v2 prototype) */}
-      <form className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+      <form className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 shadow-card">
         <input
           name="q"
           defaultValue={q}
           list="tag-search-suggest"
           autoComplete="off"
           placeholder="Search — narration / head / cost centre"
-          className="w-72 rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+          className={`${controlClass} w-72`}
         />
         {/* Auto-suggest: first letters filter heads, natures, cost centres
             and the parties the rule engine knows (native datalist). */}
@@ -418,19 +412,19 @@ export default async function TaggingPage(props: {
             <option key={`p-${p}`} value={p}>party</option>
           ))}
         </datalist>
-        <select name="bank" defaultValue={bank} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+        <select name="bank" defaultValue={bank} className={controlClass}>
           <option value="">All accounts</option>
           {entityBanks.map((b) => (
             <option key={b.id} value={b.id}>{b.nickname}</option>
           ))}
         </select>
-        <select name="month" defaultValue={month} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+        <select name="month" defaultValue={month} className={controlClass}>
           <option value="">All months</option>
           {monthRows.map((r) => (
             <option key={r.m} value={r.m}>{monthLabel(r.m)}</option>
           ))}
         </select>
-        <select name="view" defaultValue={view} className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+        <select name="view" defaultValue={view} className={controlClass}>
           <option value="all">All entries</option>
           <option value="pending">Untagged only</option>
           <option value="tagged">Tagged only</option>
@@ -438,23 +432,23 @@ export default async function TaggingPage(props: {
         </select>
         <button
           type="submit"
-          className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2"
         >
           Apply
         </button>
         {filtered && (
-          <Link href="/tagging" className="text-xs text-zinc-400 hover:text-zinc-700">
+          <Link href="/tagging" className="text-xs text-ink-3 hover:text-ink-2">
             reset
           </Link>
         )}
-        <span className="ml-auto text-xs text-zinc-500">
+        <span className="ml-auto text-xs text-ink-2">
           {inView} of {totalEntries} entries · {pending.length} untagged
         </span>
       </form>
 
       {/* Bulk tagging (v2 prototype): tick rows below, apply one tag to all */}
       {showPending && pendingSlice.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-teal-200 bg-teal-50/60 p-2">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-success/30 bg-success-soft/60 p-2">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
             <HeadCombobox
@@ -462,45 +456,45 @@ export default async function TaggingPage(props: {
               required
               placeholder="Expense Head — type or add"
               createName="headText"
-              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              className={`${controlClass} w-56`}
             />
             <SmartCombobox
               options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
               name="costCentreId"
               createName="costCentreText"
               placeholder="Cost centre — type or add"
-              className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+              className={`${controlClass} w-56`}
             />
             {/* Same GST/TDS for every ticked row (spec §7) */}
             <details>
-              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">GST/TDS</summary>
+              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <select name="gstType" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                   <option value="">GST type</option>
                   {GST_TYPES.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
-                <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <select name="gstRate" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                   <option value="">GST rate %</option>
                   {GST_RATES.map((r) => (
                     <option key={r} value={r}>{r}%</option>
                   ))}
                 </select>
-                <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-                <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+                <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-lg border border-line px-2 py-1 text-xs" />
+                <select name="tdsSection" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                   <option value="">TDS section</option>
                   {TDS_SECTIONS.map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
                 </select>
-                <input name="tdsRate" placeholder="TDS rate %" inputMode="decimal" className="w-20 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-                <input name="deducteePan" placeholder="Deductee PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+                <input name="tdsRate" placeholder="TDS rate %" inputMode="decimal" className="w-20 rounded-lg border border-line px-2 py-1 text-xs" />
+                <input name="deducteePan" placeholder="Deductee PAN" className="w-28 rounded-lg border border-line px-2 py-1 text-xs" />
               </div>
             </details>
             <button
               type="submit"
-              className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700"
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong"
             >
               Apply to selected
             </button>
@@ -510,7 +504,7 @@ export default async function TaggingPage(props: {
               <input type="hidden" name="entityId" value={entity.id} />
               <button
                 type="submit"
-                className="rounded-md border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-medium text-sky-800 hover:bg-sky-100"
+                className="rounded-lg border border-primary/30 bg-primary-soft px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/15"
               >
                 Accept {suggestionCount} suggestions
               </button>
@@ -522,16 +516,16 @@ export default async function TaggingPage(props: {
       {/* Pending queue */}
       {showPending && (
       <div className="space-y-2">
-        <h2 className="font-medium text-zinc-900">
+        <h2 className="font-medium text-ink">
           Pending ({pending.length}){pages > 1 && (
-            <span className="ml-2 text-xs font-normal text-zinc-400">Page {page} of {pages}</span>
+            <span className="ml-2 text-xs font-normal text-ink-3">Page {page} of {pages}</span>
           )}
         </h2>
         {pendingSlice.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className={tableWrapClass}>
             <table className="w-full min-w-[68rem] text-left text-sm">
               {tableHead(true)}
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-line-2">
                 {pendingSlice.map((txn) => {
                   const confidence = txn.aiConfidence === null ? null : Number(txn.aiConfidence)
                   const hasSuggestion = Boolean(txn.aiHeadAccountId && txn.aiNature)
@@ -541,14 +535,14 @@ export default async function TaggingPage(props: {
                       : undefined
                   return (
                     <Fragment key={txn.id}>
-                      <tr className="align-top hover:bg-zinc-50/60">
+                      <tr className="align-top hover:bg-surface-2/60">
                         <td className="px-2 py-1.5">
                           <input
                             type="checkbox"
                             name="ids"
                             value={txn.id}
                             form="bulk-tag"
-                            className="accent-zinc-900"
+                            className="accent-primary"
                             aria-label="Select for bulk tagging"
                           />
                         </td>
@@ -579,33 +573,33 @@ export default async function TaggingPage(props: {
                       {/* AI suggestion — advisory, one slim line under the row
                           (spec §12.8): accept it or ignore it. */}
                       {hasSuggestion && (
-                        <tr className="border-t-0 bg-sky-50/70">
+                        <tr className="border-t-0 bg-primary-soft/70">
                           <td className="px-2 py-1" />
                           <td colSpan={7} className="px-2 pb-1.5 pt-0.5">
                             <div className="flex flex-wrap items-center gap-2 text-xs">
-                              <span className="rounded bg-sky-200 px-1.5 py-0.5 text-[10px] font-medium uppercase text-sky-800">
+                              <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-primary">
                                 AI
                               </span>
                               <span
-                                className="font-medium text-zinc-800"
+                                className="font-medium text-ink"
                                 title={txn.aiReason ?? undefined}
                               >
                                 {headName(txn.aiHeadAccountId)}
                               </span>
                               {ccName(txn.aiCostCentreId) && (
                                 <>
-                                  <span className="text-zinc-400">·</span>
-                                  <span className="text-zinc-700">{ccName(txn.aiCostCentreId)}</span>
+                                  <span className="text-ink-3">·</span>
+                                  <span className="text-ink-2">{ccName(txn.aiCostCentreId)}</span>
                                 </>
                               )}
                               {confidence !== null && (
                                 <span
                                   className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                                     confidence >= 0.8
-                                      ? 'bg-emerald-100 text-emerald-700'
+                                      ? 'bg-success-soft text-success'
                                       : confidence >= 0.5
-                                        ? 'bg-amber-100 text-amber-700'
-                                        : 'bg-zinc-200 text-zinc-600'
+                                        ? 'bg-warning-soft text-warning'
+                                        : 'bg-surface-2 text-ink-2'
                                   }`}
                                 >
                                   {Math.round(confidence * 100)}%
@@ -616,7 +610,7 @@ export default async function TaggingPage(props: {
                                 <button
                                   type="submit"
                                   title="Accepting tags the row and teaches the rule engine, so this party is matched without AI next time."
-                                  className="rounded bg-sky-700 px-2 py-0.5 text-[11px] font-medium text-white hover:bg-sky-600"
+                                  className="rounded bg-primary px-2 py-0.5 text-[11px] font-medium text-white hover:bg-primary-strong"
                                 >
                                   Accept & teach
                                 </button>
@@ -625,7 +619,7 @@ export default async function TaggingPage(props: {
                                 <input type="hidden" name="txnId" value={txn.id} />
                                 <button
                                   type="submit"
-                                  className="rounded border border-zinc-300 bg-white px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+                                  className="rounded border border-line bg-surface px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2"
                                 >
                                   Dismiss
                                 </button>
@@ -642,20 +636,20 @@ export default async function TaggingPage(props: {
           </div>
         )}
         {pending.length === 0 && (
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-ink-3">
             {filtered ? 'No pending entries match these filters.' : 'Queue is clear — nothing waiting.'}
           </p>
         )}
         {pages > 1 && (
           <div className="flex items-center gap-3 pt-1 text-sm">
             {page > 1 && (
-              <Link href={hrefFor(page - 1)} className="rounded-md border border-zinc-300 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100">
+              <Link href={hrefFor(page - 1)} className="rounded-lg border border-line px-3 py-1.5 text-ink-2 hover:bg-surface-2">
                 ← Previous
               </Link>
             )}
-            <span className="text-xs text-zinc-400">Page {page} of {pages}</span>
+            <span className="text-xs text-ink-3">Page {page} of {pages}</span>
             {page < pages && (
-              <Link href={hrefFor(page + 1)} className="rounded-md border border-zinc-300 px-3 py-1.5 text-zinc-600 hover:bg-zinc-100">
+              <Link href={hrefFor(page + 1)} className="rounded-lg border border-line px-3 py-1.5 text-ink-2 hover:bg-surface-2">
                 Next →
               </Link>
             )}
@@ -667,20 +661,20 @@ export default async function TaggingPage(props: {
       {/* Tagged, awaiting post — the tag stays editable right in the row */}
       {showTagged && tagged.length > 0 && (
         <div className="space-y-2">
-          <h2 className="font-medium text-zinc-900">Tagged — awaiting post ({tagged.length})</h2>
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <h2 className="font-medium text-ink">Tagged — awaiting post ({tagged.length})</h2>
+          <div className={tableWrapClass}>
             <table className="w-full min-w-[68rem] text-left text-sm">
               {tableHead(false)}
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-line-2">
                 {tagged.map((txn) => (
-                  <tr key={txn.id} className="align-top hover:bg-zinc-50/60">
+                  <tr key={txn.id} className="align-top hover:bg-surface-2/60">
                     {leadCells(
                       txn,
                       txn.tagSource === 'ai'
                         ? `AI suggestion accepted by ${userName(txn.taggedById)}`
                         : `tagged by ${userName(txn.taggedById)}`,
                       txn.autoTagged ? (
-                        <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                        <span className="shrink-0 rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
                           auto
                         </span>
                       ) : undefined,
@@ -709,7 +703,7 @@ export default async function TaggingPage(props: {
                         <input type="hidden" name="txnId" value={txn.id} />
                         <button
                           type="submit"
-                          className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                          className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                         >
                           Untag
                         </button>
@@ -728,29 +722,29 @@ export default async function TaggingPage(props: {
           (reversal + new version). */}
       {showPosted && (
       <div className="space-y-2">
-        <h2 className="font-medium text-zinc-900">Recently posted</h2>
+        <h2 className="font-medium text-ink">Recently posted</h2>
         {posted.length > 0 && (
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className={tableWrapClass}>
             <table className="w-full min-w-[68rem] text-left text-sm">
               {tableHead(false)}
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-line-2">
                 {posted.map((txn) => {
                   const doc = txn.docId ? docById.get(txn.docId) : undefined
                   const deleted = Boolean(doc?.deletedAt)
                   const chips = (
                     <>
                       {txn.autoTagged && (
-                        <span className="shrink-0 rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                        <span className="shrink-0 rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
                           auto
                         </span>
                       )}
                       {!txn.docId && (
-                        <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+                        <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-2">
                           mirror
                         </span>
                       )}
                       {deleted && (
-                        <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                        <span className="shrink-0 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
                           deleted
                         </span>
                       )}
@@ -760,7 +754,7 @@ export default async function TaggingPage(props: {
                   return (
                     <tr
                       key={txn.id}
-                      className={deleted ? 'bg-red-50/40 opacity-70' : 'align-top hover:bg-zinc-50/60'}
+                      className={deleted ? 'bg-danger-soft/40 opacity-70' : 'align-top hover:bg-surface-2/60'}
                     >
                       {leadCells(
                         txn,
@@ -794,7 +788,7 @@ export default async function TaggingPage(props: {
                               <input type="hidden" name="txnId" value={txn.id} />
                               <button
                                 type="submit"
-                                className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                                className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                               >
                                 Undo
                               </button>
@@ -803,10 +797,10 @@ export default async function TaggingPage(props: {
                         </TagRowCells>
                       ) : (
                         <>
-                          <td className="px-2 py-1.5 text-xs text-zinc-600">
+                          <td className="px-2 py-1.5 text-xs text-ink-2">
                             {headName(txn.headAccountId)}
                           </td>
-                          <td className="px-2 py-1.5 text-xs text-zinc-600">
+                          <td className="px-2 py-1.5 text-xs text-ink-2">
                             {ccName(txn.costCentreId) ?? '—'}
                           </td>
                           <td className="px-2 py-1.5">
@@ -815,7 +809,7 @@ export default async function TaggingPage(props: {
                                 <input type="hidden" name="txnId" value={txn.id} />
                                 <button
                                   type="submit"
-                                  className="whitespace-nowrap rounded border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                                  className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                                 >
                                   Undo delete
                                 </button>
@@ -832,7 +826,7 @@ export default async function TaggingPage(props: {
           </div>
         )}
         {posted.length === 0 && (
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-ink-3">
             {filtered ? 'No posted entries match these filters.' : 'Nothing posted yet for these books.'}
           </p>
         )}

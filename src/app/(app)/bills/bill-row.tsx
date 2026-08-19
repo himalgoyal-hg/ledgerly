@@ -36,7 +36,7 @@ const RECURRENCES = [
   ['YEARLY', 'yearly'],
 ] as const
 
-const inputCls = 'w-full min-w-14 rounded border border-zinc-300 bg-white px-1 py-0.5 text-xs'
+const inputCls = 'w-full min-w-14 rounded border border-line bg-surface px-1 py-0.5 text-xs'
 
 export function BillRow(props: {
   data: BillRowData
@@ -50,63 +50,63 @@ export function BillRow(props: {
 
   if (!editing) {
     return (
-      <tr className="align-top hover:bg-zinc-50/60">
+      <tr className="align-top hover:bg-surface-2/60">
         <td className="px-3 py-1.5">
-          <span className="font-medium text-zinc-800" title={d.remarks || undefined}>
+          <span className="font-medium text-ink" title={d.remarks || undefined}>
             {d.vendor}
           </span>
         </td>
         <td className="max-w-64 px-3 py-1.5">
           <span
-            className="block truncate text-xs text-zinc-600"
+            className="block truncate text-xs text-ink-2"
             title={[d.insuredFor, d.policyNumber, d.remarks].filter(Boolean).join(' · ')}
           >
-            {d.insuredFor || <span className="text-zinc-300">—</span>}
+            {d.insuredFor || <span className="text-ink-3">—</span>}
             {d.policyNumber && (
-              <span className="ml-1 font-mono text-[10px] text-zinc-400">{d.policyNumber}</span>
+              <span className="ml-1 font-mono text-[10px] text-ink-3">{d.policyNumber}</span>
             )}
           </span>
           {d.insuredDisp && (
-            <span className="block text-[10px] text-zinc-400">covers {d.insuredDisp}</span>
+            <span className="block text-[10px] text-ink-3">covers {d.insuredDisp}</span>
           )}
         </td>
         <td className="whitespace-nowrap px-3 py-1.5">
-          <span className={`text-xs tabular-nums ${d.overdue ? 'font-semibold text-red-600' : 'text-zinc-600'}`}>
+          <span className={`text-xs tabular-nums ${d.overdue ? 'font-semibold text-danger' : 'text-ink-2'}`}>
             {d.dueIso}
           </span>
           {d.overdue && (
-            <span className="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+            <span className="ml-1 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
               overdue
             </span>
           )}
         </td>
         <td className="whitespace-nowrap px-3 py-1.5">
           {d.recurrence !== 'NONE' ? (
-            <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-700">
+            <span className="rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
               {d.recurrence.toLowerCase().replace('_', '-')}
             </span>
           ) : (
-            <span className="text-xs text-zinc-300">once</span>
+            <span className="text-xs text-ink-3">once</span>
           )}
         </td>
-        <td className="max-w-44 truncate px-3 py-1.5 text-xs text-zinc-500" title={d.payFrom}>
+        <td className="max-w-44 truncate px-3 py-1.5 text-xs text-ink-2" title={d.payFrom}>
           {d.payFrom || '—'}
         </td>
         <td className="whitespace-nowrap px-3 py-1.5 text-right">
-          <span className="font-semibold tabular-nums text-zinc-900" title={d.taxTip}>
+          <span className="font-semibold tabular-nums text-ink" title={d.taxTip}>
             {d.payableDisp}
           </span>
         </td>
         <td className="whitespace-nowrap px-3 py-1.5 text-xs">
           {d.files ? (
             <>
-              <a href={d.files.view} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">view</a>{' '}
-              <a href={d.files.download} className="text-sky-600 hover:underline">download</a>
+              <a href={d.files.view} target="_blank" rel="noreferrer" className="text-primary hover:underline">view</a>{' '}
+              <a href={d.files.download} className="text-primary hover:underline">download</a>
             </>
           ) : d.link ? (
-            <a href={d.link} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">document</a>
+            <a href={d.link} target="_blank" rel="noreferrer" className="text-primary hover:underline">document</a>
           ) : (
-            <span className="text-zinc-300">—</span>
+            <span className="text-ink-3">—</span>
           )}
         </td>
         <td className="px-3 py-1">
@@ -114,7 +114,7 @@ export function BillRow(props: {
             <button
               type="button"
               onClick={() => setEditing(true)}
-              className="rounded border border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100"
+              className="rounded border border-line px-2 py-1 text-[11px] text-ink-2 hover:bg-surface-2"
             >
               edit
             </button>
@@ -126,7 +126,7 @@ export function BillRow(props: {
   }
 
   return (
-    <tr className="bg-amber-50/40 align-top">
+    <tr className="bg-warning-soft/40 align-top">
       <td className="px-3 py-0.5">
         <div className="flex gap-0.5">
           <input name="vendor" form={formId} required defaultValue={d.vendor} placeholder="Vendor" className={inputCls} />
@@ -176,7 +176,7 @@ export function BillRow(props: {
             <input type="hidden" name="billId" value={d.id} />
             <button
               type="submit"
-              className="whitespace-nowrap rounded bg-zinc-900 px-2 py-1 text-[11px] font-medium text-white hover:bg-zinc-700"
+              className="whitespace-nowrap rounded bg-primary px-2 py-1 text-[11px] font-medium text-white hover:bg-primary-strong"
             >
               Save
             </button>
@@ -184,7 +184,7 @@ export function BillRow(props: {
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="rounded border border-zinc-300 px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-100"
+            className="rounded border border-line px-2 py-1 text-[11px] text-ink-2 hover:bg-surface-2"
           >
             ✕
           </button>

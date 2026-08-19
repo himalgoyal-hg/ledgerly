@@ -6,6 +6,7 @@ import { aiConfigured, aiUsageSummary, AI_MODEL } from '@/lib/ai/client'
 import { LEAD_DAYS } from '@/lib/automation/recurring'
 import { COMMITMENT_WINDOW_DAYS } from '@/lib/automation/suggest'
 import { setPreference, clearPreference, runNow, retryDelivery } from './actions'
+import { PageHeader, buttonClass, controlClass } from '@/components/ui'
 
 // Automation & payment mapping (spec §8, §6.5, §10) — Admin only.
 
@@ -20,7 +21,7 @@ const MODULE_PURPOSES = [
 export default async function AutomationPage() {
   const admin = await requireAdmin()
   const entity = await getCurrentEntity(admin)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const [preferences, banks, cashLocations, outbox, lastRun] = await Promise.all([
     prisma.paymentPreference.findMany({ where: { entityId: entity.id }, orderBy: { purpose: 'asc' } }),
@@ -57,52 +58,44 @@ export default async function AutomationPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Automation — {entity.name} ({entity.code})
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Payment mapping feeds the suggestions on every payment form. The job
-          generates recurring bills {LEAD_DAYS} days ahead, queues reminders
-          and alerts, and emails the weekly summary on Mondays.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Admin"
+        title={`Automation — ${entity.name} (${entity.code})`}
+        subtitle={`Payment mapping feeds the suggestions on every payment form. The job generates recurring bills ${LEAD_DAYS} days ahead, queues reminders and alerts, and emails the weekly summary on Mondays.`}
+      />
 
       {/* Job status + run now */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-medium text-zinc-900">Scheduled job</h2>
-          <span className="text-xs text-zinc-500">
+          <h2 className="font-medium text-ink">Scheduled job</h2>
+          <span className="text-xs text-ink-2">
             {lastRun
               ? `last run ${lastRun.createdAt.toISOString().replace('T', ' ').slice(0, 16)} — ${lastRun.summary}`
               : 'never run'}
           </span>
           <form action={runNow} className="ml-auto">
-            <button
-              type="submit"
-              className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-            >
+            <button type="submit" className={buttonClass('primary')}>
               Run now
             </button>
           </form>
         </div>
-        <div className="mt-3 space-y-2 text-xs text-zinc-500">
+        <div className="mt-3 space-y-2 text-xs text-ink-2">
           <p>
             Nothing fires on a timer by itself — point a scheduler at the endpoint
             below once a day. The job is idempotent, so a missed or repeated run
             is harmless.
           </p>
-          <pre className="overflow-x-auto rounded-lg bg-zinc-50 p-3 text-[11px] text-zinc-600">
+          <pre className="overflow-x-auto rounded-lg bg-surface-2/60 p-3 text-[11px] text-ink-2">
 {`0 7 * * *  curl -fsS -H "Authorization: Bearer $CRON_SECRET" \\
              https://<your-host>/api/automation/run`}
           </pre>
           <p>
             {smtp ? (
-              <span className="text-emerald-700">
+              <span className="text-success">
                 ✓ SMTP configured — queued messages are delivered on each run.
               </span>
             ) : (
-              <span className="text-amber-700">
+              <span className="text-warning">
                 No SMTP transport configured. Messages are still rendered and
                 stored below; set SMTP_HOST and SMTP_FROM in .env to send them.
               </span>
@@ -112,14 +105,14 @@ export default async function AutomationPage() {
       </div>
 
       {/* AI layer (spec §12.8) */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-medium text-zinc-900">AI layer</h2>
-          <span className="text-xs text-zinc-500">
+          <h2 className="font-medium text-ink">AI layer</h2>
+          <span className="text-xs text-ink-2">
             {aiConfigured() ? `${AI_MODEL} · configured` : 'not configured'}
           </span>
         </div>
-        <p className="mt-1 text-xs text-zinc-500">
+        <p className="mt-1 text-xs text-ink-2">
           Reads PDF and scanned statements, and suggests tags for queue rows no
           rule matches. Both are proposals a person confirms — nothing the model
           produces reaches the ledger on its own.
@@ -128,7 +121,7 @@ export default async function AutomationPage() {
           <div className="mt-3">
             {aiUsage.byKind.length > 0 ? (
               <table className="w-full text-left text-sm">
-                <thead className="text-xs uppercase text-zinc-400">
+                <thead className="text-xs uppercase text-ink-3">
                   <tr>
                     <th className="py-1 font-medium">Last {aiUsage.days} days</th>
                     <th className="py-1 text-right font-medium">Calls</th>
@@ -136,17 +129,17 @@ export default async function AutomationPage() {
                     <th className="py-1 text-right font-medium">Output tokens</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-50">
+                <tbody className="divide-y divide-line-2">
                   {aiUsage.byKind.map((k) => (
                     <tr key={k.kind}>
-                      <td className="py-1 text-zinc-700">
+                      <td className="py-1 text-ink-2">
                         {k.kind === 'statement_pdf' ? 'PDF statement reading' : 'Tag suggestions'}
                       </td>
-                      <td className="py-1 text-right text-zinc-600">{k.calls}</td>
-                      <td className="py-1 text-right text-zinc-600">
+                      <td className="py-1 text-right text-ink-2">{k.calls}</td>
+                      <td className="py-1 text-right text-ink-2">
                         {k.inputTokens.toLocaleString('en-IN')}
                       </td>
-                      <td className="py-1 text-right text-zinc-600">
+                      <td className="py-1 text-right text-ink-2">
                         {k.outputTokens.toLocaleString('en-IN')}
                       </td>
                     </tr>
@@ -154,16 +147,16 @@ export default async function AutomationPage() {
                 </tbody>
               </table>
             ) : (
-              <p className="text-sm text-zinc-400">No AI calls in the last {aiUsage.days} days.</p>
+              <p className="text-sm text-ink-3">No AI calls in the last {aiUsage.days} days.</p>
             )}
             {aiUsage.failures > 0 && (
-              <p className="mt-2 text-xs text-amber-700">
+              <p className="mt-2 text-xs text-warning">
                 {aiUsage.failures} call(s) failed in this window — see the audit log.
               </p>
             )}
           </div>
         ) : (
-          <p className="mt-3 text-sm text-amber-700">
+          <p className="mt-3 text-sm text-warning">
             Set ANTHROPIC_API_KEY in .env to enable. Until then, PDF uploads are
             refused with a clear message and the tagging queue works on rules alone.
           </p>
@@ -171,9 +164,9 @@ export default async function AutomationPage() {
       </div>
 
       {/* Payment mapping (spec §8.1) */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">Payment mapping</h2>
-        <p className="mt-1 text-xs text-zinc-500">
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+        <h2 className="font-medium text-ink">Payment mapping</h2>
+        <p className="mt-1 text-xs text-ink-2">
           Which account normally pays for what. Suggestions still check live
           balances and reserve anything due in {COMMITMENT_WINDOW_DAYS} days, so a
           mapped account is proposed only when it can actually cover the payment.
@@ -182,14 +175,14 @@ export default async function AutomationPage() {
         <div className="mt-3 space-y-1">
           {preferences.map((pref) => (
             <div key={pref.id} className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-zinc-700">{purposeLabel(pref.purpose)}</span>
-              <span className="text-xs text-zinc-400">→</span>
-              <span className="font-medium text-zinc-800">{sourceLabel(pref.ledgerAccountId)}</span>
+              <span className="text-ink-2">{purposeLabel(pref.purpose)}</span>
+              <span className="text-xs text-ink-3">→</span>
+              <span className="font-medium text-ink">{sourceLabel(pref.ledgerAccountId)}</span>
               <form action={clearPreference} className="ml-auto">
                 <input type="hidden" name="id" value={pref.id} />
                 <button
                   type="submit"
-                  className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                  className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                 >
                   Clear
                 </button>
@@ -197,7 +190,7 @@ export default async function AutomationPage() {
             </div>
           ))}
           {preferences.length === 0 && (
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-ink-3">
               No mapping yet — suggestions fall back to whichever account has the
               most available balance.
             </p>
@@ -206,48 +199,37 @@ export default async function AutomationPage() {
 
         <form action={setPreference} className="mt-4 flex flex-wrap items-center gap-2">
           <input type="hidden" name="entityId" value={entity.id} />
-          <select
-            name="purpose"
-            required
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-          >
+          <select name="purpose" required className={controlClass}>
             <option value="">— purpose —</option>
             {MODULE_PURPOSES.map((p) => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
           </select>
-          <span className="text-xs text-zinc-400">paid from</span>
-          <select
-            name="ledgerAccountId"
-            required
-            className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-          >
+          <span className="text-xs text-ink-3">paid from</span>
+          <select name="ledgerAccountId" required className={controlClass}>
             <option value="">— account —</option>
             {sources.map((s) => (
               <option key={s.id} value={s.id}>{s.label}</option>
             ))}
           </select>
-          <button
-            type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
-          >
+          <button type="submit" className={buttonClass('primary')}>
             Save mapping
           </button>
         </form>
       </div>
 
       {/* Outbox */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-medium text-zinc-900">Notification outbox</h2>
-          <span className="text-xs text-zinc-500">
+          <h2 className="font-medium text-ink">Notification outbox</h2>
+          <span className="text-xs text-ink-2">
             {queuedCount > 0 ? `${queuedCount} queued` : 'nothing queued'}
           </span>
           {queuedCount > 0 && smtp && (
             <form action={retryDelivery} className="ml-auto">
               <button
                 type="submit"
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100"
+                className="rounded-lg border border-line bg-surface px-3 py-1.5 text-xs text-ink-2 hover:bg-surface-2"
               >
                 Retry delivery
               </button>
@@ -256,35 +238,35 @@ export default async function AutomationPage() {
         </div>
         <div className="mt-3 space-y-2">
           {outbox.map((message) => (
-            <details key={message.id} className="rounded-lg border border-zinc-100 p-2">
+            <details key={message.id} className="rounded-lg border border-line-2 p-2">
               <summary className="flex cursor-pointer flex-wrap items-center gap-2 text-sm">
                 <span
                   className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                     message.status === 'SENT'
-                      ? 'bg-emerald-100 text-emerald-700'
+                      ? 'bg-success-soft text-success'
                       : message.status === 'FAILED'
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-amber-100 text-amber-700'
+                        ? 'bg-danger-soft text-danger'
+                        : 'bg-warning-soft text-warning'
                   }`}
                 >
                   {message.status.toLowerCase()}
                 </span>
-                <span className="text-zinc-800">{message.subject}</span>
-                <span className="text-xs text-zinc-400">→ {message.recipient}</span>
-                <span className="ml-auto text-xs text-zinc-400">
+                <span className="text-ink">{message.subject}</span>
+                <span className="text-xs text-ink-3">→ {message.recipient}</span>
+                <span className="ml-auto text-xs text-ink-3">
                   {message.createdAt.toISOString().slice(0, 10)}
                 </span>
               </summary>
-              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-zinc-50 p-3 text-xs text-zinc-600">
+              <pre className="mt-2 overflow-x-auto whitespace-pre-wrap rounded bg-surface-2/60 p-3 text-xs text-ink-2">
                 {message.body}
               </pre>
               {message.error && (
-                <p className="mt-1 text-xs text-red-600">Delivery error: {message.error}</p>
+                <p className="mt-1 text-xs text-danger">Delivery error: {message.error}</p>
               )}
             </details>
           ))}
           {outbox.length === 0 && (
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-ink-3">
               Nothing yet. Run the job to generate reminders and the weekly summary.
             </p>
           )}

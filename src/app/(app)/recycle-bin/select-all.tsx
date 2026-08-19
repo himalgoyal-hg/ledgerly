@@ -5,10 +5,10 @@
 
 export function BinSelectAll(props: { formId: string }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs text-zinc-600">
+    <label className="flex items-center gap-1.5 text-xs text-ink-2">
       <input
         type="checkbox"
-        className="accent-zinc-900"
+        className="accent-primary"
         onChange={(e) => {
           document
             .querySelectorAll<HTMLInputElement>(`input[type="checkbox"][form="${props.formId}"]`)

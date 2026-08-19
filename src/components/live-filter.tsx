@@ -11,7 +11,7 @@ export function LiveFilter(props: { selector: string; placeholder?: string; clas
       placeholder={props.placeholder ?? 'Type to search…'}
       className={
         props.className ??
-        'w-52 rounded-md border border-zinc-300 px-2.5 py-1.5 text-sm focus:border-zinc-500 focus:outline-none'
+        'w-52 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none'
       }
       onChange={(e) => {
         const q = e.target.value.trim().toLowerCase()

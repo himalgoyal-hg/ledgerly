@@ -33,8 +33,8 @@ export function CellInput(props: {
           e.currentTarget.form?.requestSubmit()
         }
       }}
-      className={`block w-full resize-none rounded border border-transparent bg-transparent px-1.5 py-1 text-xs leading-snug tabular-nums hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none ${
-        props.emphasis ? 'placeholder:text-amber-600' : ''
+      className={`block w-full resize-none rounded border border-transparent bg-transparent px-1.5 py-1 text-xs leading-snug tabular-nums hover:border-line focus:border-primary focus:bg-surface focus:outline-none ${
+        props.emphasis ? 'placeholder:text-warning' : ''
       }`}
     />
   )

@@ -6,6 +6,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { partyLedgers, type PartyRow } from '@/lib/reports/analysis'
 import { ReportHeader } from '../report-chrome'
 import { settlePartyCashAction } from './actions'
+import { controlClass } from '@/components/ui'
 
 // Party ledgers (spec §10): customers, vendors and member/employee payables,
 // each drillable to its full account statement. Customer/vendor rows carry a
@@ -17,7 +18,7 @@ export default async function PartiesPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const [parties, cashLocations] = await Promise.all([
@@ -35,7 +36,7 @@ export default async function PartiesPage(props: {
 
   const settleForm = (row: PartyRow, direction: 'receive' | 'pay') => (
     <details>
-      <summary className="cursor-pointer text-right text-xs text-zinc-400 hover:text-zinc-700">
+      <summary className="cursor-pointer text-right text-xs text-ink-3 hover:text-ink-2">
         Mark paid
       </summary>
       <form
@@ -49,19 +50,19 @@ export default async function PartiesPage(props: {
           name="date"
           required
           defaultValue={today}
-          className="rounded-md border border-zinc-300 px-2 py-1 text-xs"
+          className={controlClass}
         />
         <input
           name="amount"
           required
           inputMode="decimal"
           defaultValue={row.balance}
-          className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-right text-xs"
+          className={`${controlClass} w-24 text-right`}
         />
         <select
           name="locationId"
           required
-          className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs"
+          className={controlClass}
         >
           {cashLocations.map((l) => (
             <option key={l.id} value={l.id}>{l.name}</option>
@@ -69,11 +70,11 @@ export default async function PartiesPage(props: {
         </select>
         <button
           type="submit"
-          className="rounded-md bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-700"
+          className="rounded-lg bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-strong"
         >
           {direction === 'receive' ? 'Received in cash' : 'Paid in cash'}
         </button>
-        <p className="w-full text-right text-[10px] text-zinc-400">
+        <p className="w-full text-right text-[10px] text-ink-3">
           Came by bank instead? Tag the statement row to this party — that settles it.
         </p>
       </form>
@@ -88,39 +89,39 @@ export default async function PartiesPage(props: {
   ) => {
     const total = rows.reduce((sum, r) => sum + Number(r.balance), 0)
     return (
-      <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <div className="border-b border-zinc-200 px-4 py-2">
-          <h2 className="text-sm font-medium text-zinc-900">{title}</h2>
-          <p className="text-xs text-zinc-400">{caption}</p>
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+        <div className="border-b border-line px-4 py-2">
+          <h2 className="text-sm font-medium text-ink">{title}</h2>
+          <p className="text-xs text-ink-3">{caption}</p>
         </div>
         <table className="w-full text-left text-sm">
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {rows.map((row) => (
               <tr key={row.accountId}>
                 <td className="px-4 py-2 align-top">
                   <Link
                     href={`/reports/ledger?accountId=${row.accountId}${suffix}`}
-                    className="text-zinc-800 hover:underline"
+                    className="text-ink hover:underline"
                   >
                     {row.name}
                   </Link>
                 </td>
                 <td className="w-56 px-4 py-2 text-right">
-                  <span className="text-zinc-900">{displayINR(row.balance)}</span>
+                  <span className="text-ink">{displayINR(row.balance)}</span>
                   {settle && canSettle && settleForm(row, settle)}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={2} className="px-4 py-4 text-center text-sm text-zinc-400">
+                <td colSpan={2} className="px-4 py-4 text-center text-sm text-ink-3">
                   Nothing outstanding.
                 </td>
               </tr>
             )}
           </tbody>
           {rows.length > 0 && (
-            <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+            <tfoot className="border-t border-line font-medium text-ink">
               <tr>
                 <td className="px-4 py-2">Total</td>
                 <td className="px-4 py-2 text-right">{displayINR(total)}</td>
@@ -140,16 +141,16 @@ export default async function PartiesPage(props: {
         subtitle={`Outstanding as at ${params.to ?? 'today'}`}
         filters={
           <>
-            <span className="text-xs text-zinc-400">as at</span>
+            <span className="text-xs text-ink-3">as at</span>
             <input
               type="date"
               name="to"
               defaultValue={params.to}
-              className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              className={controlClass}
             />
             <button
               type="submit"
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+              className="rounded-lg border border-line px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink"
             >
               Apply
             </button>

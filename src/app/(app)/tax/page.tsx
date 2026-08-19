@@ -6,6 +6,7 @@ import { gstr1Summary, gstr3bView, tdsRegister, monthRange } from '@/lib/tax/reg
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
 import { SourceSelect } from '../source-select'
 import { fileAndLockPeriod, payGstAction } from './actions'
+import { PageHeader, controlClass } from '@/components/ui'
 
 // GST & TDS registers (spec §7): GSTR-1 outward summary, GSTR-3B with the
 // ITC tracker → net payable/refundable, and the TDS register by section and
@@ -20,7 +21,7 @@ export default async function TaxPage(props: {
     throw new Error('Forbidden: missing permission "viewTaxRegisters"')
   }
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const { period: periodParam } = await props.searchParams
   const now = new Date()
@@ -76,38 +77,36 @@ export default async function TaxPage(props: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900">
-            GST & TDS — {entity.name} ({entity.code})
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Live over the ledger and tax register. Filing a period locks that
-            month, making its returns immutable.
-          </p>
-        </div>
-        <form className="ml-auto flex items-center gap-2">
-          <input
-            name="period"
-            type="month"
-            defaultValue={period}
-            className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
-          />
-          <button type="submit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100">
-            Show
-          </button>
-        </form>
-        {lock && (
-          <span className="rounded bg-zinc-900 px-2 py-1 text-[10px] font-medium uppercase text-white">
-            filed & locked
-          </span>
-        )}
-      </div>
+      <PageHeader
+        kicker="Statements"
+        title={`GST & TDS — ${entity.name} (${entity.code})`}
+        subtitle="Live over the ledger and tax register. Filing a period locks that month, making its returns immutable."
+        actions={
+          <>
+            <form className="flex items-center gap-2">
+              <input
+                name="period"
+                type="month"
+                defaultValue={period}
+                className={controlClass}
+              />
+              <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2">
+                Show
+              </button>
+            </form>
+            {lock && (
+              <span className="rounded bg-primary px-2 py-1 text-[10px] font-medium uppercase text-white">
+                filed & locked
+              </span>
+            )}
+          </>
+        }
+      />
 
       {/* Where the entries live — one click to the right month */}
       {entryMonths.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-white px-3 py-1.5 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">
             Entries in
           </span>
           {entryMonths.map((row) => (
@@ -116,36 +115,36 @@ export default async function TaxPage(props: {
               href={`/tax?period=${row.m}`}
               className={`rounded px-1.5 py-0.5 font-medium ${
                 row.m === period
-                  ? 'bg-zinc-900 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  ? 'bg-primary text-white'
+                  : 'bg-surface-2 text-ink-2 hover:bg-line-2'
               }`}
             >
               {row.m} ({row.n})
             </a>
           ))}
           {!entryMonths.some((r) => r.m === period) && (
-            <span className="text-zinc-400">— {period} has none; pick a month above</span>
+            <span className="text-ink-3">— {period} has none; pick a month above</span>
           )}
         </div>
       )}
 
       {/* GSTR-3B with ITC tracker (spec §7.1) */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">GSTR-3B — {period}</h2>
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+        <h2 className="font-medium text-ink">GSTR-3B — {period}</h2>
         <div className="mt-3 flex flex-wrap gap-6">
           <div>
-            <div className="text-xs text-zinc-500">Output liability</div>
-            <div className="text-lg font-semibold text-zinc-900">{displayINR(gstr3b.outputLiability)}</div>
+            <div className="text-xs text-ink-2">Output liability</div>
+            <div className="text-lg font-semibold text-ink">{displayINR(gstr3b.outputLiability)}</div>
           </div>
           <div>
-            <div className="text-xs text-zinc-500">Input tax credit</div>
-            <div className="text-lg font-semibold text-emerald-700">− {displayINR(gstr3b.inputCredit)}</div>
+            <div className="text-xs text-ink-2">Input tax credit</div>
+            <div className="text-lg font-semibold text-success">− {displayINR(gstr3b.inputCredit)}</div>
           </div>
-          <div className="border-l border-zinc-200 pl-6">
-            <div className="text-xs text-zinc-500">
+          <div className="border-l border-line pl-6">
+            <div className="text-xs text-ink-2">
               {Number(gstr3b.refundable) > 0 ? 'Net refundable' : 'Net payable'}
             </div>
-            <div className="text-lg font-semibold text-zinc-900">
+            <div className="text-lg font-semibold text-ink">
               {displayINR(Number(gstr3b.refundable) > 0 ? gstr3b.refundable : gstr3b.netPayable)}
             </div>
           </div>
@@ -157,12 +156,12 @@ export default async function TaxPage(props: {
                 <input type="hidden" name="entityId" value={entity.id} />
                 <input type="hidden" name="year" value={year} />
                 <input type="hidden" name="month" value={month} />
-                <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+                <input name="date" type="date" required className="rounded-md border border-line px-2 py-1.5 text-sm" />
                 <SourceSelect
                   suggestion={rankForAmount(gstSuggestion.options, gstr3b.netPayable)}
                   compact
                 />
-                <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                <button type="submit" className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong">
                   Pay net GST
                 </button>
               </form>
@@ -172,7 +171,7 @@ export default async function TaxPage(props: {
                 <input type="hidden" name="entityId" value={entity.id} />
                 <input type="hidden" name="year" value={year} />
                 <input type="hidden" name="month" value={month} />
-                <button type="submit" className="rounded-md border border-zinc-300 px-3 py-1.5 text-xs text-zinc-600 hover:bg-zinc-100">
+                <button type="submit" className="rounded-md border border-line px-3 py-1.5 text-xs text-ink-2 hover:bg-surface-2">
                   Mark filed & lock {period}
                 </button>
               </form>
@@ -182,43 +181,43 @@ export default async function TaxPage(props: {
       </div>
 
       {/* GSTR-1 outward summary */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">GSTR-1 — outward supplies</h2>
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+        <h2 className="font-medium text-ink">GSTR-1 — outward supplies</h2>
         {gstr1.byRate.length > 0 ? (
           <>
             <table className="mt-3 w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-zinc-400">
+                <tr className="text-left text-xs text-ink-3">
                   <th className="pb-1 font-medium">Rate</th>
                   <th className="pb-1 text-right font-medium">Taxable value</th>
                   <th className="pb-1 text-right font-medium">GST</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-50">
+              <tbody className="divide-y divide-line-2">
                 {gstr1.byRate.map((r) => (
                   <tr key={r.rate}>
-                    <td className="py-1 text-zinc-700">{r.rate}%</td>
-                    <td className="py-1 text-right text-zinc-700">{displayINR(r.taxable)}</td>
-                    <td className="py-1 text-right font-medium text-zinc-900">{displayINR(r.gst)}</td>
+                    <td className="py-1 text-ink-2">{r.rate}%</td>
+                    <td className="py-1 text-right text-ink-2">{displayINR(r.taxable)}</td>
+                    <td className="py-1 text-right font-medium text-ink">{displayINR(r.gst)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <details className="mt-3">
-              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">
                 Invoice-wise ({gstr1.rows.length})
               </summary>
               <table className="mt-2 w-full text-xs">
-                <tbody className="divide-y divide-zinc-50">
+                <tbody className="divide-y divide-line-2">
                   {gstr1.rows.map((row) => (
                     <tr key={row.id}>
-                      <td className="py-1 text-zinc-400">{row.date.toISOString().slice(0, 10)}</td>
-                      <td className="py-1 text-zinc-700">{row.party}</td>
-                      <td className="py-1 text-zinc-400">{row.counterpartyGstin ?? '—'}</td>
-                      <td className="py-1 text-zinc-400">{row.hsn ?? '—'}</td>
-                      <td className="py-1 text-zinc-400">{row.gstType}</td>
-                      <td className="py-1 text-right text-zinc-600">{displayINR(String(row.taxableValue))}</td>
-                      <td className="py-1 text-right text-zinc-800">{displayINR(String(row.gstAmount))}</td>
+                      <td className="py-1 text-ink-3">{row.date.toISOString().slice(0, 10)}</td>
+                      <td className="py-1 text-ink-2">{row.party}</td>
+                      <td className="py-1 text-ink-3">{row.counterpartyGstin ?? '—'}</td>
+                      <td className="py-1 text-ink-3">{row.hsn ?? '—'}</td>
+                      <td className="py-1 text-ink-3">{row.gstType}</td>
+                      <td className="py-1 text-right text-ink-2">{displayINR(String(row.taxableValue))}</td>
+                      <td className="py-1 text-right text-ink">{displayINR(String(row.gstAmount))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -226,16 +225,16 @@ export default async function TaxPage(props: {
             </details>
           </>
         ) : (
-          <p className="mt-2 text-sm text-zinc-400">No outward supplies with GST in {period}.</p>
+          <p className="mt-2 text-sm text-ink-3">No outward supplies with GST in {period}.</p>
         )}
       </div>
 
       {/* TDS register by section → deductee (spec §7.2) */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-medium text-zinc-900">TDS register</h2>
+          <h2 className="font-medium text-ink">TDS register</h2>
           {tdsTotal > 0 && (
-            <span className="text-sm text-zinc-500">deducted {displayINR(tdsTotal)}</span>
+            <span className="text-sm text-ink-2">deducted {displayINR(tdsTotal)}</span>
           )}
         </div>
         {tds.length > 0 ? (
@@ -243,19 +242,19 @@ export default async function TaxPage(props: {
             {tds.map((section) => (
               <div key={section.section}>
                 <div className="flex items-center gap-2 text-sm">
-                  <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600">
+                  <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-2">
                     u/s {section.section}
                   </span>
-                  <span className="ml-auto font-medium text-zinc-800">{displayINR(section.total)}</span>
+                  <span className="ml-auto font-medium text-ink">{displayINR(section.total)}</span>
                 </div>
                 <table className="mt-1 w-full text-xs">
-                  <tbody className="divide-y divide-zinc-50">
+                  <tbody className="divide-y divide-line-2">
                     {section.deductees.map((d) => (
                       <tr key={d.name}>
-                        <td className="py-1 text-zinc-700">{d.name}</td>
-                        <td className="py-1 text-zinc-400">{d.pan ?? 'PAN —'}</td>
-                        <td className="py-1 text-right text-zinc-500">on {displayINR(d.taxable)}</td>
-                        <td className="py-1 text-right text-zinc-800">{displayINR(d.tds)}</td>
+                        <td className="py-1 text-ink-2">{d.name}</td>
+                        <td className="py-1 text-ink-3">{d.pan ?? 'PAN —'}</td>
+                        <td className="py-1 text-right text-ink-2">on {displayINR(d.taxable)}</td>
+                        <td className="py-1 text-right text-ink">{displayINR(d.tds)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -264,16 +263,16 @@ export default async function TaxPage(props: {
             ))}
           </div>
         ) : (
-          <p className="mt-2 text-sm text-zinc-400">No TDS deducted in {period}.</p>
+          <p className="mt-2 text-sm text-ink-3">No TDS deducted in {period}.</p>
         )}
 
       </div>
 
       {/* Full transaction detail — every register entry of the period */}
-      <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <div className="border-b border-zinc-200 px-4 py-2">
-          <h2 className="font-medium text-zinc-900">All entries — {period}</h2>
-          <p className="text-xs text-zinc-400">
+      <div className="rounded-xl border border-line bg-surface shadow-card">
+        <div className="border-b border-line px-4 py-2">
+          <h2 className="font-medium text-ink">All entries — {period}</h2>
+          <p className="text-xs text-ink-3">
             transaction by transaction: what was taxed, at which rate, how much GST and TDS
           </p>
         </div>
@@ -281,7 +280,7 @@ export default async function TaxPage(props: {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[64rem] text-left text-sm">
               <thead>
-                <tr className="border-b border-zinc-100 text-[10px] uppercase tracking-wider text-zinc-400">
+                <tr className="border-b border-line-2 text-[10px] uppercase tracking-wider text-ink-3">
                   <th className="px-3 py-2">Date</th>
                   <th className="px-3 py-2">Party</th>
                   <th className="px-3 py-2">Transaction</th>
@@ -294,16 +293,16 @@ export default async function TaxPage(props: {
                   <th className="px-3 py-2 text-right">TDS ₹</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-line-2">
                 {entries.map((e) => (
-                  <tr key={e.id} className="align-top hover:bg-zinc-50/60">
-                    <td className="whitespace-nowrap px-3 py-1.5 text-xs tabular-nums text-zinc-500">
+                  <tr key={e.id} className="align-top hover:bg-surface-2/60">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-xs tabular-nums text-ink-2">
                       {e.date.toISOString().slice(0, 10)}
                     </td>
-                    <td className="px-3 py-1.5 font-medium text-zinc-800">{e.party ?? '—'}</td>
+                    <td className="px-3 py-1.5 font-medium text-ink">{e.party ?? '—'}</td>
                     <td className="max-w-56 px-3 py-1.5">
                       <span
-                        className="block truncate text-xs text-zinc-500"
+                        className="block truncate text-xs text-ink-2"
                         title={stmtNarrations.get(e.sourceId) ?? e.sourceType}
                       >
                         {stmtNarrations.get(e.sourceId) ?? e.sourceType.replace('_', ' ')}
@@ -313,33 +312,33 @@ export default async function TaxPage(props: {
                       <span
                         className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                           e.direction === 'output'
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : 'bg-sky-100 text-sky-700'
+                            ? 'bg-success-soft text-success'
+                            : 'bg-primary-soft text-primary'
                         }`}
                       >
                         {e.direction === 'output' ? 'sale / income' : 'purchase / expense'}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-ink">
                       {displayINR(String(e.taxableValue))}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-zinc-500">
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-ink-2">
                       {e.gstRate ? `${Number(e.gstRate)}% ${e.gstType ?? ''}` : '—'}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
-                      {Number(e.gstAmount) > 0 ? displayINR(String(e.gstAmount)) : <span className="text-zinc-300">—</span>}
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-ink">
+                      {Number(e.gstAmount) > 0 ? displayINR(String(e.gstAmount)) : <span className="text-ink-3">—</span>}
                     </td>
-                    <td className="px-3 py-1.5 text-xs text-zinc-500">{e.hsn ?? '—'}</td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-zinc-500">
+                    <td className="px-3 py-1.5 text-xs text-ink-2">{e.hsn ?? '—'}</td>
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right text-xs text-ink-2">
                       {e.tdsRate ? `${Number(e.tdsRate)}% u/s ${e.tdsSection}` : '—'}
                     </td>
-                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-zinc-900">
-                      {Number(e.tdsAmount) > 0 ? displayINR(String(e.tdsAmount)) : <span className="text-zinc-300">—</span>}
+                    <td className="whitespace-nowrap px-3 py-1.5 text-right tabular-nums text-ink">
+                      {Number(e.tdsAmount) > 0 ? displayINR(String(e.tdsAmount)) : <span className="text-ink-3">—</span>}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+              <tfoot className="border-t border-line font-medium text-ink">
                 <tr>
                   <td className="px-3 py-2" colSpan={4}>Total ({entries.length} entries)</td>
                   <td className="px-3 py-2 text-right tabular-nums">{displayINR(entryTotals.taxable.toFixed(2))}</td>
@@ -353,7 +352,7 @@ export default async function TaxPage(props: {
             </table>
           </div>
         ) : (
-          <p className="px-4 py-3 text-sm text-zinc-400">No tax entries in {period}.</p>
+          <p className="px-4 py-3 text-sm text-ink-3">No tax entries in {period}.</p>
         )}
       </div>
     </div>

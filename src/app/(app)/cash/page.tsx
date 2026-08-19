@@ -7,6 +7,7 @@ import { projectPools } from '@/lib/budget/plan'
 import type { HeadOpt } from '@/components/head-combobox'
 import { CashQuickRow, type QuickLocation, type CcOption } from './quick-row'
 import { ConfirmButton } from '@/components/confirm-button'
+import { PageHeader, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   createCashEntryAction,
   quickCashEntryAction,
@@ -168,55 +169,54 @@ export default async function CashPage(props: {
   const signedAmount = (e: (typeof entries)[number]) => {
     const a = Number(e.amount)
     if (e.kind === 'TRANSFER') {
-      if (!loc) return { text: displayINR(String(e.amount)), cls: 'text-zinc-500' }
+      if (!loc) return { text: displayINR(String(e.amount)), cls: 'text-ink-2' }
       const inbound = e.toLocationId === loc
       return {
         text: `${inbound ? '+' : '−'}${displayINR(String(e.amount))}`,
-        cls: inbound ? 'text-emerald-600' : 'text-red-600',
+        cls: inbound ? 'text-success' : 'text-danger',
       }
     }
     const positive = e.kind === 'RECEIPT' || (e.kind === 'ADJUSTMENT' && e.inflow)
     return {
       text: `${positive ? '+' : '−'}${displayINR(String(Math.abs(a).toFixed(2)))}`,
-      cls: positive ? 'text-emerald-600' : 'text-red-600',
+      cls: positive ? 'text-success' : 'text-danger',
     }
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Cash — all books, one pool</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Every location from every books in one place; an entry posts in its own location&apos;s books.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Books"
+        title="Cash — all books, one pool"
+        subtitle={<>Every location from every books in one place; an entry posts in its own location&apos;s books.</>}
+      />
 
       {/* Where is cash — slim strip */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 shadow-sm">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-2xl border border-line bg-surface px-3 py-1.5 shadow-card">
         {balanceRows.map((b) => (
           <Link
             key={b.locationId}
             href={loc === b.locationId ? '/cash' : `/cash?loc=${b.locationId}${month ? `&month=${month}` : ''}`}
             className={`flex items-baseline gap-1.5 border-l-2 pl-2 hover:opacity-70 ${
-              loc === b.locationId ? 'border-zinc-900' : 'border-zinc-200'
+              loc === b.locationId ? 'border-primary' : 'border-line'
             }`}
           >
-            <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">{b.entityCode}</span>
-            <span className="text-[11px] text-zinc-500">{b.name}{b.archived ? ' (archived)' : ''}</span>
-            <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(b.balance)}</span>
+            <span className="rounded bg-surface-2 px-1 text-[10px] font-medium text-ink-2">{b.entityCode}</span>
+            <span className="text-[11px] text-ink-2">{b.name}{b.archived ? ' (archived)' : ''}</span>
+            <span className="text-sm font-semibold tabular-nums text-ink">{displayINR(b.balance)}</span>
           </Link>
         ))}
         <div className="ml-auto flex items-baseline gap-1.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Total</span>
-          <span className="text-sm font-semibold tabular-nums text-zinc-900">{displayINR(total)}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Total</span>
+          <span className="text-sm font-semibold tabular-nums text-ink">{displayINR(total)}</span>
         </div>
       </div>
 
       {/* Cash flow — the pool projected, future needs added & visible here */}
       {cashPool && (
-        <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+        <div className="rounded-2xl border border-line bg-surface shadow-card">
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-xs">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">
               Cash flow
             </span>
             {cashPool.months.map((m) => (
@@ -225,8 +225,8 @@ export default async function CashPage(props: {
                 className="flex items-baseline gap-1"
                 title={`in ${displayINR(m.inflow.toFixed(0))} · out ${displayINR(m.outflow.toFixed(0))}`}
               >
-                <span className="text-zinc-400">{shortMonth(m.month)}</span>
-                <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-red-600' : 'text-zinc-800'}`}>
+                <span className="text-ink-3">{shortMonth(m.month)}</span>
+                <span className={`font-semibold tabular-nums ${m.closing < 0 ? 'text-danger' : 'text-ink'}`}>
                   {displayINR(m.closing.toFixed(2))}
                 </span>
               </span>
@@ -238,7 +238,7 @@ export default async function CashPage(props: {
                 name="label"
                 required
                 placeholder="Cash needed — what for"
-                className="w-40 rounded border border-zinc-300 px-1.5 py-1 text-xs"
+                className="w-40 rounded-lg border border-line px-1.5 py-1 text-xs placeholder:text-ink-3"
               />
               <input
                 name="amount"
@@ -246,27 +246,27 @@ export default async function CashPage(props: {
                 inputMode="decimal"
                 placeholder="₹"
                 title="Positive = cash needed (out), negative = coming in"
-                className="w-20 rounded border border-zinc-300 px-1.5 py-1 text-right text-xs"
+                className="w-20 rounded-lg border border-line px-1.5 py-1 text-right text-xs placeholder:text-ink-3"
               />
-              <input name="onMonth" type="month" required className="rounded border border-zinc-300 px-1.5 py-1 text-xs" />
+              <input name="onMonth" type="month" required className="rounded-lg border border-line px-1.5 py-1 text-xs" />
               <button
                 type="submit"
-                className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
+                className="whitespace-nowrap rounded-lg bg-success px-2 py-1 text-[11px] font-medium text-white hover:opacity-90"
               >
                 + Add
               </button>
             </form>
           </div>
           {upcoming.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-3 py-1.5 text-xs">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+            <div className="flex flex-wrap items-center gap-2 border-t border-line-2 px-3 py-1.5 text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">
                 Upcoming
               </span>
               {upcoming.map((l) => (
                 <span
                   key={l.id}
                   className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${
-                    Number(l.amount) < 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'
+                    Number(l.amount) < 0 ? 'bg-success-soft text-success' : 'bg-warning-soft text-warning'
                   }`}
                 >
                   <span className="font-medium">{l.label}</span>
@@ -289,7 +289,7 @@ export default async function CashPage(props: {
 
       {/* Quick entry — the Excel row */}
       {canEnter && locations.length > 0 && (
-        <div className="space-y-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+        <div className="space-y-2 rounded-2xl border border-line bg-surface p-2 shadow-card">
           <CashQuickRow
             locations={quickLocations}
             headsByEntity={headsByEntity}
@@ -298,48 +298,48 @@ export default async function CashPage(props: {
           />
           <div className="flex flex-wrap gap-4">
             <details>
-              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">
                 Transfer between locations (same books)
               </summary>
               <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="kind" value="TRANSFER" />
-                <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <select name="locationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <input name="date" type="date" required className={controlClass} />
+                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className={`${controlClass} w-28`} />
+                <select name="locationId" required className={controlClass}>
                   {quickLocations.map((l) => (
                     <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
                   ))}
                 </select>
-                <span className="text-xs text-zinc-400">→</span>
-                <select name="toLocationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <span className="text-xs text-ink-3">→</span>
+                <select name="toLocationId" required className={controlClass}>
                   {quickLocations.map((l) => (
                     <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
                   ))}
                 </select>
-                <input name="remarks" placeholder="Remarks" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                <input name="remarks" placeholder="Remarks" className={controlClass} />
+                <button type="submit" className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong">
                   Transfer
                 </button>
               </form>
             </details>
             <details>
-              <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-800">
+              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">
                 Adjustment (mandatory reason)
               </summary>
               <form action={createCashEntryAction} className="mt-2 flex flex-wrap items-center gap-2">
                 <input type="hidden" name="kind" value="ADJUSTMENT" />
-                <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <select name="locationId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <input name="date" type="date" required className={controlClass} />
+                <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className={`${controlClass} w-28`} />
+                <select name="locationId" required className={controlClass}>
                   {quickLocations.map((l) => (
                     <option key={l.id} value={l.id}>{l.entityCode} · {l.name}</option>
                   ))}
                 </select>
-                <select name="inflow" className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <select name="inflow" className={controlClass}>
                   <option value="false">Cash short (remove)</option>
                   <option value="true">Cash excess (add)</option>
                 </select>
-                <select name="headAccountId" required className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm">
+                <select name="headAccountId" required className={controlClass}>
                   <option value="">— against head (same books) —</option>
                   {entities.map((e) => (
                     <optgroup key={e.id} label={e.code}>
@@ -349,8 +349,8 @@ export default async function CashPage(props: {
                     </optgroup>
                   ))}
                 </select>
-                <input name="reason" required placeholder="Reason (required)" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                <button type="submit" className="rounded-md bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-zinc-700">
+                <input name="reason" required placeholder="Reason (required)" className={controlClass} />
+                <button type="submit" className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong">
                   Adjust
                 </button>
               </form>
@@ -362,36 +362,36 @@ export default async function CashPage(props: {
       {/* Passbook */}
       <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-medium text-zinc-900">
+          <h2 className="font-medium text-ink">
             Cash book{loc ? ` — ${locationName(loc)}` : ''}
           </h2>
           <form className="ml-auto flex flex-wrap items-center gap-2">
             {loc && <input type="hidden" name="loc" value={loc} />}
-            <select name="month" defaultValue={month} className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+            <select name="month" defaultValue={month} className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
               <option value="">All months</option>
               {months.map((m) => (
                 <option key={m} value={m}>{monthLabel(m)}</option>
               ))}
             </select>
-            <button type="submit" className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100">
+            <button type="submit" className="rounded-lg border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2">
               Apply
             </button>
             {(loc || month) && (
-              <Link href="/cash" className="text-xs text-zinc-400 hover:text-zinc-700">reset</Link>
+              <Link href="/cash" className="text-xs text-ink-3 hover:text-ink-2">reset</Link>
             )}
           </form>
-          <span className="w-full text-xs text-zinc-500 sm:w-auto">
+          <span className="w-full text-xs text-ink-2 sm:w-auto">
             Opening {displayINR(openingBalance.toFixed(2))} · In {displayINR(flows.in.toFixed(2))} · Out{' '}
             {displayINR(flows.out.toFixed(2))} · Closing{' '}
-            <span className="font-semibold text-zinc-800">{displayINR(closingBalance.toFixed(2))}</span>
+            <span className="font-semibold text-ink">{displayINR(closingBalance.toFixed(2))}</span>
           </span>
         </div>
 
         {rows.length > 0 ? (
-          <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <div className={tableWrapClass}>
             <table className="w-full min-w-[56rem] text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200 text-left text-[10px] uppercase tracking-wider text-zinc-400">
+              <thead className={theadClass}>
+                <tr>
                   <th className="px-2 py-2">Date</th>
                   <th className="px-2 py-2">Details</th>
                   <th className="px-2 py-2">Location</th>
@@ -402,14 +402,14 @@ export default async function CashPage(props: {
                   <th className="px-2 py-2" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-line-2">
                 {/* passbook's first line: where the money stood before these entries */}
-                <tr className="bg-zinc-50/70 text-xs">
-                  <td className="px-2 py-1.5 text-zinc-400">{month ? monthLabel(month) : 'Start'}</td>
-                  <td className="px-2 py-1.5 font-medium text-zinc-600" colSpan={5}>
+                <tr className="bg-surface-2/60 text-xs">
+                  <td className="px-2 py-1.5 text-ink-3">{month ? monthLabel(month) : 'Start'}</td>
+                  <td className="px-2 py-1.5 font-medium text-ink-2" colSpan={5}>
                     Opening balance
                   </td>
-                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-zinc-800">
+                  <td className="px-2 py-1.5 text-right font-semibold tabular-nums text-ink">
                     {displayINR(openingBalance.toFixed(2))}
                   </td>
                   <td />
@@ -417,35 +417,35 @@ export default async function CashPage(props: {
                 {rows.map(({ entry, balance }) => {
                   const amt = signedAmount(entry)
                   return (
-                    <tr key={entry.id} className="hover:bg-zinc-50/60">
-                      <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-zinc-500">
+                    <tr key={entry.id} className="hover:bg-surface-2/60">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-xs tabular-nums text-ink-2">
                         {entry.date.toISOString().slice(0, 10)}
                       </td>
                       <td className="px-2 py-1.5">
-                        <span className="block max-w-[18rem] truncate font-medium text-zinc-800" title={entry.remarks ?? ''}>
-                          {entry.remarks ?? <span className="font-normal text-zinc-300">—</span>}
+                        <span className="block max-w-[18rem] truncate font-medium text-ink" title={entry.remarks ?? ''}>
+                          {entry.remarks ?? <span className="font-normal text-ink-3">—</span>}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-2 py-1.5">
-                        <span className="rounded bg-zinc-100 px-1 text-[10px] font-medium text-zinc-500">
+                        <span className="rounded bg-surface-2 px-1 text-[10px] font-medium text-ink-2">
                           {entityCode.get(entry.entityId)}
                         </span>{' '}
-                        <span className="text-xs text-zinc-600">
+                        <span className="text-xs text-ink-2">
                           {entry.kind === 'TRANSFER'
                             ? `${locationName(entry.locationId)} → ${locationName(entry.toLocationId)}`
                             : locationName(entry.locationId)}
                         </span>
                       </td>
-                      <td className="max-w-40 truncate px-2 py-1.5 text-xs text-zinc-600" title={headName(entry.headAccountId) ?? ''}>
-                        {headName(entry.headAccountId) ?? <span className="text-zinc-300">transfer</span>}
+                      <td className="max-w-40 truncate px-2 py-1.5 text-xs text-ink-2" title={headName(entry.headAccountId) ?? ''}>
+                        {headName(entry.headAccountId) ?? <span className="text-ink-3">transfer</span>}
                       </td>
                       <td className={`whitespace-nowrap px-2 py-1.5 text-right font-semibold tabular-nums ${amt.cls}`}>
                         {amt.text}
                       </td>
-                      <td className="max-w-48 truncate px-2 py-1.5 text-xs text-zinc-500" title={entry.comments ?? entry.reason ?? ''}>
-                        {entry.reason ? <span className="text-amber-600">reason: {entry.reason}</span> : entry.comments}
+                      <td className="max-w-48 truncate px-2 py-1.5 text-xs text-ink-2" title={entry.comments ?? entry.reason ?? ''}>
+                        {entry.reason ? <span className="text-warning">reason: {entry.reason}</span> : entry.comments}
                       </td>
-                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-zinc-900">
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right tabular-nums text-ink">
                         {displayINR(balance.toFixed(2))}
                       </td>
                       <td className="px-2 py-1.5 text-right">
@@ -455,7 +455,7 @@ export default async function CashPage(props: {
                             <button
                               type="submit"
                               title="Moves to the recycle bin below — balance reverses, restore anytime"
-                              className="whitespace-nowrap rounded border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-600 hover:bg-zinc-100"
+                              className="whitespace-nowrap rounded-lg border border-line px-2 py-0.5 text-[11px] text-ink-2 hover:bg-surface-2"
                             >
                               Delete
                             </button>
@@ -469,16 +469,16 @@ export default async function CashPage(props: {
             </table>
           </div>
         ) : (
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-ink-3">
             {month || loc ? 'No entries match these filters.' : 'No cash entries yet.'}
           </p>
         )}
 
         {/* deleted entries live in the ONE recycle bin, not on this page */}
         {binRows.length > 0 && (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-ink-3">
             {binRows.length} deleted entr{binRows.length > 1 ? 'ies' : 'y'} in the{' '}
-            <Link href="/recycle-bin" className="text-zinc-600 underline hover:text-zinc-900">
+            <Link href="/recycle-bin" className="text-ink-2 underline hover:text-ink">
               🗑 Recycle bin
             </Link>
           </p>

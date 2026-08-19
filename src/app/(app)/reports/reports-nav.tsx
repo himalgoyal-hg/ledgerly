@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { chipClass } from '@/components/ui'
 
 // The reports tab strip. Hidden on the pages the sidebar already reaches
 // directly (P&L, Balance Sheet, Cash Flow) per Himal — it shows only on the
@@ -34,17 +35,9 @@ export function ReportsNav() {
     return null
   }
   return (
-    <nav className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2 print:hidden">
+    <nav className="flex flex-wrap gap-1 border-b border-line pb-2 print:hidden">
       {TABS.map((t) => (
-        <Link
-          key={t.href}
-          href={t.href}
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            pathname === t.href
-              ? 'bg-zinc-900 text-white'
-              : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-          }`}
-        >
+        <Link key={t.href} href={t.href} className={chipClass(pathname === t.href)}>
           {t.label}
         </Link>
       ))}

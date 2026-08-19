@@ -9,6 +9,7 @@ import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
 import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { SourceSelect } from '../source-select'
+import { PageHeader, chipClass, controlClass } from '@/components/ui'
 import {
   submitClaimAction,
   approveClaimAction,
@@ -28,7 +29,7 @@ export default async function ReimbursementsPage(props: {
     throw new Error('Forbidden: missing permission "reimbursementSubmit"')
   }
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   // Tabs: admin sees every active user; a member sees only their own.
   const tabUsers = admin
@@ -101,30 +102,22 @@ export default async function ReimbursementsPage(props: {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Reimbursements — {entity.name} ({entity.code})
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Approving posts the expense immediately; the balance in each tab is
-          that member&apos;s live payable ledger.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Operations"
+        title={`Reimbursements — ${entity.name} (${entity.code})`}
+        subtitle="Approving posts the expense immediately; the balance in each tab is that member's live payable ledger."
+      />
 
       {/* Member sub-tabs with live running balance (spec §6.1) */}
-      <div className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2">
+      <div className="flex flex-wrap gap-1 border-b border-line pb-2">
         {tabUsers.map((u) => (
           <Link
             key={u.id}
             href={`/reimbursements?member=${u.id}`}
-            className={`rounded-md px-3 py-1.5 text-sm ${
-              u.id === selected.id
-                ? 'bg-zinc-900 text-white'
-                : 'text-zinc-600 hover:bg-zinc-100'
-            }`}
+            className={chipClass(u.id === selected.id)}
           >
             {u.name}
-            <span className={`ml-2 text-xs ${u.id === selected.id ? 'text-zinc-300' : 'text-zinc-400'}`}>
+            <span className={`ml-2 text-xs ${u.id === selected.id ? 'text-white/70' : 'text-ink-3'}`}>
               {tabAmount(u)}
             </span>
           </Link>
@@ -133,20 +126,20 @@ export default async function ReimbursementsPage(props: {
 
       {/* Submit own claim */}
       {selected.id === user.id && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium text-zinc-900">Submit a claim</h2>
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+          <h2 className="font-medium text-ink">Submit a claim</h2>
           <form action={submitClaimAction} className="mt-3 flex flex-wrap items-center gap-2">
             <input type="hidden" name="entityId" value={entity.id} />
-            <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="category" required placeholder="Category (Travel, Food…)" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <label className="flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-zinc-300 px-2 py-1.5 text-xs text-zinc-500 hover:border-zinc-400">
+            <input name="date" type="date" required className={controlClass} />
+            <input name="category" required placeholder="Category (Travel, Food…)" className={controlClass} />
+            <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className={`${controlClass} w-28`} />
+            <label className="flex cursor-pointer items-center gap-1 rounded-lg border border-dashed border-line px-2 py-1.5 text-xs text-ink-2 hover:border-ink-3">
               📎 receipt
               <input type="file" name="file" accept="application/pdf,image/*" className="w-40 text-xs" />
             </label>
-            <input name="link" placeholder="…or Drive link" className="w-44 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="remarks" placeholder="Remarks" className="flex-1 min-w-40 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+            <input name="link" placeholder="…or Drive link" className={`${controlClass} w-44`} />
+            <input name="remarks" placeholder="Remarks" className={`${controlClass} flex-1 min-w-40`} />
+            <button type="submit" className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-strong">
               Submit
             </button>
           </form>
@@ -155,19 +148,19 @@ export default async function ReimbursementsPage(props: {
 
       {/* Admin settle */}
       {admin && baseSuggestion.options.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium text-zinc-900">
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+          <h2 className="font-medium text-ink">
             Settle {selected.name} — owed {displayINR(owedTo(selected.name))}
           </h2>
           <form action={settleMemberAction} className="mt-3 flex flex-wrap items-center gap-2">
             <input type="hidden" name="entityId" value={entity.id} />
             <input type="hidden" name="memberId" value={selected.id} />
-            <input name="date" type="date" required className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-            <input name="amount" required inputMode="decimal" defaultValue={owedTo(selected.name)} className="w-28 rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
+            <input name="date" type="date" required className={controlClass} />
+            <input name="amount" required inputMode="decimal" defaultValue={owedTo(selected.name)} className={`${controlClass} w-28`} />
             <SourceSelect
               suggestion={rankForAmount(baseSuggestion.options, owedTo(selected.name))}
             />
-            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+            <button type="submit" className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-strong">
               Settle (Dr payable / Cr source)
             </button>
           </form>
@@ -177,31 +170,31 @@ export default async function ReimbursementsPage(props: {
       {/* Claims */}
       <div className="space-y-2">
         {claims.map((claim) => (
-          <div key={claim.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div key={claim.id} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
             <div className="flex flex-wrap items-center gap-3 text-sm">
-              <span className="text-xs text-zinc-400">{claim.date.toISOString().slice(0, 10)}</span>
-              <span className="font-medium text-zinc-800">{claim.category}</span>
+              <span className="text-xs text-ink-3">{claim.date.toISOString().slice(0, 10)}</span>
+              <span className="font-medium text-ink">{claim.category}</span>
               {claim.link && (
-                <a href={claim.link} target="_blank" rel="noreferrer" className="text-xs text-sky-600 hover:underline">
+                <a href={claim.link} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
                   bill
                 </a>
               )}
-              {claim.remarks && <span className="text-xs text-zinc-400">{claim.remarks}</span>}
+              {claim.remarks && <span className="text-xs text-ink-3">{claim.remarks}</span>}
               <span
                 className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
                   claim.status === 'PENDING'
-                    ? 'bg-amber-100 text-amber-700'
+                    ? 'bg-warning-soft text-warning'
                     : claim.status === 'APPROVED'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-red-100 text-red-700'
+                      ? 'bg-success-soft text-success'
+                      : 'bg-danger-soft text-danger'
                 }`}
               >
                 {claim.status.toLowerCase()}
               </span>
               {claim.status === 'REJECTED' && claim.rejectReason && (
-                <span className="text-xs text-red-500">{claim.rejectReason}</span>
+                <span className="text-xs text-danger">{claim.rejectReason}</span>
               )}
-              <span className="ml-auto font-semibold text-zinc-900">
+              <span className="ml-auto font-semibold text-ink">
                 {displayINR(String(claim.amount))}
               </span>
             </div>
@@ -215,23 +208,23 @@ export default async function ReimbursementsPage(props: {
                     required
                     placeholder="Expense head — type or add"
                     createName="headText"
-                    className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    className={`${controlClass} w-56`}
                   />
                   <SmartCombobox
                     options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
                     name="costCentreId"
                     createName="costCentreText"
                     placeholder="Cost centre — type or add"
-                    className="w-56 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    className={`${controlClass} w-56`}
                   />
-                  <button type="submit" className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-600">
+                  <button type="submit" className="rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
                     Approve & post
                   </button>
                 </form>
                 <form action={rejectClaimAction} className="flex items-center gap-2">
                   <input type="hidden" name="claimId" value={claim.id} />
-                  <input name="reason" required placeholder="Rejection remarks" className="rounded-md border border-zinc-300 px-2 py-1.5 text-sm" />
-                  <button type="submit" className="rounded-md border border-red-200 px-3 py-1.5 text-xs text-red-600 hover:bg-red-50">
+                  <input name="reason" required placeholder="Rejection remarks" className={controlClass} />
+                  <button type="submit" className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs text-danger hover:bg-danger-soft">
                     Reject
                   </button>
                 </form>
@@ -240,7 +233,7 @@ export default async function ReimbursementsPage(props: {
           </div>
         ))}
         {claims.length === 0 && (
-          <p className="text-sm text-zinc-400">No claims yet for {selected.name} in these books.</p>
+          <p className="text-sm text-ink-3">No claims yet for {selected.name} in these books.</p>
         )}
       </div>
     </div>

@@ -23,7 +23,7 @@ export interface CostCentreOption {
   name: string
 }
 
-const inputCls = 'w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs'
+const inputCls = 'w-full rounded border border-line bg-surface px-1.5 py-1 text-xs'
 
 export const NATURE_OPTIONS = NATURES.map((n) => ({ id: n.value, label: n.label }))
 
@@ -131,7 +131,7 @@ export function TagRowCells(props: {
             <button
               type="submit"
               title={props.submitTitle}
-              className="whitespace-nowrap rounded bg-zinc-900 px-2.5 py-1 text-xs font-medium text-white hover:bg-zinc-700"
+              className="whitespace-nowrap rounded bg-primary px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-strong"
             >
               {props.submitLabel}
             </button>
@@ -145,8 +145,8 @@ export function TagRowCells(props: {
             <summary
               className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
                 gst.rate || tds.rate
-                  ? 'font-semibold text-amber-600 hover:text-amber-800'
-                  : 'text-zinc-400 hover:text-zinc-700'
+                  ? 'font-semibold text-warning'
+                  : 'text-ink-3 hover:text-ink-2'
               }`}
             >
               {[
@@ -156,8 +156,8 @@ export function TagRowCells(props: {
                 .filter(Boolean)
                 .join(' + ') || 'GST/TDS'}
             </summary>
-            <div className="mt-1 w-44 space-y-1 rounded-md bg-zinc-50 p-1.5">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+            <div className="mt-1 w-44 space-y-1 rounded-lg bg-surface-2/60 p-1.5">
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-3">
                 GST
               </p>
               <select name="gstType" form={formId} value={gst.type} onChange={(e) => setGstField('type')(e.target.value)} className={inputCls}>
@@ -181,7 +181,7 @@ export function TagRowCells(props: {
                 placeholder="Party GSTIN"
                 className={inputCls}
               />
-              <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-zinc-400">
+              <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-ink-3">
                 TDS — on the taxable value, both may apply
               </p>
               <select name="tdsSection" form={formId} value={tds.section} onChange={(e) => setTdsField('section')(e.target.value)} className={inputCls}>

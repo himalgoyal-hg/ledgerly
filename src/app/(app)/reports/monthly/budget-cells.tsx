@@ -15,7 +15,7 @@ const fmtSigned = (n: number) => {
 
 const cellR = 'px-2 py-1.5 text-right tabular-nums whitespace-nowrap'
 const inputCls =
-  'w-24 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right text-sm tabular-nums text-zinc-500 hover:border-zinc-300 focus:border-zinc-400 focus:bg-white focus:outline-none'
+  'w-24 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right text-sm tabular-nums text-ink-2 hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
 export function BudgetCells(props: {
   entityId: string
@@ -78,7 +78,7 @@ export function BudgetCells(props: {
           className={inputCls}
         />
       </td>
-      <td className={`${cellR} ${props.recentVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>
+      <td className={`${cellR} ${props.recentVariance < 0 ? 'text-danger' : 'text-ink-2'}`}>
         {fmtSigned(props.recentVariance)}
       </td>
       <td className={cellR}>
@@ -98,7 +98,7 @@ export function BudgetCells(props: {
           className={inputCls}
         />
       </td>
-      <td className={`${cellR} ${props.yearVariance < 0 ? 'text-red-600' : 'text-zinc-500'}`}>
+      <td className={`${cellR} ${props.yearVariance < 0 ? 'text-danger' : 'text-ink-2'}`}>
         {fmtSigned(props.yearVariance)}
       </td>
     </>

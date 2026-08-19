@@ -6,6 +6,7 @@ import {
   restoreEntity,
   hardDeleteEntity,
 } from './actions'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 const TYPE_LABELS: Record<string, string> = {
   INDIVIDUAL: 'Individual',
@@ -31,18 +32,21 @@ export default async function EntitiesPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Entities</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Archiving hides an entity from every dropdown and the &ldquo;Books
-          of&rdquo; switcher; data is preserved and restorable. Hard delete is
-          only possible while an entity has no data under it.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Setup"
+        title="Entities"
+        subtitle={
+          <>
+            Archiving hides an entity from every dropdown and the &ldquo;Books
+            of&rdquo; switcher; data is preserved and restorable. Hard delete is
+            only possible while an entity has no data under it.
+          </>
+        }
+      />
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-3">Entity</th>
               <th className="px-4 py-3">Type</th>
@@ -53,17 +57,17 @@ export default async function EntitiesPage() {
               <th className="px-4 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {active.map((e) => (
               <tr key={e.id}>
-                <td className="px-4 py-2 font-medium text-zinc-800">
-                  {e.name} <span className="text-zinc-400">({e.code})</span>
+                <td className="px-4 py-2 font-medium text-ink">
+                  {e.name} <span className="text-ink-3">({e.code})</span>
                 </td>
-                <td className="px-4 py-2 text-zinc-600">{TYPE_LABELS[e.type]}</td>
-                <td className="px-4 py-2 font-mono text-xs text-zinc-600">{e.pan}</td>
-                <td className="px-4 py-2 font-mono text-xs text-zinc-600">{e.gstin ?? '—'}</td>
-                <td className="px-4 py-2 text-zinc-600">{MONTHS[e.fyStartMonth - 1]}</td>
-                <td className="px-4 py-2 text-zinc-600">
+                <td className="px-4 py-2 text-ink-2">{TYPE_LABELS[e.type]}</td>
+                <td className="px-4 py-2 font-mono text-xs text-ink-2">{e.pan}</td>
+                <td className="px-4 py-2 font-mono text-xs text-ink-2">{e.gstin ?? '—'}</td>
+                <td className="px-4 py-2 text-ink-2">{MONTHS[e.fyStartMonth - 1]}</td>
+                <td className="px-4 py-2 text-ink-2">
                   {e._count.bankAccounts} bank · {e._count.cashLocations} cash
                 </td>
                 <td className="px-4 py-2 text-right">
@@ -72,7 +76,7 @@ export default async function EntitiesPage() {
                       <input type="hidden" name="id" value={e.id} />
                       <button
                         type="submit"
-                        className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                        className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                       >
                         Archive
                       </button>
@@ -82,7 +86,7 @@ export default async function EntitiesPage() {
                         <input type="hidden" name="id" value={e.id} />
                         <button
                           type="submit"
-                          className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                          className="rounded-lg border border-danger/30 px-2 py-1 text-xs text-danger hover:bg-danger-soft"
                         >
                           Delete
                         </button>
@@ -94,7 +98,7 @@ export default async function EntitiesPage() {
             ))}
             {active.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={7} className="px-4 py-6 text-center text-sm text-ink-3">
                   No entities yet — create the first one below.
                 </td>
               </tr>
@@ -104,19 +108,19 @@ export default async function EntitiesPage() {
       </div>
 
       {archived.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <h2 className="font-medium text-zinc-900">Archived</h2>
+        <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+          <h2 className="font-medium text-ink">Archived</h2>
           <div className="mt-2 space-y-2">
             {archived.map((e) => (
-              <div key={e.id} className="flex items-center gap-3 border-t border-zinc-100 pt-2">
-                <span className="text-sm text-zinc-500">
+              <div key={e.id} className="flex items-center gap-3 border-t border-line-2 pt-2">
+                <span className="text-sm text-ink-2">
                   {e.name} ({e.code})
                 </span>
                 <form action={restoreEntity}>
                   <input type="hidden" name="id" value={e.id} />
                   <button
                     type="submit"
-                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100"
+                    className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
                   >
                     Restore
                   </button>
@@ -127,23 +131,23 @@ export default async function EntitiesPage() {
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">Create entity</h2>
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+        <h2 className="font-medium text-ink">Create entity</h2>
         <form action={createEntity} className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <input
             name="name"
             placeholder="Name (e.g. Accurest Consulting Pvt Ltd)"
             required
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className={controlClass}
           />
           <input
             name="code"
             placeholder="Code (e.g. ACPL)"
             required
             maxLength={10}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm uppercase"
+            className={`${controlClass} uppercase`}
           />
-          <select name="type" required className="rounded-md border border-zinc-300 px-3 py-2 text-sm">
+          <select name="type" required className={controlClass}>
             <option value="INDIVIDUAL">Individual</option>
             <option value="PVT_LTD">Pvt Ltd</option>
             <option value="PARTNERSHIP">Partnership</option>
@@ -153,17 +157,17 @@ export default async function EntitiesPage() {
             name="pan"
             placeholder="PAN (AAAAA9999A)"
             required
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm uppercase"
+            className={`${controlClass} uppercase`}
           />
           <input
             name="gstin"
             placeholder="GSTIN (optional)"
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm uppercase"
+            className={`${controlClass} uppercase`}
           />
           <select
             name="fyStartMonth"
             defaultValue="4"
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className={controlClass}
           >
             {MONTHS.map((m, i) => (
               <option key={m} value={i + 1}>
@@ -173,7 +177,7 @@ export default async function EntitiesPage() {
           </select>
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 sm:col-span-2 lg:col-span-1"
+            className={`${buttonClass('primary')} sm:col-span-2 lg:col-span-1`}
           >
             Create entity
           </button>

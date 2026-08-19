@@ -17,6 +17,7 @@ import { HeadCombobox } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { InvoiceRow } from './invoice-row'
 import { LiveFilter } from '@/components/live-filter'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Invoices (spec §6.6), export-first: billing knows only the client, the $
 // and the date (due = +7 days, follow up after the 10th) — the money (rate,
@@ -25,12 +26,12 @@ import { LiveFilter } from '@/components/live-filter'
 // economics computed, never typed.
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'AUD', 'NZD']
-const inputCls = 'rounded-md border border-zinc-300 px-2 py-1.5 text-sm'
+const inputCls = controlClass
 
 export default async function InvoicesPage() {
   const admin = await requireAdmin()
   const entity = await getCurrentEntity(admin)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const today = new Date()
   // Like the sheet: every books' invoices in ONE register, with a Books
@@ -95,54 +96,51 @@ export default async function InvoicesPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">
-          Invoices — {entity.name} ({entity.code})
-        </h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Bill in $, record the money when the credit lands — rate, effective cost and days are computed.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Operations"
+        title={<>Invoices — {entity.name} ({entity.code})</>}
+        subtitle="Bill in $, record the money when the credit lands — rate, effective cost and days are computed."
+      />
 
       {/* New export invoice — structured like the register; fill what is known,
           the rest comes later via Record / edit on the row */}
-      <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+      <details className="rounded-2xl border border-line bg-surface shadow-card">
+        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2/60">
           ＋ New export invoice — into {entity.code} books (next: {entity.invoicePrefix}-{String(entity.nextInvoiceNumber).padStart(4, '0')})
         </summary>
-        <form action={createFxInvoiceAction} className="border-t border-zinc-100 p-4">
+        <form action={createFxInvoiceAction} className="border-t border-line-2 p-4">
           <input type="hidden" name="entityId" value={entity.id} />
           {/* What is billed — mirrors Books / Client / Country / $ Inv */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Books</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Books</span>
               <div className="mt-1 flex h-8 items-center">
-                <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700">{entity.code}</span>
-                <span className="ml-2 text-[10px] text-zinc-400">via Books of ↑</span>
+                <span className="rounded bg-surface-2 px-2 py-0.5 text-xs font-medium text-ink-2">{entity.code}</span>
+                <span className="ml-2 text-[10px] text-ink-3">via Books of ↑</span>
               </div>
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Client *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Client *</span>
               <input name="customer" required placeholder="Noria / Neat Method…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Country</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Country</span>
               <input name="country" placeholder="US" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Currency</span>
-              <select name="currency" className={`mt-1 w-full bg-white ${inputCls}`}>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Currency</span>
+              <select name="currency" className={`mt-1 w-full ${inputCls}`}>
                 {CURRENCIES.map((c) => (
                   <option key={c}>{c}</option>
                 ))}
               </select>
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount $ *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Amount $ *</span>
               <input name="amountFx" required inputMode="decimal" placeholder="2018" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Description</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Description</span>
               <input name="narration" placeholder="What the bill is for" className={`mt-1 w-full ${inputCls}`} />
             </label>
           </div>
@@ -150,64 +148,64 @@ export default async function InvoicesPage() {
           {/* Dates & docs — Invoice date / Due / FIRC / FC disposal */}
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Invoice date *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Invoice date *</span>
               <input name="date" type="date" required className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due date</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Due date</span>
               <input name="dueDate" type="date" title="Blank = invoice date + 7 days" className={`mt-1 w-full ${inputCls}`} />
-              <span className="text-[10px] text-zinc-400">blank = +7 days</span>
+              <span className="text-[10px] text-ink-3">blank = +7 days</span>
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">FIRC</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">FIRC</span>
               <input name="firc" placeholder="Awaited / Received" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">FC disposal</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">FC disposal</span>
               <input name="fcDisposal" placeholder="Yes / Skydo" className={`mt-1 w-full ${inputCls}`} />
             </label>
           </div>
 
           {/* Credit already landed? Fill these too and the invoice is born settled */}
-          <div className="mt-3 rounded-lg border border-dashed border-zinc-200 bg-zinc-50/50 p-3">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
+          <div className="mt-3 rounded-lg border border-dashed border-line bg-surface-2/60 p-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">
               Credit already received? (optional — ₹ credited + credit date settles it, rate computed)
             </p>
             <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-5">
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">$ received</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">$ received</span>
                 <input name="receivedFx" inputMode="decimal" placeholder="blank = full $" className={`mt-1 w-full ${inputCls}`} />
               </label>
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">₹ credited</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">₹ credited</span>
                 <input name="realizedInr" inputMode="decimal" placeholder="187394" className={`mt-1 w-full ${inputCls}`} />
               </label>
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bank charges ₹</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Bank charges ₹</span>
                 <input name="bankCharges" inputMode="decimal" placeholder="258.66" className={`mt-1 w-full ${inputCls}`} />
               </label>
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Skydo / provider fees ₹</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Skydo / provider fees ₹</span>
                 <input name="providerFees" inputMode="decimal" className={`mt-1 w-full ${inputCls}`} />
               </label>
               <label className="block">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Credit date</span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Credit date</span>
                 <input name="creditDate" type="date" className={`mt-1 w-full ${inputCls}`} />
               </label>
             </div>
           </div>
 
           <div className="mt-3 flex items-center gap-3">
-            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+            <button type="submit" className={buttonClass('primary')}>
               Save invoice
             </button>
-            <span className="text-[11px] text-zinc-400">
+            <span className="text-[11px] text-ink-3">
               Fill what you have — everything stays editable in the row later.
             </span>
           </div>
         </form>
         <details className="mx-4 mb-3">
-          <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
+          <summary className="cursor-pointer text-xs text-ink-3 hover:text-ink-2">
             Domestic INR invoice (posts to books, GST)
           </summary>
           <form action={createInvoiceAction} className="mt-2 flex flex-wrap items-center gap-2">
@@ -215,9 +213,9 @@ export default async function InvoicesPage() {
             <input type="hidden" name="currency" value="INR" />
             <input name="customer" required placeholder="Customer" className={inputCls} />
             <input name="amount" required inputMode="decimal" placeholder="Taxable ₹" className={`w-28 ${inputCls}`} />
-            <label className="text-xs text-zinc-400">date</label>
+            <label className="text-xs text-ink-3">date</label>
             <input name="date" type="date" required className={inputCls} />
-            <label className="text-xs text-zinc-400">due</label>
+            <label className="text-xs text-ink-3">due</label>
             <input name="dueDate" type="date" required className={inputCls} />
             <HeadCombobox
               heads={incomeHeads.map((h) => ({ id: h.id, code: h.code, name: h.name, kind: h.kind }))}
@@ -225,23 +223,23 @@ export default async function InvoicesPage() {
               required
               placeholder="Income head — type or add"
               createName="headText"
-              className={`w-56 bg-white ${inputCls}`}
+              className={`w-56 ${inputCls}`}
             />
             <SmartCombobox
               options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
               name="costCentreId"
               createName="costCentreText"
               placeholder="Cost centre — type or add"
-              className={`w-56 bg-white ${inputCls}`}
+              className={`w-56 ${inputCls}`}
             />
             <input name="narration" placeholder="Description" className={`w-44 ${inputCls}`} />
-            <select name="gstType" className={`bg-white ${inputCls}`}>
+            <select name="gstType" className={inputCls}>
               <option value="">GST type</option>
               {GST_TYPES.map((t) => (
                 <option key={t} value={t}>{t}</option>
               ))}
             </select>
-            <select name="gstRate" className={`bg-white ${inputCls}`}>
+            <select name="gstRate" className={inputCls}>
               <option value="">no GST</option>
               {GST_RATES.map((r) => (
                 <option key={r} value={r}>{r}%</option>
@@ -249,7 +247,7 @@ export default async function InvoicesPage() {
             </select>
             <input name="hsn" placeholder="HSN/SAC" className={`w-24 ${inputCls}`} />
             <input name="customerGstin" placeholder="Customer GSTIN" className={`w-40 ${inputCls}`} />
-            <button type="submit" className="rounded-md bg-zinc-900 px-4 py-1.5 text-sm font-medium text-white hover:bg-zinc-700">
+            <button type="submit" className={buttonClass('primary')}>
               Raise INR invoice
             </button>
           </form>
@@ -258,10 +256,10 @@ export default async function InvoicesPage() {
 
       <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='invoices']" placeholder="Search invoices — client / books / amount…" /></div>
       {/* The register — the Excel sheet, computed */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table data-live-filter="invoices" className="w-full min-w-[72rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+          <thead className={theadClass}>
+            <tr>
               <th className="px-1.5 py-2">#</th>
               <th className="px-1.5 py-2">Books</th>
               <th className="px-1.5 py-2">Date</th>
@@ -280,11 +278,11 @@ export default async function InvoicesPage() {
               <th className="px-1.5 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {[...new Set(invoices.map((i) => i.date.toISOString().slice(0, 7)))].map((monthKey) => (
               <Fragment key={monthKey}>
-                <tr className="bg-zinc-50">
-                  <td colSpan={16} className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                <tr className="bg-surface-2/60">
+                  <td colSpan={16} className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-2">
                     {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][Number(monthKey.slice(5,7)) - 1]} {monthKey.slice(0,4)}
                   </td>
                 </tr>
@@ -344,20 +342,20 @@ export default async function InvoicesPage() {
                 >
                   {!settled && !m.fx && (
                     <details>
-                      <summary className="cursor-pointer whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600">
+                      <summary className="cursor-pointer whitespace-nowrap rounded bg-success px-2 py-1 text-[11px] font-medium text-white hover:opacity-90">
                         Record payment
                       </summary>
                       <form action={recordPaymentAction} className="mt-1 w-44 space-y-1 text-left">
                         <input type="hidden" name="invoiceId" value={invoice.id} />
-                        <input name="date" type="date" required className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                        <input name="amount" required inputMode="decimal" defaultValue={outstandingOf(invoice)} className="w-full rounded border border-zinc-300 px-1.5 py-1 text-xs" />
-                        <select name="sourceAccountId" required className="w-full rounded border border-zinc-300 bg-white px-1.5 py-1 text-xs">
+                        <input name="date" type="date" required className="w-full rounded border border-line px-1.5 py-1 text-xs" />
+                        <input name="amount" required inputMode="decimal" defaultValue={outstandingOf(invoice)} className="w-full rounded border border-line px-1.5 py-1 text-xs" />
+                        <select name="sourceAccountId" required className="w-full rounded border border-line bg-surface px-1.5 py-1 text-xs">
                           <option value="">— received into —</option>
                           {sources.map((s) => (
                             <option key={s.id} value={s.id}>{s.label}</option>
                           ))}
                         </select>
-                        <button type="submit" className="w-full rounded bg-emerald-700 px-2 py-1 text-xs font-medium text-white hover:bg-emerald-600">
+                        <button type="submit" className="w-full rounded bg-success px-2 py-1 text-xs font-medium text-white hover:opacity-90">
                           Record payment
                         </button>
                       </form>
@@ -367,7 +365,7 @@ export default async function InvoicesPage() {
                     <input type="hidden" name="invoiceId" value={invoice.id} />
                     <ConfirmButton
                       message={`Delete invoice ${invoice.number}? Any postings are reversed (restorable from Journal).`}
-                      className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
+                      className="rounded border border-danger/30 px-1.5 py-1 text-[11px] text-danger hover:bg-danger-soft"
                     >
                       ✕
                     </ConfirmButton>
@@ -379,14 +377,14 @@ export default async function InvoicesPage() {
             ))}
             {invoices.length === 0 && (
               <tr>
-                <td colSpan={16} className="px-2 py-4 text-center text-sm text-zinc-400">
+                <td colSpan={16} className="px-2 py-4 text-center text-sm text-ink-3">
                   No invoices yet — raise the first one above.
                 </td>
               </tr>
             )}
           </tbody>
           {invoices.length > 0 && (
-            <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+            <tfoot className="border-t border-line font-medium text-ink">
               <tr>
                 <td className="px-2 py-2" colSpan={6}>
                   Total ({invoices.length} invoices)
@@ -395,7 +393,7 @@ export default async function InvoicesPage() {
                 <td className="px-2 py-2 text-right tabular-nums">${totals.receivedFx.toLocaleString('en-US')}</td>
                 <td className="px-2 py-2 text-right tabular-nums">{displayINR(totals.inr.toFixed(2))}</td>
                 <td />
-                <td className="px-2 py-2 text-right tabular-nums text-zinc-500">{displayINR(totals.charges.toFixed(2))}</td>
+                <td className="px-2 py-2 text-right tabular-nums text-ink-2">{displayINR(totals.charges.toFixed(2))}</td>
                 <td colSpan={5} />
               </tr>
             </tfoot>

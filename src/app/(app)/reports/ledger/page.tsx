@@ -5,6 +5,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { accountLedger } from '@/lib/ledger/queries'
 import { displayINR } from '@/lib/ledger/money'
 import { ReportHeader, DateRangeFilters } from '../report-chrome'
+import { tableWrapClass, theadClass } from '@/components/ui'
 
 // Drill-down (spec §10 "drill-down to source entry"): every report line
 // links here — the account's statement with a running balance, each row
@@ -32,11 +33,11 @@ export default async function LedgerDrilldownPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   if (!params.accountId) {
-    return <p className="text-sm text-zinc-500">Pick an account from any report to drill in.</p>
+    return <p className="text-sm text-ink-2">Pick an account from any report to drill in.</p>
   }
   const account = await prisma.ledgerAccount.findUniqueOrThrow({
     where: { id: params.accountId },
@@ -76,9 +77,9 @@ export default async function LedgerDrilldownPage(props: {
         exportHref={`/reports/export?report=ledger&${query}`}
       />
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table className="w-full text-left text-sm">
-          <thead className="border-b border-zinc-200 text-xs uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-4 py-2">Date</th>
               <th className="px-4 py-2">Narration</th>
@@ -88,8 +89,8 @@ export default async function LedgerDrilldownPage(props: {
               <th className="px-4 py-2 text-right">Balance</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
-            <tr className="bg-zinc-50 text-xs text-zinc-500">
+          <tbody className="divide-y divide-line-2">
+            <tr className="bg-surface-2/60 text-xs text-ink-2">
               <td className="px-4 py-1.5" colSpan={5}>
                 Opening balance
               </td>
@@ -98,34 +99,34 @@ export default async function LedgerDrilldownPage(props: {
             {ledger.lines.map((line, index) => {
               const doc = docById.get(line.docId)
               return (
-                <tr key={`${line.entryId}-${index}`} className={line.kind === 'REVERSAL' ? 'text-zinc-400' : ''}>
-                  <td className="px-4 py-2 text-xs text-zinc-400">
+                <tr key={`${line.entryId}-${index}`} className={line.kind === 'REVERSAL' ? 'text-ink-3' : ''}>
+                  <td className="px-4 py-2 text-xs text-ink-3">
                     {line.date.toISOString().slice(0, 10)}
                   </td>
-                  <td className="px-4 py-2 text-zinc-800">
+                  <td className="px-4 py-2 text-ink">
                     {line.narration}
                     {line.reference && (
-                      <span className="ml-2 text-xs text-zinc-400">ref {line.reference}</span>
+                      <span className="ml-2 text-xs text-ink-3">ref {line.reference}</span>
                     )}
                     {doc?.deletedAt && (
-                      <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                      <span className="ml-2 rounded bg-danger-soft px-1.5 py-0.5 text-[10px] font-medium text-danger">
                         deleted
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-xs text-zinc-500">
+                  <td className="px-4 py-2 text-xs text-ink-2">
                     {doc ? (SOURCE_LABEL[doc.sourceType] ?? doc.sourceType) : '—'}
                     {line.kind === 'REVERSAL' && (
-                      <span className="ml-1 rounded bg-zinc-100 px-1 py-0.5 text-[10px]">reversal</span>
+                      <span className="ml-1 rounded bg-surface-2 px-1 py-0.5 text-[10px]">reversal</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-right text-zinc-700">
+                  <td className="px-4 py-2 text-right text-ink-2">
                     {Number(line.debit) > 0 ? displayINR(line.debit) : ''}
                   </td>
-                  <td className="px-4 py-2 text-right text-zinc-700">
+                  <td className="px-4 py-2 text-right text-ink-2">
                     {Number(line.credit) > 0 ? displayINR(line.credit) : ''}
                   </td>
-                  <td className="px-4 py-2 text-right font-medium text-zinc-900">
+                  <td className="px-4 py-2 text-right font-medium text-ink">
                     {displayINR(line.running)}
                   </td>
                 </tr>
@@ -133,13 +134,13 @@ export default async function LedgerDrilldownPage(props: {
             })}
             {ledger.lines.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={6} className="px-4 py-6 text-center text-sm text-ink-3">
                   No postings in this range.
                 </td>
               </tr>
             )}
           </tbody>
-          <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+          <tfoot className="border-t border-line font-medium text-ink">
             <tr>
               <td className="px-4 py-2" colSpan={5}>
                 Closing balance
@@ -150,7 +151,7 @@ export default async function LedgerDrilldownPage(props: {
         </table>
       </div>
 
-      <Link href="/reports" className="text-sm text-zinc-500 hover:underline print:hidden">
+      <Link href="/reports" className="text-sm text-ink-2 hover:underline print:hidden">
         ← back to reports
       </Link>
     </div>

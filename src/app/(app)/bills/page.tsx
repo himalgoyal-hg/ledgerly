@@ -8,18 +8,19 @@ import { createBillAction, payBillAction, deleteBillAction, updateBillAction } f
 import { ConfirmButton } from '@/components/confirm-button'
 import { BillRow } from './bill-row'
 import { LiveFilter } from '@/components/live-filter'
+import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Bills & insurance (spec §6.3): a document store + reminder list. Nothing
 // posts from here — the expense reaches the books when the bank-statement
 // row is tagged. Recurring bills spawn their next instance on "Mark paid".
 // The screen is a register: one line per commitment, grouped by type.
 
-const inputCls = 'rounded-md border border-zinc-300 px-2 py-1.5 text-sm'
+const inputCls = controlClass
 
 export default async function BillsPage() {
   const admin = await requireAdmin()
   const entity = await getCurrentEntity(admin)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const today = new Date().toISOString().slice(0, 10)
   const [pending, paid] = await Promise.all([
@@ -60,66 +61,67 @@ export default async function BillsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <h1 className="text-xl font-semibold text-zinc-900">
-            Bills & insurance — {entity.name} ({entity.code})
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
+      <PageHeader
+        kicker="Operations"
+        title={<>Bills & insurance — {entity.name} ({entity.code})</>}
+        subtitle={
+          <>
             Documents & reminders only — the books post when the statement row is tagged.
             Recurring run rate ≈ {displayINR(monthlyRunRate.toFixed(0))}/month.
-          </p>
-        </div>
-        {/* Document homes (from the EMI sheet) */}
-        <div className="ml-auto flex items-center gap-3">
-          <a
-            href="https://drive.google.com/drive/folders/1tVDXx-URABNCn_gUjPQpmMRX_5PYx8Dz"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-sky-600 hover:underline"
-          >
-            📁 Documents folder
-          </a>
-          <a
-            href="https://www.sihub.in/managesi/hdfcbank"
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-sky-600 hover:underline"
-          >
-            HDFC standing instructions
-          </a>
-        </div>
-      </div>
+          </>
+        }
+        actions={
+          /* Document homes (from the EMI sheet) */
+          <>
+            <a
+              href="https://drive.google.com/drive/folders/1tVDXx-URABNCn_gUjPQpmMRX_5PYx8Dz"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              📁 Documents folder
+            </a>
+            <a
+              href="https://www.sihub.in/managesi/hdfcbank"
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-primary hover:underline"
+            >
+              HDFC standing instructions
+            </a>
+          </>
+        }
+      />
 
       <div className="flex justify-end print:hidden"><LiveFilter selector="[data-live-filter='bills']" placeholder="Search bills — vendor / policy / type…" /></div>
 
       {/* New bill — tucked away until needed */}
-      <details className="rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-zinc-900 hover:bg-zinc-50">
+      <details className="rounded-2xl border border-line bg-surface shadow-card">
+        <summary className="cursor-pointer px-4 py-2 text-sm font-medium text-ink hover:bg-surface-2/60">
           ＋ New bill
         </summary>
-        <form action={createBillAction} className="border-t border-zinc-100 p-4">
+        <form action={createBillAction} className="border-t border-line-2 p-4">
           <input type="hidden" name="entityId" value={entity.id} />
           {/* What is it — mirrors the register's Vendor / For-policy columns */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Vendor *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Vendor *</span>
               <input name="vendor" required placeholder="Star Health / Netflix…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Type *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Type *</span>
               <input name="billType" required placeholder="EMI / Insurance / Subscription…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">For whom</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">For whom</span>
               <input name="insuredFor" placeholder="Himal / Baleno / Synergy…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Policy / ref no.</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Policy / ref no.</span>
               <input name="policyNumber" placeholder="Policy or account no." className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Insured value ₹</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Insured value ₹</span>
               <input name="insuredValue" inputMode="decimal" placeholder="Cover amount" className={`mt-1 w-full ${inputCls}`} />
             </label>
           </div>
@@ -127,24 +129,24 @@ export default async function BillsPage() {
           {/* Money & timing — the register's Due / Every / Via / Amount */}
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-6">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Amount ₹ *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Amount ₹ *</span>
               <input name="amount" required inputMode="decimal" placeholder="Taxable" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Bill date *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Bill date *</span>
               <input name="billDate" type="date" required className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due date *</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Due date *</span>
               <input name="dueDate" type="date" required className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Renewal (insurance)</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Renewal (insurance)</span>
               <input name="renewalDate" type="date" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Every</span>
-              <select name="recurrence" className={`mt-1 w-full bg-white ${inputCls}`}>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Every</span>
+              <select name="recurrence" className={`mt-1 w-full ${inputCls}`}>
                 <option value="NONE">One-time</option>
                 <option value="MONTHLY">Monthly</option>
                 <option value="QUARTERLY">Quarterly</option>
@@ -153,7 +155,7 @@ export default async function BillsPage() {
               </select>
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Pay from</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Pay from</span>
               <input name="payFrom" placeholder="Bank / card / GPay" className={`mt-1 w-full ${inputCls}`} />
             </label>
           </div>
@@ -161,57 +163,57 @@ export default async function BillsPage() {
           {/* Documents & notes */}
           <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">📎 Attach bill</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">📎 Attach bill</span>
               <input type="file" name="file" accept="application/pdf,image/*" className="mt-1 w-full text-xs" />
             </label>
             <label className="block">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">…or Drive link</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">…or Drive link</span>
               <input name="link" placeholder="https://drive.google.com/…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block md:col-span-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Remarks</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Remarks</span>
               <input name="remarks" placeholder="Anything worth remembering" className={`mt-1 w-full ${inputCls}`} />
             </label>
           </div>
 
           {/* GST / TDS (spec §7) */}
           <details className="mt-3">
-            <summary className="cursor-pointer text-xs text-zinc-400 hover:text-zinc-700">
+            <summary className="cursor-pointer text-xs text-ink-3 hover:text-ink-2">
               GST / TDS details (optional)
             </summary>
-            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-zinc-50 p-2">
-              <span className="text-[10px] font-medium uppercase text-zinc-400">GST</span>
-              <select name="gstType" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+            <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-surface-2/60 p-2">
+              <span className="text-[10px] font-medium uppercase text-ink-3">GST</span>
+              <select name="gstType" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                 <option value="">type</option>
                 {GST_TYPES.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
-              <select name="gstRate" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+              <select name="gstRate" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                 <option value="">no GST</option>
                 {GST_RATES.map((r) => (
                   <option key={r} value={r}>{r}%</option>
                 ))}
               </select>
-              <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <input name="vendorGstin" placeholder="Vendor GSTIN" className="w-36 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <span className="ml-3 text-[10px] font-medium uppercase text-zinc-400">TDS</span>
-              <select name="tdsSection" className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs">
+              <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-lg border border-line px-2 py-1 text-xs" />
+              <input name="vendorGstin" placeholder="Vendor GSTIN" className="w-36 rounded-lg border border-line px-2 py-1 text-xs" />
+              <span className="ml-3 text-[10px] font-medium uppercase text-ink-3">TDS</span>
+              <select name="tdsSection" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
                 <option value="">section</option>
                 {TDS_SECTIONS.map((sec) => (
                   <option key={sec} value={sec}>{sec}</option>
                 ))}
               </select>
-              <input name="tdsRate" placeholder="rate %" inputMode="decimal" className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
-              <input name="vendorPan" placeholder="Vendor PAN" className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-xs" />
+              <input name="tdsRate" placeholder="rate %" inputMode="decimal" className="w-16 rounded-lg border border-line px-2 py-1 text-xs" />
+              <input name="vendorPan" placeholder="Vendor PAN" className="w-28 rounded-lg border border-line px-2 py-1 text-xs" />
             </div>
           </details>
 
           <div className="mt-4 flex items-center gap-3">
-            <button type="submit" className="rounded-md bg-zinc-900 px-5 py-2 text-sm font-medium text-white hover:bg-zinc-700">
+            <button type="submit" className={buttonClass('primary')}>
               Add bill
             </button>
-            <span className="text-[10px] text-zinc-400">
+            <span className="text-[10px] text-ink-3">
               a passed renewal date shows a lapse alert · recurring bills spawn the next instance on ✓ Paid
             </span>
           </div>
@@ -219,10 +221,10 @@ export default async function BillsPage() {
       </details>
 
       {/* The register */}
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table data-live-filter="bills" className="w-full min-w-[72rem] text-left text-sm">
-          <thead>
-            <tr className="border-b border-zinc-200 text-[10px] uppercase tracking-wider text-zinc-400">
+          <thead className={theadClass}>
+            <tr>
               <th className="px-3 py-2">Vendor</th>
               <th className="px-3 py-2">For / policy</th>
               <th className="px-3 py-2">Due</th>
@@ -233,7 +235,7 @@ export default async function BillsPage() {
               <th className="px-3 py-2" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100">
+          <tbody className="divide-y divide-line-2">
             {types.map((type) => {
               const group = pending
                 .filter((b) => b.billType === type)
@@ -241,10 +243,10 @@ export default async function BillsPage() {
               const groupTotal = group.reduce((t, b) => t + payable(b), 0)
               return (
                 <Fragment key={type}>
-                  <tr className="bg-zinc-50">
-                    <td colSpan={8} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <tr className="bg-surface-2/60">
+                    <td colSpan={8} className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-ink-2">
                       {type}
-                      <span className="ml-2 font-normal normal-case text-zinc-400">
+                      <span className="ml-2 font-normal normal-case text-ink-3">
                         {group.length} · {displayINR(groupTotal.toFixed(2))} per cycle
                       </span>
                     </td>
@@ -286,12 +288,12 @@ export default async function BillsPage() {
                             type="date"
                             required
                             defaultValue={today}
-                            className="rounded border border-zinc-300 px-1.5 py-0.5 text-xs"
+                            className="rounded border border-line px-1.5 py-0.5 text-xs"
                           />
                           <button
                             type="submit"
                             title="Mark paid — posting happens when the statement row is tagged; recurring bills spawn the next instance"
-                            className="whitespace-nowrap rounded bg-emerald-700 px-2 py-1 text-[11px] font-medium text-white hover:bg-emerald-600"
+                            className="whitespace-nowrap rounded bg-success px-2 py-1 text-[11px] font-medium text-white hover:opacity-90"
                           >
                             ✓ Paid
                           </button>
@@ -300,7 +302,7 @@ export default async function BillsPage() {
                           <input type="hidden" name="billId" value={bill.id} />
                           <ConfirmButton
                             message={`Delete this ${bill.vendor} bill and its stored document?`}
-                            className="rounded border border-red-200 px-1.5 py-1 text-[11px] text-red-600 hover:bg-red-50"
+                            className="rounded border border-danger/30 px-1.5 py-1 text-[11px] text-danger hover:bg-danger-soft"
                           >
                             ✕
                           </ConfirmButton>
@@ -313,14 +315,14 @@ export default async function BillsPage() {
             })}
             {pending.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-zinc-400">
+                <td colSpan={8} className="px-3 py-6 text-center text-sm text-ink-3">
                   Nothing pending — add the first bill above.
                 </td>
               </tr>
             )}
           </tbody>
           {pending.length > 0 && (
-            <tfoot className="border-t border-zinc-300 font-medium text-zinc-900">
+            <tfoot className="border-t border-line font-medium text-ink">
               <tr>
                 <td className="px-3 py-2" colSpan={5}>Total ({pending.length} pending)</td>
                 <td className="px-3 py-2 text-right tabular-nums">
@@ -335,16 +337,16 @@ export default async function BillsPage() {
 
       {/* Paid archive */}
       {paid.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
-          <div className="border-b border-zinc-200 px-4 py-2">
-            <h2 className="text-sm font-medium text-zinc-900">Recently paid</h2>
+        <div className={tableWrapClass}>
+          <div className="border-b border-line px-4 py-2">
+            <h2 className="text-sm font-medium text-ink">Recently paid</h2>
           </div>
           <table data-live-filter="bills" className="w-full text-left text-sm">
-            <tbody className="divide-y divide-zinc-50">
+            <tbody className="divide-y divide-line-2">
               {paid.map((bill) => {
                 const files = fileLinks(bill.link)
                 return (
-                  <tr key={bill.id} className="text-zinc-500">
+                  <tr key={bill.id} className="text-ink-2">
                     <td className="whitespace-nowrap px-3 py-1.5 text-xs tabular-nums">
                       {bill.paidAt?.toISOString().slice(0, 10)}
                     </td>
@@ -356,11 +358,11 @@ export default async function BillsPage() {
                     <td className="whitespace-nowrap px-3 py-1.5 text-xs">
                       {files ? (
                         <>
-                          <a href={files.view} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">view</a>{' '}
-                          <a href={files.download} className="text-sky-600 hover:underline">download</a>
+                          <a href={files.view} target="_blank" rel="noreferrer" className="text-primary hover:underline">view</a>{' '}
+                          <a href={files.download} className="text-primary hover:underline">download</a>
                         </>
                       ) : bill.link ? (
-                        <a href={bill.link} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">document</a>
+                        <a href={bill.link} target="_blank" rel="noreferrer" className="text-primary hover:underline">document</a>
                       ) : null}
                     </td>
                   </tr>

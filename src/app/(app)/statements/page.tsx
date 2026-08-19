@@ -7,6 +7,7 @@ import { importBalanceCheck } from '@/lib/statements/import'
 import { aiConfigured } from '@/lib/ai/client'
 import { uploadStatements, confirmImport, discardImport, deleteImport } from './actions'
 import { ConfirmButton } from '@/components/confirm-button'
+import { PageHeader, buttonClass, controlClass } from '@/components/ui'
 
 // Statements — upload → detect → confirm → import (spec §3 steps 1–3).
 // The detection banner is never silent; unrecognized layouts wait for Admin.
@@ -70,27 +71,25 @@ export default async function StatementsPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold text-zinc-900">Statements</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Drop bank statements in any format — rows are extracted, deduplicated,
-          auto-tagged where a rule matches, and queued for tagging otherwise.
-        </p>
-      </div>
+      <PageHeader
+        kicker="Books"
+        title="Statements"
+        subtitle="Drop bank statements in any format — rows are extracted, deduplicated, auto-tagged where a rule matches, and queued for tagging otherwise."
+      />
 
       {/* Step 1 — upload. Statements land in the current books only — if the
           books have no bank account yet there is nothing to import into, so
           say that up front instead of failing on submit. */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <h2 className="font-medium text-zinc-900">Upload statements</h2>
+      <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+        <h2 className="font-medium text-ink">Upload statements</h2>
         {entity && (
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-ink-2">
             Importing into <strong>{entity.name} ({entity.code})</strong> — switch books first if
             these aren&apos;t the right ones.
           </p>
         )}
         {entity && !bankAccounts.some((b) => b.entityId === entity.id) ? (
-          <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg border border-warning/30 bg-warning-soft p-3 text-sm text-warning">
             {entity.name} ({entity.code}) has no bank account yet, so statements cannot be
             imported into these books.{' '}
             {isAdmin(user) ? (
@@ -113,15 +112,15 @@ export default async function StatementsPage() {
             multiple
             required
             accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf"
-            className="text-sm text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-zinc-700"
+            className="text-sm text-ink-2 file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-primary-strong"
           />
           <button
             type="submit"
-            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700"
+            className={buttonClass('primary')}
           >
             Upload
           </button>
-          <span className="text-xs text-zinc-400">
+          <span className="text-xs text-ink-3">
             CSV · XLSX · XLS · TSV · TXT · PDF — multiple files allowed.
             {aiReady
               ? ' PDFs (including scans) are read by AI, then confirmed by you like any other import.'
@@ -134,7 +133,7 @@ export default async function StatementsPage() {
       {/* Step 2 — confirmation banners (never silent) */}
       {pending.length > 0 && (
         <div className="space-y-3">
-          <h2 className="font-medium text-zinc-900">Awaiting confirmation</h2>
+          <h2 className="font-medium text-ink">Awaiting confirmation</h2>
           {pending.map((imp) => {
             const unrecognized = imp.detectedVia === 'unrecognized'
             // Statements import into the books they were uploaded in — offer
@@ -145,24 +144,24 @@ export default async function StatementsPage() {
             return (
               <div
                 key={imp.id}
-                className={`rounded-xl border p-4 shadow-sm ${
-                  unrecognized ? 'border-amber-200 bg-amber-50/60' : 'border-sky-200 bg-sky-50/60'
+                className={`rounded-2xl border p-4 shadow-card ${
+                  unrecognized ? 'border-warning/30 bg-warning-soft' : 'border-primary/30 bg-primary-soft'
                 }`}
               >
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium text-zinc-900">{imp.fileName}</span>
+                  <span className="font-medium text-ink">{imp.fileName}</span>
                   {imp.entityId && entityCode.has(imp.entityId) && (
-                    <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500">
+                    <span className="rounded bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-ink-2">
                       {entityCode.get(imp.entityId)} books
                     </span>
                   )}
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-ink-2">
                     {imp.rowsTotal} rows
                     {imp.closingBalance !== null &&
                       ` · closing balance ${displayINR(String(imp.closingBalance))}`}
                   </span>
                 </div>
-                <p className="mt-1 text-sm text-zinc-700">
+                <p className="mt-1 text-sm text-ink-2">
                   {unrecognized ? (
                     <>Unrecognized statement — {isAdmin(user)
                       ? 'map it to an account once; the mapping is remembered.'
@@ -182,7 +181,7 @@ export default async function StatementsPage() {
                         name="bankAccountId"
                         defaultValue={imp.bankAccountId ?? ''}
                         required
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                        className={controlClass}
                       >
                         <option value="">— account —</option>
                         {eligibleAccounts.map((b) => (
@@ -193,7 +192,7 @@ export default async function StatementsPage() {
                       </select>
                       <button
                         type="submit"
-                        className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700"
+                        className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-strong"
                       >
                         {unrecognized ? 'Map & import' : '✓ Confirm & import'}
                       </button>
@@ -203,7 +202,7 @@ export default async function StatementsPage() {
                     <input type="hidden" name="importId" value={imp.id} />
                     <button
                       type="submit"
-                      className="rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-100"
+                      className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2"
                     >
                       Discard
                     </button>
@@ -217,7 +216,7 @@ export default async function StatementsPage() {
 
       {/* Step 3 — imported, with closing-balance validation */}
       <div className="space-y-3">
-        <h2 className="font-medium text-zinc-900">
+        <h2 className="font-medium text-ink">
           Imports{entity ? ` — ${entity.name} (${entity.code})` : ''}
         </h2>
         {confirmed.map((imp) => {
@@ -226,32 +225,32 @@ export default async function StatementsPage() {
           const tagged = countFor(imp.id, 'TAGGED')
           const pendingCount = countFor(imp.id, 'PENDING')
           return (
-            <div key={imp.id} className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <div key={imp.id} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
               <div className="flex flex-wrap items-center gap-3 text-sm">
-                <span className="font-medium text-zinc-900">{imp.fileName}</span>
-                <span className="text-zinc-500">{imp.bankAccount?.nickname}</span>
-                <span className="text-xs text-zinc-400">
+                <span className="font-medium text-ink">{imp.fileName}</span>
+                <span className="text-ink-2">{imp.bankAccount?.nickname}</span>
+                <span className="text-xs text-ink-3">
                   {imp.createdAt.toISOString().slice(0, 10)} · via{' '}
                   {VIA_LABEL[imp.detectedVia] ?? imp.detectedVia}
                 </span>
                 {imp.parsedVia === 'ai' && (
-                  <span className="rounded bg-sky-100 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
+                  <span className="rounded bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium text-primary">
                     read by AI
                   </span>
                 )}
                 {balance &&
                   (balance.matched ? (
-                    <span className="ml-auto rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                    <span className="ml-auto rounded bg-success-soft px-1.5 py-0.5 text-[10px] font-medium text-success">
                       closing balance matches ledger
                     </span>
                   ) : (
-                    <span className="ml-auto rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    <span className="ml-auto rounded bg-warning-soft px-1.5 py-0.5 text-[10px] font-medium text-warning">
                       held open — off by {displayINR(balance.difference)}
                     </span>
                   ))}
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-3">
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-ink-2">
                   {imp.rowsTotal} rows · {imp.rowsDuplicate} previously imported ·{' '}
                   {pendingCount} pending tagging · {tagged} tagged · {posted} posted
                   {balance && !balance.matched && (
@@ -269,7 +268,7 @@ export default async function StatementsPage() {
                       (posted > 0 ? `; ${posted} posted row(s) will be reversed in the ledger` : '') +
                       '. Re-uploading the file later starts fresh.'
                     }
-                    className="rounded-md border border-red-200 px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                    className="rounded-lg border border-danger/30 px-2 py-1 text-xs text-danger hover:bg-danger-soft"
                   >
                     Delete import
                   </ConfirmButton>
@@ -279,7 +278,7 @@ export default async function StatementsPage() {
           )
         })}
         {confirmed.length === 0 && (
-          <p className="text-sm text-zinc-400">No imports yet for these books.</p>
+          <p className="text-sm text-ink-3">No imports yet for these books.</p>
         )}
       </div>
     </div>

@@ -11,7 +11,7 @@ export default async function ProfitAndLossPage(props: {
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">No books selected.</p>
+  if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
   const from = params.from ? new Date(params.from) : undefined
@@ -45,18 +45,18 @@ export default async function ProfitAndLossPage(props: {
       </div>
 
       <div
-        className={`rounded-xl border p-4 shadow-sm ${
-          profit >= 0 ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'
+        className={`rounded-2xl border p-4 shadow-card ${
+          profit >= 0 ? 'border-success/30 bg-success-soft' : 'border-danger/30 bg-danger-soft'
         }`}
       >
         <div className="flex flex-wrap items-baseline gap-3">
-          <span className="text-sm font-medium text-zinc-700">
+          <span className="text-sm font-medium text-ink-2">
             {profit >= 0 ? 'Net profit' : 'Net loss'}
           </span>
-          <span className="text-2xl font-semibold text-zinc-900">
+          <span className="text-2xl font-semibold text-ink">
             {displayINR(profit >= 0 ? pnl.netProfit : String(-profit))}
           </span>
-          <span className="ml-auto text-xs text-zinc-500">
+          <span className="ml-auto text-xs text-ink-2">
             income {displayINR(pnl.income.total)} − expenses {displayINR(pnl.expenses.total)}
           </span>
         </div>

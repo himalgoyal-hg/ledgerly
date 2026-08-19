@@ -3,6 +3,7 @@ import { prisma } from '@/lib/db'
 import { requireUser, hasPermission, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { LiveFilter } from '@/components/live-filter'
+import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // One report, three lenses (Himal, 19 Aug): the same FY months grid seen
 // by Cost centre, by Expense Head, or by Accounting head (the chart's top
@@ -28,7 +29,7 @@ export default async function ByDimensionPage({
     throw new Error('Forbidden: missing permission "viewFinancialReports"')
   }
   const entity = await getCurrentEntity(user)
-  if (!entity) return <p className="text-sm text-zinc-500">Create an entity first.</p>
+  if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
 
   const params = await searchParams
   const by = LENSES.some((l) => l.key === params.by) ? (params.by as string) : 'cc'
@@ -102,47 +103,30 @@ export default async function ByDimensionPage({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-lg font-semibold text-zinc-900">
-            By {LENSES.find((l) => l.key === by)?.label} — {entity.code}
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Live from tagged entries, FY {fy}-{String(fy + 1).slice(2)}. Positive = money out, negative = money in.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {LENSES.map((l) => (
-            <Link
-              key={l.key}
-              href={`/reports/by?by=${l.key}&fy=${fy}`}
-              className={`rounded-full border px-3 py-1 text-xs ${
-                by === l.key
-                  ? 'border-zinc-900 bg-zinc-900 text-white'
-                  : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100'
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
-          {[currentFy - 1, currentFy].map((y) => (
-            <Link
-              key={y}
-              href={`/reports/by?by=${by}&fy=${y}`}
-              className={`rounded-full border px-2.5 py-1 text-xs ${
-                fy === y ? 'border-sky-600 bg-sky-600 text-white' : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-100'
-              }`}
-            >
-              FY {y}-{String(y + 1).slice(2)}
-            </Link>
-          ))}
-          <LiveFilter selector="[data-live-filter='by']" placeholder="Type to search…" className="w-40 rounded-md border border-zinc-300 px-2.5 py-1 text-sm focus:border-zinc-500 focus:outline-none" />
-        </div>
-      </div>
+      <PageHeader
+        kicker="Report"
+        title={`By ${LENSES.find((l) => l.key === by)?.label} — ${entity.code}`}
+        subtitle={`Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`}
+        actions={
+          <>
+            {LENSES.map((l) => (
+              <Link key={l.key} href={`/reports/by?by=${l.key}&fy=${fy}`} className={chipClass(by === l.key)}>
+                {l.label}
+              </Link>
+            ))}
+            {[currentFy - 1, currentFy].map((y) => (
+              <Link key={y} href={`/reports/by?by=${by}&fy=${y}`} className={chipClass(fy === y)}>
+                FY {y}-{String(y + 1).slice(2)}
+              </Link>
+            ))}
+            <LiveFilter selector="[data-live-filter='by']" placeholder="Type to search…" className={`${controlClass} w-40`} />
+          </>
+        }
+      />
 
-      <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white shadow-sm">
+      <div className={tableWrapClass}>
         <table data-live-filter="by" className="w-full min-w-[1000px] text-xs">
-          <thead className="border-b border-zinc-200 text-left uppercase text-zinc-500">
+          <thead className={theadClass}>
             <tr>
               <th className="px-3 py-2">{LENSES.find((l) => l.key === by)?.label}</th>
               {keys.map((k, i) => (
@@ -151,10 +135,10 @@ export default async function ByDimensionPage({
               <th className={cellR}>Total</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-zinc-100 text-sm">
+          <tbody className="divide-y divide-line-2 text-sm">
             {table.map((r) => (
-              <tr key={r.name} className="hover:bg-zinc-50">
-                <td className="px-3 py-1.5 text-zinc-800">
+              <tr key={r.name} className="hover:bg-surface-2/60">
+                <td className="px-3 py-1.5 text-ink">
                   {by === 'head' && r.id ? (
                     <Link href={`/admin/ledgers?accountId=${r.id}`} className="hover:underline">{r.name}</Link>
                   ) : (
@@ -162,12 +146,12 @@ export default async function ByDimensionPage({
                   )}
                 </td>
                 {r.cells.map((c, i) => (
-                  <td key={i} className={`${cellR} ${c < 0 ? 'text-emerald-700' : 'text-zinc-600'}`}>{inr(c)}</td>
+                  <td key={i} className={`${cellR} ${c < 0 ? 'text-success' : 'text-ink-2'}`}>{inr(c)}</td>
                 ))}
-                <td className={`${cellR} font-semibold ${r.total < 0 ? 'text-emerald-700' : ''}`}>{inr(r.total)}</td>
+                <td className={`${cellR} font-semibold ${r.total < 0 ? 'text-success' : ''}`}>{inr(r.total)}</td>
               </tr>
             ))}
-            <tr data-filter-keep="1" className="bg-zinc-50 font-semibold">
+            <tr data-filter-keep="1" className="bg-surface-2/60 font-semibold">
               <td className="px-3 py-1.5">Total</td>
               {colTotals.map((c, i) => (
                 <td key={i} className={cellR}>{inr(c)}</td>
@@ -178,7 +162,7 @@ export default async function ByDimensionPage({
         </table>
       </div>
       {table.length === 0 && (
-        <p className="text-sm text-zinc-400">Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</p>
+        <p className="text-sm text-ink-3">Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</p>
       )}
     </div>
   )

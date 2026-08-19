@@ -80,7 +80,7 @@ export function SmartCombobox(props: {
           props.onPick?.(opt)
         }}
         className={
-          props.className ?? 'min-w-40 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm'
+          props.className ?? 'min-w-40 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
         }
       />
       <datalist id={listId}>
@@ -94,7 +94,7 @@ export function SmartCombobox(props: {
         <input type="hidden" name={props.createName} value={unresolved} form={props.formId} />
       )}
       {creating && (
-        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-emerald-600">
+        <span className="mt-0.5 block w-full text-[10px] font-medium leading-tight text-success">
           ➕ “{unresolved}” — new, created on save
         </span>
       )}

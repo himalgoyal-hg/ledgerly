@@ -300,19 +300,19 @@ export default async function OverviewPage() {
           />
           <div className="grid gap-4 px-5 pb-4 sm:px-6 md:grid-cols-3">
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Plan / month</div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Plan / month</div>
               <div className="mt-1 space-y-0.5 text-sm tabular-nums">
-                <div className="text-emerald-700">In {displayINR(planCard.monthlyIn.toFixed(0))}</div>
-                <div className="text-red-600">Out {displayINR(planCard.monthlyOut.toFixed(0))}</div>
-                <div className={`font-semibold ${planCard.monthlyIn - planCard.monthlyOut < 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                <div className="text-success">In {displayINR(planCard.monthlyIn.toFixed(0))}</div>
+                <div className="text-danger">Out {displayINR(planCard.monthlyOut.toFixed(0))}</div>
+                <div className={`font-semibold ${planCard.monthlyIn - planCard.monthlyOut < 0 ? 'text-danger' : 'text-ink'}`}>
                   Net {displayINR((planCard.monthlyIn - planCard.monthlyOut).toFixed(0))}
                 </div>
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Due next (this month)</div>
-              <div className="mt-1 space-y-0.5 text-xs text-zinc-600">
-                {planCard.dueSoon.length === 0 && <div className="text-zinc-400">nothing with a due day ahead</div>}
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Due next (this month)</div>
+              <div className="mt-1 space-y-0.5 text-xs text-ink-2">
+                {planCard.dueSoon.length === 0 && <div className="text-ink-3">nothing with a due day ahead</div>}
                 {planCard.dueSoon.map((d) => (
                   <div key={d.label} className="flex justify-between gap-2">
                     <span className="truncate">{d.day} · {d.label}</span>
@@ -322,13 +322,13 @@ export default async function OverviewPage() {
               </div>
             </div>
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Connected</div>
-              <div className="mt-1 space-y-0.5 text-xs text-zinc-600">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Connected</div>
+              <div className="mt-1 space-y-0.5 text-xs text-ink-2">
                 <div>{planCard.lines} plan lines · {planCard.linkedBanks} bank-linked modes</div>
                 <div>{planCard.ccHeads} heads with default cost centre</div>
-                <Link href="/reports/cash-flow?view=ahead" className="text-zinc-500 hover:underline">Cash ahead →</Link>
+                <Link href="/reports/cash-flow?view=ahead" className="text-ink-2 hover:underline">Cash ahead →</Link>
                 <br />
-                <Link href="/reports/mode" className="text-amber-700 hover:underline">
+                <Link href="/reports/mode" className="text-warning hover:underline">
                   Check this month&apos;s mode mismatches →
                 </Link>
               </div>
