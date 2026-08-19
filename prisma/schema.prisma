@@ -982,5 +982,9 @@ model HeadMode {
   dayNote    String?
   bankBudget Decimal? @db.Decimal(14, 2)
   cashBudget Decimal? @db.Decimal(14, 2)
+  // Second tagging dimension (Himal, 19 Aug 2026): Yes = this head's lines
+  // also appear in the separate-report lens on Reports → By (all natures,
+  // asset purchases included). No/blank = normal head, business view only.
+  separateReport Boolean @default(false)
   updatedAt   DateTime @updatedAt
 }

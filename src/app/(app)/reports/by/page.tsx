@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { requireUser, hasPermission, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
@@ -9,6 +10,11 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 // by Cost centre, by Expense Head, or by Accounting head (the chart's top
 // groups). Every figure is a live ledger query — tagging fills it, nothing
 // is typed. Rows link to the ledger where they can.
+//
+// Second tagging dimension (Himal, 19 Aug): the master register's
+// "Separate report = Yes" heads form their own scope — the same lenses,
+// restricted to those heads, with EVERY nature included so asset buys
+// (laptop, car) count alongside expenses.
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -22,7 +28,7 @@ const LENSES = [
 export default async function ByDimensionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ by?: string; fy?: string }>
+  searchParams: Promise<{ by?: string; fy?: string; scope?: string }>
 }) {
   const user = await requireUser()
   if (!isAdmin(user) && !hasPermission(user, 'viewFinancialReports')) {
@@ -33,6 +39,13 @@ export default async function ByDimensionPage({
 
   const params = await searchParams
   const by = LENSES.some((l) => l.key === params.by) ? (params.by as string) : 'cc'
+  const sep = params.scope === 'sep'
+  // the Yes-flagged heads from the master register — the separate scope
+  const sepHeads = sep
+    ? (await prisma.headMode.findMany({ where: { separateReport: true }, select: { category: true } })).map((h) =>
+        h.category.toLowerCase(),
+      )
+    : []
   const now = new Date()
   const currentFy = now.getUTCMonth() + 1 >= 4 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   const fy = Number(params.fy) || currentFy
@@ -44,9 +57,16 @@ export default async function ByDimensionPage({
     return `${year}-${String(month).padStart(2, '0')}`
   })
 
-  // one query shape per lens: name × month × net movement (Dr − Cr)
+  // one query shape per lens: name × month × net movement (Dr − Cr).
+  // Normal scope = expense + income heads; separate scope = only the
+  // Yes-flagged heads, EVERY nature (asset buys count in it too).
+  const scopeFilter = sep
+    ? Prisma.sql`AND lower(a.name) = ANY(${sepHeads})`
+    : Prisma.sql`AND a.kind IN ('EXPENSE', 'INCOME')`
   let rows: { name: string; id: string | null; month: string; amt: string }[] = []
-  if (by === 'cc') {
+  if (sep && sepHeads.length === 0) {
+    // nothing flagged Yes yet — fall through to the empty state below
+  } else if (by === 'cc') {
     rows = await prisma.$queryRaw`
       SELECT COALESCE(cc.name, '(no cost centre)') AS name, cc.id AS id,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
@@ -55,7 +75,7 @@ export default async function ByDimensionPage({
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
       LEFT JOIN "CostCentre" cc ON cc.id = l."costCentreId"
-      WHERE e."entityId" = ${entity.id} AND a.kind IN ('EXPENSE', 'INCOME')
+      WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else if (by === 'head') {
@@ -66,7 +86,7 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      WHERE e."entityId" = ${entity.id} AND a.kind IN ('EXPENSE', 'INCOME')
+      WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else {
@@ -79,7 +99,7 @@ export default async function ByDimensionPage({
       JOIN "LedgerAccount" a ON a.id = l."accountId"
       JOIN "LedgerAccount" root
         ON root."entityId" = a."entityId" AND root.code = left(a.code, 1) || '000'
-      WHERE e."entityId" = ${entity.id}
+      WHERE e."entityId" = ${entity.id} ${sep ? scopeFilter : Prisma.empty}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   }
@@ -105,20 +125,32 @@ export default async function ByDimensionPage({
     <div className="space-y-4">
       <PageHeader
         kicker="Report"
-        title={`By ${LENSES.find((l) => l.key === by)?.label} — ${entity.code}`}
-        subtitle={`Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`}
+        title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Separate report' : ''} — ${entity.code}`}
+        subtitle={
+          sep
+            ? `Only heads marked Separate report = Yes on the master register — every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
+            : `Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`
+        }
         actions={
           <>
             {LENSES.map((l) => (
-              <Link key={l.key} href={`/reports/by?by=${l.key}&fy=${fy}`} className={chipClass(by === l.key)}>
+              <Link key={l.key} href={`/reports/by?by=${l.key}&fy=${fy}${sep ? '&scope=sep' : ''}`} className={chipClass(by === l.key)}>
                 {l.label}
               </Link>
             ))}
             {[currentFy - 1, currentFy].map((y) => (
-              <Link key={y} href={`/reports/by?by=${by}&fy=${y}`} className={chipClass(fy === y)}>
+              <Link key={y} href={`/reports/by?by=${by}&fy=${y}${sep ? '&scope=sep' : ''}`} className={chipClass(fy === y)}>
                 FY {y}-{String(y + 1).slice(2)}
               </Link>
             ))}
+            {/* the second tagging dimension — all heads vs the Yes-flagged ones */}
+            <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+            <Link href={`/reports/by?by=${by}&fy=${fy}`} className={chipClass(!sep)}>
+              All heads
+            </Link>
+            <Link href={`/reports/by?by=${by}&fy=${fy}&scope=sep`} className={chipClass(sep)}>
+              Separate report
+            </Link>
             <LiveFilter selector="[data-live-filter='by']" placeholder="Type to search…" className={`${controlClass} w-40`} />
           </>
         }
@@ -162,7 +194,19 @@ export default async function ByDimensionPage({
         </table>
       </div>
       {table.length === 0 && (
-        <p className="text-sm text-ink-3">Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</p>
+        <p className="text-sm text-ink-3">
+          {sep && sepHeads.length === 0 ? (
+            <>
+              No head is marked Separate report = Yes yet — set it on{' '}
+              <Link href="/admin/coa" className="text-primary hover:underline">
+                Accounts — master register
+              </Link>
+              .
+            </>
+          ) : (
+            <>Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</>
+          )}
+        </p>
       )}
     </div>
   )
