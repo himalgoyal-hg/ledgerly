@@ -35,23 +35,27 @@ const field = (label: string) => (
 export default async function FinanceTasksPage() {
   await requireAdmin()
 
-  const [tasks, monthRows] = await Promise.all([
+  const [tasks, monthRows, banks] = await Promise.all([
     prisma.financeTask.findMany({
       where: { archivedAt: null },
       orderBy: { sortOrder: 'asc' },
       include: { cells: true },
     }),
     prisma.financeMonth.findMany({ orderBy: { month: 'asc' } }),
+    prisma.bankAccount.findMany({ where: { archivedAt: null }, select: { nickname: true }, orderBy: { nickname: 'asc' } }),
   ])
+  // Bank mode options — the master register's vocabulary: real accounts + Cash
+  const bankModes = [...new Set([...banks.map((b) => b.nickname), 'Cash'])]
 
-  // cell lookup: taskId → month key (yyyy-mm) → value
-  const cellMap = new Map<string, Map<string, string>>()
+  // cell lookup: taskId → month key (yyyy-mm) → cell (value + date + remark)
+  type Cell = { value: string; paidOn: Date | null; remark: string | null }
+  const cellMap = new Map<string, Map<string, Cell>>()
   const monthSet = new Set<string>(monthRows.map((r) => r.month.toISOString().slice(0, 7)))
   for (const t of tasks) {
-    const m = new Map<string, string>()
+    const m = new Map<string, Cell>()
     for (const c of t.cells) {
       const key = c.month.toISOString().slice(0, 7)
-      m.set(key, c.value)
+      m.set(key, { value: c.value, paidOn: c.paidOn, remark: c.remark })
       monthSet.add(key) // a cell's month always shows, row or no row
     }
     cellMap.set(t.id, m)
@@ -76,7 +80,7 @@ export default async function FinanceTasksPage() {
   const dueTasks = tasks
     .filter((t) => t.dueDay !== null)
     .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0))
-    .map((t) => ({ task: t, value: cellMap.get(t.id)?.get(nowKey) ?? null }))
+    .map((t) => ({ task: t, value: cellMap.get(t.id)?.get(nowKey)?.value ?? null }))
   const doneTasks = dueTasks.filter((d) => d.value)
   const pendingTasks = dueTasks.filter((d) => !d.value)
   const pct = dueTasks.length ? Math.round((doneTasks.length / dueTasks.length) * 100) : 0
@@ -166,8 +170,8 @@ export default async function FinanceTasksPage() {
               <input name="name" required placeholder="New EMI Rs. 12,000 / Netflix…" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
-              {field('Paid from')}
-              <input name="account" placeholder="7838 account / MG Axis bank / cash" className={`mt-1 w-full ${inputCls}`} />
+              {field('Bank mode')}
+              <input name="account" list="task-bank-modes" placeholder="HDFC 2762 / MG Axis bank / Cash" className={`mt-1 w-full ${inputCls}`} />
             </label>
             <label className="block">
               {field('Due day')}
@@ -231,8 +235,8 @@ export default async function FinanceTasksPage() {
                               <input name="name" defaultValue={t.name} required className={`mt-1 w-full ${inputCls}`} />
                             </label>
                             <label className="block">
-                              {field('Paid from')}
-                              <input name="account" defaultValue={t.account ?? ''} placeholder="7838 account / cash" className={`mt-1 w-full ${inputCls}`} />
+                              {field('Bank mode')}
+                              <input name="account" list="task-bank-modes" defaultValue={t.account ?? ''} placeholder="HDFC 2762 / Cash" className={`mt-1 w-full ${inputCls}`} />
                             </label>
                             <label className="block">
                               {field('Due day')}
@@ -273,11 +277,19 @@ export default async function FinanceTasksPage() {
                     {isNow && <span className="ml-1 text-[9px] uppercase text-warning">now</span>}
                   </td>
                   {tasks.map((t) => {
-                    const value = cellMap.get(t.id)?.get(mk) ?? ''
+                    const cell = cellMap.get(t.id)?.get(mk)
+                    const value = cell?.value ?? ''
                     const overdue = isNow && !value && t.dueDay !== null && t.dueDay <= now.getDate()
+                    const paidLabel = cell?.paidOn
+                      ? cell.paidOn.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+                      : ''
+                    const meta = [paidLabel, cell?.remark ?? ''].filter(Boolean).join(' · ')
                     return (
                       <td key={t.id} className={`px-0.5 py-0.5 ${overdue ? 'bg-warning-soft/60' : ''}`}>
-                        {/* Excel-style: the cell IS the input — type, Enter, saved; blank clears */}
+                        {/* Excel-style: the cell IS the input — type, Enter, saved;
+                            blank clears. Date + Remark ride in the same form,
+                            expanding inline (an absolute popover would clip in
+                            the scroll box). */}
                         <form action={saveFinanceCellAction}>
                           <input type="hidden" name="taskId" value={t.id} />
                           <input type="hidden" name="month" value={mk} />
@@ -287,6 +299,31 @@ export default async function FinanceTasksPage() {
                             placeholder={overdue ? `due ${ord(t.dueDay!)}` : ''}
                             emphasis={overdue}
                           />
+                          <details>
+                            <summary
+                              className="cursor-pointer list-none truncate px-1.5 text-[9px] leading-tight text-ink-3 hover:text-ink-2"
+                              title={meta || 'Date · Remark'}
+                            >
+                              {meta || '⋯'}
+                            </summary>
+                            <div className="mt-1 space-y-1 px-1 pb-1">
+                              <input
+                                name="paidOn"
+                                type="date"
+                                defaultValue={cell?.paidOn?.toISOString().slice(0, 10) ?? ''}
+                                className="w-full rounded border border-line bg-surface px-1 py-0.5 text-[10px] text-ink"
+                              />
+                              <input
+                                name="remark"
+                                defaultValue={cell?.remark ?? ''}
+                                placeholder="Remark"
+                                className="w-full rounded border border-line bg-surface px-1 py-0.5 text-[10px] text-ink"
+                              />
+                              <button type="submit" className="w-full rounded bg-primary px-1 py-0.5 text-[10px] font-medium text-white hover:bg-primary-strong">
+                                Save
+                              </button>
+                            </div>
+                          </details>
                         </form>
                       </td>
                     )
@@ -317,8 +354,13 @@ export default async function FinanceTasksPage() {
         </table>
       </div>
       <p className="text-[11px] text-ink-3">
-        Type in a cell and press Enter to save; clear it to remove. ✎ edits a column, ＋ adds a new one.
+        Type in a cell and press Enter to save; clear it to remove. ⋯ under a cell holds its Date and Remark. ✎ edits a column, ＋ adds a new one.
       </p>
+      <datalist id="task-bank-modes">
+        {bankModes.map((m) => (
+          <option key={m} value={m} />
+        ))}
+      </datalist>
     </div>
   )
 }

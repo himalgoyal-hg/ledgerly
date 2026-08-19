@@ -915,6 +915,10 @@ model FinanceTaskCell {
   task   FinanceTask @relation(fields: [taskId], references: [id])
   month  DateTime    @db.Date // first of the month
   value  String // "₹30,000" | "Yes" | "12558- April" | note text
+  // Proper structure (Himal, 19 Aug 2026): when exactly it was paid, and a
+  // remark — both optional, riding along with the value.
+  paidOn DateTime?   @db.Date
+  remark String?
 
   updatedAt DateTime @updatedAt
 

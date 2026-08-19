@@ -16,7 +16,11 @@ function parseMonth(raw: string): Date {
   return new Date(`${raw}-01`)
 }
 
-/** Excel-style: the cell is the input. Blank clears, anything else is saved verbatim. */
+/**
+ * Excel-style: the cell is the input. Blank clears, anything else is saved
+ * verbatim. Date and Remark ride along with the value (Himal, 19 Aug) —
+ * clearing the value clears the whole cell, date and remark included.
+ */
 export async function saveFinanceCellAction(formData: FormData) {
   await requireAdmin()
   const taskId = field(formData, 'taskId')
@@ -25,10 +29,13 @@ export async function saveFinanceCellAction(formData: FormData) {
   if (!value) {
     await prisma.financeTaskCell.deleteMany({ where: { taskId, month } })
   } else {
+    const paidOnRaw = field(formData, 'paidOn')
+    const paidOn = /^\d{4}-\d{2}-\d{2}$/.test(paidOnRaw) ? new Date(paidOnRaw) : null
+    const remark = field(formData, 'remark') || null
     await prisma.financeTaskCell.upsert({
       where: { taskId_month: { taskId, month } },
-      create: { taskId, month, value },
-      update: { value },
+      create: { taskId, month, value, paidOn, remark },
+      update: { value, paidOn, remark },
     })
   }
   revalidatePath('/tasks')
