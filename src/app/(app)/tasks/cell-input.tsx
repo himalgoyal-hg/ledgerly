@@ -39,3 +39,33 @@ export function CellInput(props: {
     />
   )
 }
+
+// The Date column's cell — same save manners as the value cell (pick or
+// click away and it saves). It lives in its own <td>, so it joins the
+// value's form through the form= attribute; amount, date and remark
+// always travel together in one post.
+export function DateCell(props: { defaultValue: string; formId: string; title?: string }) {
+  const initial = useRef(props.defaultValue)
+  return (
+    <input
+      type="date"
+      name="paidOn"
+      form={props.formId}
+      defaultValue={props.defaultValue}
+      title={props.title}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          e.currentTarget.form?.requestSubmit()
+        }
+      }}
+      onBlur={(e) => {
+        if (e.currentTarget.value !== initial.current) {
+          initial.current = e.currentTarget.value
+          e.currentTarget.form?.requestSubmit()
+        }
+      }}
+      className="block w-full rounded border border-transparent bg-transparent px-1 py-1 text-[11px] tabular-nums text-ink-2 hover:border-line focus:border-primary focus:bg-surface focus:text-ink focus:outline-none"
+    />
+  )
+}

@@ -1,8 +1,9 @@
+import { Fragment } from 'react'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
 import { LiveFilter } from '@/components/live-filter'
-import { CellInput } from './cell-input'
+import { CellInput, DateCell } from './cell-input'
 import { Badge, PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   saveFinanceCellAction,
@@ -198,25 +199,29 @@ export default async function FinanceTasksPage() {
       </details>
 
       {/* The register — the sheet itself: months × tasks, every cell an
-          input. Fixed colgroup grid: Month 9rem, wide 16rem for note-style
-          columns (no due day), 9rem for regular payment columns. */}
+          input. Each bill is an Amount + Date column pair (Himal, 19 Aug).
+          Fixed colgroup grid: Month 9rem, Amount 14rem for note-style
+          columns (no due day) else 9rem, Date 7rem. */}
       <div className={tableWrapClass}>
         <table
           data-live-filter="tasks"
           className="w-full table-fixed text-left text-sm"
-          style={{ minWidth: `${9 + tasks.reduce((s, t) => s + (t.dueDay === null ? 16 : 9), 0)}rem` }}
+          style={{ minWidth: `${9 + tasks.reduce((s, t) => s + (t.dueDay === null ? 14 : 9) + 7, 0)}rem` }}
         >
           <colgroup>
             <col style={{ width: '9rem' }} />
             {tasks.map((t) => (
-              <col key={t.id} style={{ width: t.dueDay === null ? '16rem' : '9rem' }} />
+              <Fragment key={t.id}>
+                <col style={{ width: t.dueDay === null ? '14rem' : '9rem' }} />
+                <col style={{ width: '7rem' }} />
+              </Fragment>
             ))}
           </colgroup>
           <thead className={theadClass}>
             <tr className="align-bottom">
-              <th className="sticky left-0 z-10 bg-surface px-2 py-2">Month</th>
+              <th rowSpan={2} className="sticky left-0 z-10 bg-surface px-2 py-2">Month</th>
               {tasks.map((t) => (
-                <th key={t.id} className="px-1.5 py-2 font-medium">
+                <th key={t.id} colSpan={2} className="border-l border-line-2 px-1.5 pb-0 pt-2 font-medium">
                   <div className="normal-case tracking-normal">
                     <div className="truncate text-[10px] text-ink-3" title={t.account ?? undefined}>
                       {t.account ?? ' '}
@@ -262,6 +267,15 @@ export default async function FinanceTasksPage() {
                 </th>
               ))}
             </tr>
+            {/* the pair's sub-labels — every bill reads Amount | Date */}
+            <tr>
+              {tasks.map((t) => (
+                <Fragment key={t.id}>
+                  <th className="border-l border-line-2 px-1.5 pb-1.5 pt-0.5 text-[9px] font-medium tracking-wider text-ink-3">Amount</th>
+                  <th className="px-1.5 pb-1.5 pt-0.5 text-[9px] font-medium tracking-wider text-ink-3">Date</th>
+                </Fragment>
+              ))}
+            </tr>
           </thead>
           <tbody className="divide-y divide-line-2">
             {months.map((mk) => {
@@ -280,52 +294,53 @@ export default async function FinanceTasksPage() {
                     const cell = cellMap.get(t.id)?.get(mk)
                     const value = cell?.value ?? ''
                     const overdue = isNow && !value && t.dueDay !== null && t.dueDay <= now.getDate()
-                    const paidLabel = cell?.paidOn
-                      ? cell.paidOn.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-                      : ''
-                    const meta = [paidLabel, cell?.remark ?? ''].filter(Boolean).join(' · ')
+                    const remark = cell?.remark ?? ''
+                    const formId = `cell-${t.id}-${mk}`
                     return (
-                      <td key={t.id} className={`px-0.5 py-0.5 ${overdue ? 'bg-warning-soft/60' : ''}`}>
-                        {/* Excel-style: the cell IS the input — type, Enter, saved;
-                            blank clears. Date + Remark ride in the same form,
-                            expanding inline (an absolute popover would clip in
-                            the scroll box). */}
-                        <form action={saveFinanceCellAction}>
-                          <input type="hidden" name="taskId" value={t.id} />
-                          <input type="hidden" name="month" value={mk} />
-                          <CellInput
-                            defaultValue={value}
-                            title={value || (overdue ? `Due ${ord(t.dueDay!)} — pending` : 'Type and press Enter to save')}
-                            placeholder={overdue ? `due ${ord(t.dueDay!)}` : ''}
-                            emphasis={overdue}
+                      <Fragment key={t.id}>
+                        <td className={`border-l border-line-2 px-0.5 py-0.5 ${overdue ? 'bg-warning-soft/60' : ''}`}>
+                          {/* Excel-style: the cell IS the input — type, Enter,
+                              saved; blank clears the whole cell. The Date cell
+                              next door and the Remark below post through this
+                              same form. */}
+                          <form id={formId} action={saveFinanceCellAction}>
+                            <input type="hidden" name="taskId" value={t.id} />
+                            <input type="hidden" name="month" value={mk} />
+                            <CellInput
+                              defaultValue={value}
+                              title={value || (overdue ? `Due ${ord(t.dueDay!)} — pending` : 'Type and press Enter to save')}
+                              placeholder={overdue ? `due ${ord(t.dueDay!)}` : ''}
+                              emphasis={overdue}
+                            />
+                            <details>
+                              <summary
+                                className="cursor-pointer list-none truncate px-1.5 text-[9px] leading-tight text-ink-3 hover:text-ink-2"
+                                title={remark || 'Remark'}
+                              >
+                                {remark || '⋯'}
+                              </summary>
+                              <div className="mt-1 space-y-1 px-1 pb-1">
+                                <input
+                                  name="remark"
+                                  defaultValue={remark}
+                                  placeholder="Remark"
+                                  className="w-full rounded border border-line bg-surface px-1 py-0.5 text-[10px] text-ink"
+                                />
+                                <button type="submit" className="w-full rounded bg-primary px-1 py-0.5 text-[10px] font-medium text-white hover:bg-primary-strong">
+                                  Save
+                                </button>
+                              </div>
+                            </details>
+                          </form>
+                        </td>
+                        <td className={`px-0.5 py-0.5 ${overdue ? 'bg-warning-soft/60' : ''}`}>
+                          <DateCell
+                            formId={formId}
+                            defaultValue={cell?.paidOn?.toISOString().slice(0, 10) ?? ''}
+                            title={value ? 'Paid on — pick a date and it saves' : 'Fill the amount first — the date rides with it'}
                           />
-                          <details>
-                            <summary
-                              className="cursor-pointer list-none truncate px-1.5 text-[9px] leading-tight text-ink-3 hover:text-ink-2"
-                              title={meta || 'Date · Remark'}
-                            >
-                              {meta || '⋯'}
-                            </summary>
-                            <div className="mt-1 space-y-1 px-1 pb-1">
-                              <input
-                                name="paidOn"
-                                type="date"
-                                defaultValue={cell?.paidOn?.toISOString().slice(0, 10) ?? ''}
-                                className="w-full rounded border border-line bg-surface px-1 py-0.5 text-[10px] text-ink"
-                              />
-                              <input
-                                name="remark"
-                                defaultValue={cell?.remark ?? ''}
-                                placeholder="Remark"
-                                className="w-full rounded border border-line bg-surface px-1 py-0.5 text-[10px] text-ink"
-                              />
-                              <button type="submit" className="w-full rounded bg-primary px-1 py-0.5 text-[10px] font-medium text-white hover:bg-primary-strong">
-                                Save
-                              </button>
-                            </div>
-                          </details>
-                        </form>
-                      </td>
+                        </td>
+                      </Fragment>
                     )
                   })}
                 </tr>
@@ -333,7 +348,7 @@ export default async function FinanceTasksPage() {
             })}
             {/* the next row of the sheet — one click away */}
             <tr data-filter-keep="1">
-              <td colSpan={tasks.length + 1} className="px-2 py-2">
+              <td colSpan={tasks.length * 2 + 1} className="px-2 py-2">
                 <form action={addFinanceMonthAction} className="flex items-center gap-2">
                   <button
                     type="submit"
@@ -354,7 +369,7 @@ export default async function FinanceTasksPage() {
         </table>
       </div>
       <p className="text-[11px] text-ink-3">
-        Type in a cell and press Enter to save; clear it to remove. ⋯ under a cell holds its Date and Remark. ✎ edits a column, ＋ adds a new one.
+        Every bill has an Amount and a Date column — type or pick, Enter or click away saves. Clearing the amount removes the whole cell, date and remark included. ⋯ under an amount holds its Remark. ✎ edits a column, ＋ adds a new one.
       </p>
       <datalist id="task-bank-modes">
         {bankModes.map((m) => (
