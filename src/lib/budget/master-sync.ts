@@ -310,6 +310,29 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         await prisma.ledgerAccount.update({ where: { id: head.id }, data: { defaultCostCentreId: cc.id } })
       }
     }
+  } else {
+    // a blanked cost-centre column means BLANK — the head defaults clear too
+    await prisma.ledgerAccount.updateMany({
+      where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' }, defaultCostCentreId: { not: null } },
+      data: { defaultCostCentreId: null },
+    })
+  }
+
+  // The master's word reaches BACK as well (Himal, 18 Aug 2026): everything
+  // already classified under this category — tag rows, tag rules, cash
+  // entries and posted journal lines — re-derives its cost centre from the
+  // head's fresh default. The ledger guard admits costCentreId-only updates
+  // (classification, not money), so no trigger games are needed.
+  const catHeads = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' } },
+    select: { id: true, defaultCostCentreId: true },
+  })
+  for (const head of catHeads) {
+    const to = head.defaultCostCentreId
+    await prisma.statementTransaction.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: to } })
+    await prisma.tagRule.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: to } })
+    await prisma.cashEntry.updateMany({ where: { headAccountId: head.id }, data: { costCentreId: to } })
+    await prisma.journalLine.updateMany({ where: { accountId: head.id }, data: { costCentreId: to } })
   }
 }
 
