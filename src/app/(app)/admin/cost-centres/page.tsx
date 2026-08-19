@@ -4,8 +4,10 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { createCostCentre, archiveCostCentre, restoreCostCentre, renameCostCentre } from './actions'
 import { PageHeader, buttonClass, controlClass } from '@/components/ui'
 
-// Cost centre masters (Admin): Hyrox Project, Office Operations, Personal,
-// Consultant… — tier 3 of the tag, summing into cost centre reports.
+// Cost centre masters (Admin) — tier 3 of the tag, summing into cost centre
+// reports. Since 19 Aug 2026 the set is deliberately narrow: only the
+// master register's own types (Compulsory, Optional-Lifestyle,
+// Optional-growth, Optional-Investment) — no book-invented extras.
 
 export default async function CostCentresPage() {
   const admin = await requireAdmin()
@@ -36,7 +38,7 @@ export default async function CostCentresPage() {
           <input
             name="name"
             required
-            placeholder="e.g. Hyrox Project"
+            placeholder="e.g. Optional-Investment"
             className={`${controlClass} flex-1`}
           />
           <button type="submit" className={buttonClass('primary')}>
