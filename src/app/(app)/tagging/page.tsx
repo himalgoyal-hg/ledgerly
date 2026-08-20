@@ -545,9 +545,10 @@ export default async function TaggingPage(props: {
             ]}
           />
         </th>
-        <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
-        <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
-        <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
+        <th className="w-[20%] min-w-44 px-2 py-2">Expense Head</th>
+        <th className="w-[16%] min-w-40 px-2 py-2">Cost centre</th>
+        <th className="w-[16%] min-w-40 px-2 py-2">Accounting Head</th>
+        <th className="w-[14%] min-w-32 px-2 py-2">Note</th>
         {/* right after Accounting Head — one click drops every column
             filter and the search, back to the plain daybook */}
         <th className="px-2 py-2">
@@ -747,11 +748,11 @@ export default async function TaggingPage(props: {
           except the reset link. The head stays. */}
       {inView === 0 && filtered && (
         <div className={tableWrapClass}>
-          <table className="w-full min-w-[74rem] text-left text-sm">
+          <table className="w-full min-w-[84rem] text-left text-sm">
             {tableHead(false)}
             <tbody>
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-sm text-ink-3">
+                <td colSpan={9} className="px-3 py-8 text-center text-sm text-ink-3">
                   Nothing matches these filters —{' '}
                   <Link href="/tagging" className="text-primary hover:underline">
                     clear all
@@ -770,7 +771,7 @@ export default async function TaggingPage(props: {
         <h2 className="font-medium text-ink">Pending ({pending.length})</h2>
         {pendingSlice.length > 0 && (
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[74rem] text-left text-sm">
+            <table className="w-full min-w-[84rem] text-left text-sm">
               {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {pendingSlice.map((txn) => {
@@ -895,7 +896,7 @@ export default async function TaggingPage(props: {
         <div className="space-y-2">
           <h2 className="font-medium text-ink">Tagged — awaiting post ({tagged.length})</h2>
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[74rem] text-left text-sm">
+            <table className="w-full min-w-[84rem] text-left text-sm">
               {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {tagged.map((txn) => (
@@ -933,6 +934,7 @@ export default async function TaggingPage(props: {
                         nature: txn.nature,
                         costCentreId: txn.costCentreId,
                         accountingHeadId: txn.accountingHeadId,
+                        note: txn.note,
                         gstType: txn.gstType,
                         gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                         hsn: txn.hsn,
@@ -968,7 +970,7 @@ export default async function TaggingPage(props: {
         <h2 className="font-medium text-ink">Posted — all {posted.length}</h2>
         {posted.length > 0 && (
           <div className={tableWrapClass}>
-            <table className="w-full min-w-[74rem] text-left text-sm">
+            <table className="w-full min-w-[84rem] text-left text-sm">
               {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {posted.map((txn) => {
@@ -1024,13 +1026,14 @@ export default async function TaggingPage(props: {
                           heads={heads}
                           costCentres={costCentres}
                           action={retagPosted}
-                          submitLabel="Retag"
+                          submitLabel="Save"
                           submitTitle="Posts a reversal + new version with this tag"
                           defaults={{
                             headAccountId: txn.headAccountId,
                             nature: txn.nature,
                             costCentreId: txn.costCentreId,
                             accountingHeadId: txn.accountingHeadId,
+                            note: txn.note,
                             gstType: txn.gstType,
                             gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                             hsn: txn.hsn,
@@ -1069,6 +1072,9 @@ export default async function TaggingPage(props: {
                             ) : (
                               <span className="text-ink-3" title="Same as the Expense Head">—</span>
                             )}
+                          </td>
+                          <td className="px-2 py-1.5 text-xs text-ink-2" title={txn.note ?? undefined}>
+                            {txn.note ?? <span className="text-ink-3">—</span>}
                           </td>
                           <td className="px-2 py-1.5">
                             {canEditPosted && txn.docId && deleted && (

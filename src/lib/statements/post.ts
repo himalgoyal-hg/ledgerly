@@ -107,6 +107,8 @@ export async function applyTag(
      *  A different id = the user's own pick; it never writes back into the
      *  Expense Head. */
     accountingHeadId?: string | null
+    /** Free comment on the row. undefined = leave as is, '' / null = clear. */
+    note?: string | null
     tax?: TagTaxInput
     actorId: string
     /**
@@ -161,6 +163,7 @@ export async function applyTag(
       nature: args.nature,
       costCentreId,
       accountingHeadId,
+      ...(args.note !== undefined ? { note: args.note || null } : {}),
       gstType: hasGst ? (tax.gstType ?? 'intra') : null,
       gstRate: hasGst ? tax.gstRate : null,
       hsn: hasGst ? tax.hsn ?? null : null,
@@ -203,6 +206,7 @@ export async function clearTag(tx: Prisma.TransactionClient, txnId: string) {
       nature: null,
       costCentreId: null,
       accountingHeadId: null,
+      // note survives — it comments the transaction, not the tag
       gstType: null,
       gstRate: null,
       hsn: null,
@@ -508,6 +512,8 @@ export async function retagPostedTransaction(
     /** The tag's 2nd head — the form's pick is the source of truth on retag;
      *  same as the Expense Head (or absent) stores NULL = mirror. */
     accountingHeadId?: string | null
+    /** Free comment on the row. undefined = leave as is. */
+    note?: string | null
     tax?: TagTaxInput
     actorId: string
   },
@@ -591,6 +597,7 @@ export async function retagPostedTransaction(
       nature: args.nature,
       costCentreId,
       accountingHeadId,
+      ...(args.note !== undefined ? { note: args.note || null } : {}),
       ...taxFields,
       autoTagged: false,
       taggedById: args.actorId,

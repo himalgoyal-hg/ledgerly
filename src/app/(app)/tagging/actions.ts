@@ -29,6 +29,8 @@ function tagFields(formData: FormData) {
   // head (find-or-create), same as the Expense Head combobox.
   const accountingHeadId = String(formData.get('accountingHeadId') ?? '') || null
   const accountingHeadText = String(formData.get('accountingHeadText') ?? '').trim() || null
+  // the row's own comment — absent field leaves whatever is stored
+  const note = formData.has('note') ? String(formData.get('note') ?? '').trim() : undefined
   // Creatable comboboxes: text that matched no head / cost centre arrives
   // here and is found-or-created in the books being tagged.
   const headText = String(formData.get('headText') ?? '').trim() || null
@@ -46,7 +48,7 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, headText, costCentreText, tax }
+  return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, note, headText, costCentreText, tax }
 }
 
 export async function tagTransaction(formData: FormData) {

@@ -379,6 +379,9 @@ model StatementTransaction {
   accountingHeadId String?
   // retired 20 Aug 2026: the per-entry Yes/No became accountingHeadId above
   separateReport Boolean  @default(false)
+  // A free comment on the row (Himal, 20 Aug) — a working note in the
+  // tagging queue, not a ledger field: it survives tag, retag and untag.
+  note          String?
   autoTagged    Boolean   @default(false) // "Verified by System"
   taggedById    String?
   taggedAt      DateTime?
