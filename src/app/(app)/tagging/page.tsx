@@ -12,7 +12,7 @@ import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
 import { ColumnMenu } from './column-menu'
 import { TxnDetails } from './txn-details'
-import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
+import { PageHeader, buttonClass, controlClass, tableWrapClass } from '@/components/ui'
 import {
   tagTransaction,
   untagTransaction,
@@ -449,7 +449,7 @@ export default async function TaggingPage(props: {
   const opt = (label: string, href: string, active: boolean) => ({ label, href, active })
 
   const tableHead = (withCheckbox: boolean) => (
-    <thead className={theadClass}>
+    <thead className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-ink-2">
       <tr className="align-top">
         {withCheckbox && <th className="w-8 px-2 py-2" />}
         <th className="px-1 py-1.5">
