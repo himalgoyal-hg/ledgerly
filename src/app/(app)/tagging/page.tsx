@@ -50,9 +50,11 @@ export default async function TaggingPage(props: {
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : ''
-  // Which rows still need work — the Narration column's Show filter.
-  // 'blank' = anything missing; the rest name one column each.
-  const tagFilter = ['blank', 'notag', 'nocc', 'noah'].includes(sp.tag ?? '') ? sp.tag! : 'all'
+  // The Narration column's Show filter. 'blank' = a real gap (no Expense
+  // Head or no Cost centre); 'ahother' is the opposite question — the rows
+  // deliberately pointed at ANOTHER Accounting Head (Himal, 20 Aug: mirror
+  // is the normal state, so what's worth listing is the changed ones).
+  const tagFilter = ['blank', 'notag', 'nocc', 'ahother'].includes(sp.tag ?? '') ? sp.tag! : 'all'
   // Excel-style column sort: which column, which way (default date ↑)
   const sortKey = ['date', 'ac', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
   const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
@@ -147,25 +149,16 @@ export default async function TaggingPage(props: {
         }
       : {}),
     ...(monthFrom && monthTo ? { date: { gte: monthFrom, lt: monthTo } } : {}),
-    // "which rows aren't properly tagged": Blank = any of the three missing
-    // (nested in AND so it composes with the search's own OR), or one named
-    // column at a time.
+    // Blank = a genuine gap: no Expense Head or no Cost centre. (A blank
+    // Accounting Head is the normal mirror state, not a gap — so it is NOT
+    // counted here.) Nested in AND so it composes with the search's own OR.
     ...(tagFilter === 'blank'
-      ? {
-          AND: [
-            {
-              OR: [
-                { headAccountId: null },
-                { costCentreId: null },
-                { accountingHeadId: null },
-              ],
-            },
-          ],
-        }
+      ? { AND: [{ OR: [{ headAccountId: null }, { costCentreId: null }] }] }
       : {}),
     ...(tagFilter === 'notag' ? { headAccountId: null } : {}),
     ...(tagFilter === 'nocc' ? { costCentreId: null } : {}),
-    ...(tagFilter === 'noah' ? { accountingHeadId: null } : {}),
+    // the entries given an Accounting Head of their own — the changed ones
+    ...(tagFilter === 'ahother' ? { accountingHeadId: { not: null } } : {}),
   }
 
   const [pending, tagged, posted, heads, costCentres, banks, users, totalEntries, sums, monthRows] =
@@ -429,7 +422,7 @@ export default async function TaggingPage(props: {
     blank: 'Blank',
     notag: 'Blank — Expense Head',
     nocc: 'Blank — Cost centre',
-    noah: 'Blank — Accounting Head',
+    ahother: 'Accounting Head — other',
   }
 
   const opt = (label: string, href: string, active: boolean) => ({ label, href, active })
@@ -503,7 +496,7 @@ export default async function TaggingPage(props: {
                 // which rows still need an Expense Head / Cost centre /
                 // Accounting Head — one pick away
                 label: 'Show',
-                options: (['all', 'blank', 'notag', 'nocc', 'noah'] as const).map((t) =>
+                options: (['all', 'blank', 'notag', 'nocc', 'ahother'] as const).map((t) =>
                   opt(TAG_LABEL[t], hrefWith({ tag: t === 'all' ? null : t }), tagFilter === t),
                 ),
               },
