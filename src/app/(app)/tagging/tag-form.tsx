@@ -27,6 +27,66 @@ const inputCls = 'w-full rounded border border-line bg-surface px-1.5 py-1 text-
 
 export const NATURE_OPTIONS = NATURES.map((n) => ({ id: n.value, label: n.label }))
 
+/**
+ * The bulk bar's three linked fields (Himal, 20 Aug: "expense head jari
+ * tak tar automatically sagl feel zal pahije"): picking the Expense Head
+ * fills the Cost centre (its master default) and mirrors into the
+ * Accounting Head — both re-mount on every pick (the `seed` key) and stay
+ * editable; a changed Accounting Head highlights and never writes back.
+ */
+export function BulkTagFields(props: { heads: HeadOption[]; costCentres: CostCentreOption[]; className?: string }) {
+  const cls = props.className ?? inputCls
+  const [ccId, setCcId] = useState('')
+  const [expHeadId, setExpHeadId] = useState('')
+  const [acctHeadId, setAcctHeadId] = useState('')
+  const [seed, setSeed] = useState(0)
+  return (
+    <>
+      <HeadCombobox
+        heads={props.heads}
+        required
+        placeholder="Expense Head — type or add"
+        createName="headText"
+        className={cls}
+        onPick={(head) => {
+          setExpHeadId(head?.id ?? '')
+          setAcctHeadId(head?.id ?? '')
+          setCcId(head?.defaultCostCentreId ?? '')
+          setSeed((s) => s + 1)
+        }}
+        onCreateText={() => {
+          setExpHeadId('')
+          setAcctHeadId('')
+          setCcId('')
+          setSeed((s) => s + 1)
+        }}
+      />
+      <SmartCombobox
+        key={`c${seed}`}
+        options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
+        name="costCentreId"
+        createName="costCentreText"
+        defaultId={ccId}
+        placeholder="Cost centre — type or add"
+        className={cls}
+        onPick={(o) => setCcId(o?.id ?? '')}
+      />
+      <HeadCombobox
+        key={`a${seed}`}
+        heads={props.heads}
+        name="accountingHeadId"
+        createName="accountingHeadText"
+        defaultHeadId={acctHeadId || undefined}
+        placeholder="Accounting Head — same as head"
+        className={`${cls} ${
+          acctHeadId && acctHeadId !== expHeadId ? 'border-primary/40 bg-primary-soft font-medium text-primary' : ''
+        }`}
+        onPick={(h) => setAcctHeadId(h?.id ?? '')}
+      />
+    </>
+  )
+}
+
 export function TagRowCells(props: {
   txnId: string
   isOutflow: boolean

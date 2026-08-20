@@ -8,11 +8,9 @@ import { NATURES, suggestNature } from '@/lib/statements/natures'
 import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
-import { TagRowCells } from './tag-form'
+import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
 import { TxnDetails } from './txn-details'
-import { HeadCombobox } from '@/components/head-combobox'
-import { SmartCombobox } from '@/components/smart-combobox'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   tagTransaction,
@@ -485,29 +483,9 @@ export default async function TaggingPage(props: {
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-success/30 bg-success-soft/60 p-2">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
-            <HeadCombobox
-              heads={heads}
-              required
-              placeholder="Expense Head — type or add"
-              createName="headText"
-              className={`${controlClass} w-56`}
-            />
-            <SmartCombobox
-              options={costCentres.map((c) => ({ id: c.id, label: c.name }))}
-              name="costCentreId"
-              createName="costCentreText"
-              placeholder="Cost centre — type or add"
-              className={`${controlClass} w-56`}
-            />
-            {/* the 2nd head for every ticked row — blank = same as the head */}
-            <HeadCombobox
-              heads={heads}
-              name="accountingHeadId"
-              createName="accountingHeadText"
-              required={false}
-              placeholder="Accounting Head — same as head"
-              className={`${controlClass} w-56`}
-            />
+            {/* head pick auto-fills cost centre + Accounting Head, both stay
+                editable — same manners as a tag row */}
+            <BulkTagFields heads={heads} costCentres={costCentres} className={`${controlClass} w-56`} />
             {/* Same GST/TDS for every ticked row (spec §7) */}
             <details>
               <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
