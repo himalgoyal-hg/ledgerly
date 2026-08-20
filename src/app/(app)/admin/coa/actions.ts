@@ -153,7 +153,9 @@ export async function saveMasterRowAction(formData: FormData) {
       : {}),
     books: books || null,
     bankMode: f('bankMode') || null,
-    expenseType: f('expenseType') || null,
+    // a picked option or a typed new name — applyMasterRow finds-or-creates
+    // the centre in every books this category's heads live in
+    expenseType: f('expenseType') || f('expenseTypeNew') || null,
     bankBudget: num('bankBudget'),
     cashBudget: num('cashBudget'),
     frequency: f('frequency') || null,

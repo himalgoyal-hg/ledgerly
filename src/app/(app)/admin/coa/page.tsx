@@ -8,6 +8,7 @@ import { ConfirmButton } from '@/components/confirm-button'
 import { Fragment } from 'react'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { PageHeader } from '@/components/ui'
+import { stripCcType, CC_TYPE_ALIAS } from '@/lib/budget/nature'
 
 // Accounts IS the master register (Himal, 18 Aug 2026): every category with
 // its books, bank mode, cost centre, budgets, frequency, day and nature —
@@ -25,6 +26,10 @@ const DAY_OPTIONS = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
   'End of month', 'End of quarter',
 ]
+// The sheet's canonical four seed the list; every OTHER cost centre that
+// exists in any books joins it below (Himal, 20 Aug: "cost center je add
+// kelet te master made dist nahit") — spelling variants (Growth /
+// Optional-growth / Invesment…) dedupe to one entry via stripCcType.
 const CC_TYPES = ['Compulsory', 'Optional-Lifestyle', 'Optional-growth', 'Optional-Investment']
 const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
@@ -37,6 +42,22 @@ export default async function CoaPage() {
 
   const modes = await prisma.headMode.findMany({ orderBy: [{ sortOrder: 'asc' }, { category: 'asc' }] })
   const sections = [...new Set(modes.map((m) => m.section).filter((x): x is string => !!x))]
+
+  // Cost centre options: the canonical four + every live centre from every
+  // books + any value already stored on a row — deduped by stripped type so
+  // HG's "Growth" and ACPL's "Optional-growth" stay ONE entry. Typing a new
+  // name creates it per book on save (applyMasterRow's find-or-create).
+  const ccRows = await prisma.costCentre.findMany({ where: { archivedAt: null }, select: { name: true } })
+  const canonKey = (s: string) => {
+    const w = stripCcType(s)
+    return CC_TYPE_ALIAS[w] ?? w
+  }
+  const ccSeen = new Map<string, string>()
+  for (const t of CC_TYPES) ccSeen.set(canonKey(t), t)
+  for (const c of ccRows) if (!ccSeen.has(canonKey(c.name))) ccSeen.set(canonKey(c.name), c.name)
+  for (const m of modes)
+    if (m.expenseType && !ccSeen.has(canonKey(m.expenseType))) ccSeen.set(canonKey(m.expenseType), m.expenseType)
+  const ccOptions = [...ccSeen.values()].sort((a, b) => a.localeCompare(b))
   const banks = await prisma.bankAccount.findMany({
     select: { id: true, nickname: true, ledgerAccountId: true },
   })
@@ -183,8 +204,14 @@ export default async function CoaPage() {
                   </td>
                   <td className="px-1 py-0.5">
                     <SmartCombobox
-                      options={CC_TYPES.map((t) => ({ id: t, label: t }))}
+                      options={[
+                        ...(m?.expenseType && !ccOptions.includes(m.expenseType)
+                          ? [{ id: m.expenseType, label: m.expenseType }]
+                          : []),
+                        ...ccOptions.map((t) => ({ id: t, label: t })),
+                      ]}
                       name="expenseType"
+                      createName="expenseTypeNew"
                       defaultId={m?.expenseType ?? ''}
                       formId={fid}
                       placeholder="Cost centre"
