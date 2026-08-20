@@ -1001,10 +1001,14 @@ model HeadMode {
   dayNote    String?
   bankBudget Decimal? @db.Decimal(14, 2)
   cashBudget Decimal? @db.Decimal(14, 2)
-  // retired 20 Aug 2026 ("yes no je kelt te remove kar"): the master-level
-  // Yes/No is gone — the Accounting Head report now shows exactly the
-  // entries whose tag carries an overridden accountingHeadId. Column kept
-  // (additive-only migrations); never read or written.
+  // The category's Accounting Head (Himal, 20 Aug 2026): NULL = the head
+  // itself ("by default je aahe te — expense head"). A different NAME sends
+  // every entry of this category into the Accounting Head report under that
+  // name — live at report time, no propagation; a per-entry pick made while
+  // tagging still wins over this.
+  accountingHead String?
+  // retired 20 Aug 2026 ("yes no je kelt te remove kar"): the Yes/No is
+  // gone. Column kept (additive-only migrations); never read or written.
   separateReport Boolean @default(false)
   updatedAt   DateTime @updatedAt
 }

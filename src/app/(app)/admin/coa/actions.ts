@@ -141,6 +141,11 @@ export async function saveMasterRowAction(formData: FormData) {
   }
   const books = f('books')
   if (books && !['HG', 'ACPL', 'MG', 'PG', 'CASH'].includes(books)) throw new Error('Bad books')
+  // The category's Accounting Head: same as the category (the default the
+  // column shows) normalizes to NULL — "by default je aahe te, expense head".
+  const acctRaw = f('accountingHead') || f('accountingHeadNew')
+  const accountingHead =
+    acctRaw && acctRaw.toLowerCase() !== f('category').toLowerCase() ? acctRaw : null
   const row = {
     category: f('category'),
     ...(formData.has('section') || formData.has('sectionNew')
@@ -154,6 +159,7 @@ export async function saveMasterRowAction(formData: FormData) {
     frequency: f('frequency') || null,
     dayNote: f('dayNote') || null,
     nature: f('nature') || null,
+    ...(formData.has('accountingHead') || formData.has('accountingHeadNew') ? { accountingHead } : {}),
   }
   if ((row.bankBudget !== 0 || row.cashBudget !== 0) && !row.frequency) {
     throw new Error('A budget needs its frequency')

@@ -12,11 +12,13 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 // is typed. Rows link to the ledger where they can.
 //
 // Second tagging dimension (Himal, 19/20 Aug — the "Accounting Head"):
-// every tag carries a 2nd head that mirrors the Expense Head unless changed
-// while tagging. The Accounting Head scope shows exactly the entries whose
-// 2nd head was changed, grouped under that head's name, in EVERY nature so
-// asset buys (laptop, car) count alongside expenses. No master flag — the
-// tag itself decides. The books view (All heads scope) never moves.
+// every tag carries a 2nd head that defaults to the Expense Head. It can be
+// re-pointed in TWO places — per category on the master register
+// (HeadMode.accountingHead, live at report time), or per entry while
+// tagging (accountingHeadId, wins over the master). The Accounting Head
+// scope shows exactly the re-pointed entries, grouped under the Accounting
+// Head's name, in EVERY nature so asset buys (laptop, car) count alongside
+// expenses. The books view (All heads scope) never moves.
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -55,13 +57,25 @@ export default async function ByDimensionPage({
 
   // one query shape per lens: name × month × net movement (Dr − Cr).
   // Normal scope = expense + income heads, grouped by the head that POSTED.
-  // Accounting Head scope: exactly the lines whose tag was given its own
-  // Accounting Head (accountingHeadId set — mirror lines stay out), in
-  // EVERY nature (asset buys count too), grouped under the Accounting
-  // Head's name, not the Expense Head's. No master flag — the tag decides.
-  const eff = Prisma.sql`COALESCE(ah.name, a.name)`
+  // Accounting Head scope: a line belongs when EITHER its tag was given its
+  // own Accounting Head (accountingHeadId set) OR its head's MASTER row
+  // names a different Accounting Head (HeadMode.accountingHead — live, no
+  // propagation). The per-entry pick wins over the master's. Grouped under
+  // the Accounting Head's name, EVERY nature (asset buys count too).
+  //   ah  = the line's own pick;  hm = the head's master row;
+  //   mah = the real head the master's name resolves to (for id/root code)
+  const sepJoins = Prisma.sql`
+      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
+      LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+      LEFT JOIN LATERAL (
+        SELECT x.id, x.name, x.code FROM "LedgerAccount" x
+        WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+          AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+        ORDER BY x.code LIMIT 1
+      ) mah ON true`
   const scopeFilter = sep
-    ? Prisma.sql`AND l."accountingHeadId" IS NOT NULL`
+    ? Prisma.sql`AND (l."accountingHeadId" IS NOT NULL
+        OR (hm."accountingHead" IS NOT NULL AND lower(hm."accountingHead") <> lower(a.name)))`
     : Prisma.sql`AND a.kind IN ('EXPENSE', 'INCOME')`
   let rows: { name: string; id: string | null; month: string; amt: string }[] = []
   if (by === 'cc') {
@@ -72,21 +86,21 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
+      ${sepJoins}
       LEFT JOIN "CostCentre" cc ON cc.id = l."costCentreId"
       WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else if (by === 'head') {
     rows = await prisma.$queryRaw`
-      SELECT ${sep ? eff : Prisma.sql`a.name`} AS name,
-             ${sep ? Prisma.sql`COALESCE(ah.id, a.id)` : Prisma.sql`a.id`} AS id,
+      SELECT ${sep ? Prisma.sql`COALESCE(ah.name, mah.name, hm."accountingHead")` : Prisma.sql`a.name`} AS name,
+             ${sep ? Prisma.sql`COALESCE(ah.id, mah.id)` : Prisma.sql`a.id`} AS id,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
              SUM(l.debit - l.credit)::text AS amt
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
+      ${sepJoins}
       WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
@@ -98,10 +112,10 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
+      ${sepJoins}
       JOIN "LedgerAccount" root
         ON root."entityId" = a."entityId"
-        AND root.code = left(${sep ? Prisma.sql`COALESCE(ah.code, a.code)` : Prisma.sql`a.code`}, 1) || '000'
+        AND root.code = left(${sep ? Prisma.sql`COALESCE(ah.code, mah.code, a.code)` : Prisma.sql`a.code`}, 1) || '000'
       WHERE e."entityId" = ${entity.id} ${sep ? scopeFilter : Prisma.empty}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
@@ -131,7 +145,7 @@ export default async function ByDimensionPage({
         title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Accounting Head' : ''} — ${entity.code}`}
         subtitle={
           sep
-            ? `Entries given their own Accounting Head while tagging — grouped under it, every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
+            ? `Entries given their own Accounting Head — on the master register or while tagging — grouped under it, every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
             : `Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`
         }
         actions={
@@ -200,12 +214,15 @@ export default async function ByDimensionPage({
         <p className="text-sm text-ink-3">
           {sep ? (
             <>
-              Nothing here for FY {fy}-{String(fy + 1).slice(2)} yet — while{' '}
+              Nothing here for FY {fy}-{String(fy + 1).slice(2)} yet — set a category&apos;s Accounting Head on{' '}
+              <Link href="/admin/coa" className="text-primary hover:underline">
+                Accounts — master register
+              </Link>{' '}
+              (whole category moves here), or change one entry&apos;s Accounting Head while{' '}
               <Link href="/tagging" className="text-primary hover:underline">
                 tagging
               </Link>
-              , change an entry&apos;s Accounting Head (it mirrors the Expense Head until you do); those entries
-              show here, grouped under the head you picked.
+              . Both default to the Expense Head itself until you change them.
             </>
           ) : (
             <>Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</>

@@ -35,6 +35,9 @@ export interface MasterRow {
   taxTreatment?: string | null
   /** Register section; a NEW category slots at that section's end. */
   section?: string | null
+  /** The category's Accounting Head NAME; null = the head itself (default),
+   *  undefined = keep as is. */
+  accountingHead?: string | null
 }
 
 const FREQ: Record<string, string> = {
@@ -225,6 +228,7 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
         dayNote: r.dayNote,
         bankBudget: r.bankBudget !== 0 ? r.bankBudget.toFixed(2) : null,
         cashBudget: r.cashBudget !== 0 ? r.cashBudget.toFixed(2) : null,
+        ...(r.accountingHead !== undefined ? { accountingHead: r.accountingHead } : {}),
       }
       const existingHm = await tx.headMode.findUnique({ where: { category: r.category } })
       if (existingHm) {
