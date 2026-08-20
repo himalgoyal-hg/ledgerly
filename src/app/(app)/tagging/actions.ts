@@ -1,7 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePermission } from '@/lib/auth'
+import { requirePermission, hasPermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import {
   applyTag,
@@ -122,13 +122,16 @@ export async function tagTransaction(formData: FormData) {
 }
 
 /**
- * Bulk tag (v2 prototype): the checked pending rows all get the same head and
- * cost centre in one go. Nature left blank auto-derives per row from the
- * head and the money direction, exactly like the single-row form would.
- * No party spreading here — bulk means "exactly these rows".
+ * Bulk tag: the checked rows all get the same head / cost centre /
+ * Accounting Head / tax in one go (Himal, 20 Aug: "select karun apply to
+ * all"). Works on every status: pending and tagged rows tag in place;
+ * POSTED rows go through retag (reversal + new version — needs the
+ * edit/delete permission). Mirrors, deleted docs and other-books rows are
+ * skipped and reported. Nature left blank auto-derives per row.
  */
 export async function bulkTag(formData: FormData) {
   const user = await requirePermission('transactionTagging')
+  const canEditPosted = hasPermission(user, 'transactionEditDelete')
   const ids = formData.getAll('ids').map(String).filter(Boolean)
   if (ids.length === 0) throw new Error('Tick at least one row first')
   const pickedHeadId = String(formData.get('headAccountId') ?? '') || null
@@ -174,21 +177,49 @@ export async function bulkTag(formData: FormData) {
           })
         : null)
     let tagged = 0
+    let retagged = 0
+    let skipped = 0
     for (const id of ids) {
       const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
-      if (txn.status !== 'PENDING' || txn.entityId !== head.entityId) continue
+      if (txn.entityId !== head.entityId) {
+        skipped++
+        continue
+      }
       const nature = natureRaw || suggestNature(head, Number(txn.debit) > 0)
-      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, accountingHeadId, tax, actorId: user.id })
-      await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
-      tagged++
+      if (txn.status === 'PENDING' || txn.status === 'TAGGED') {
+        await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, accountingHeadId, tax, actorId: user.id })
+        await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
+        tagged++
+      } else if (txn.status === 'POSTED' && canEditPosted && txn.docId) {
+        const doc = await tx.journalDoc.findUniqueOrThrow({ where: { id: txn.docId } })
+        if (doc.deletedAt) {
+          skipped++
+          continue
+        }
+        // blank GST/TDS in the bulk bar means "leave each row's stored tax
+        // alone" (retag falls back to it), never "wipe it on 20 rows"
+        const taxProvided = Object.values(tax).some(Boolean)
+        await retagPostedTransaction(tx, {
+          txnId: id,
+          headAccountId,
+          nature,
+          costCentreId,
+          accountingHeadId,
+          tax: taxProvided ? tax : undefined,
+          actorId: user.id,
+        })
+        retagged++
+      } else {
+        skipped++ // duplicate, mirror, or no edit permission for posted
+      }
     }
-    if (tagged === 0) throw new Error('None of the selected rows are still pending')
+    if (tagged + retagged === 0) throw new Error('None of the selected rows could take this tag')
     await audit(tx, {
       actorId: user.id,
       action: 'statement_txn.bulk_tag',
       targetType: 'LedgerAccount',
       targetId: headAccountId,
-      summary: `Bulk-tagged ${tagged} row(s) to ${head.name}`,
+      summary: `Bulk-applied ${head.name} — ${tagged} tagged, ${retagged} retagged (reversal + new version)${skipped ? `, ${skipped} skipped` : ''}`,
     })
   })
   revalidatePath('/tagging')

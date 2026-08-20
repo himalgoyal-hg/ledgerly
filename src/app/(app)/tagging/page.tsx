@@ -447,8 +447,10 @@ export default async function TaggingPage(props: {
         </span>
       </form>
 
-      {/* Bulk tagging (v2 prototype): tick rows below, apply one tag to all */}
-      {showPending && pendingSlice.length > 0 && (
+      {/* Bulk tagging: tick rows in ANY section below and apply one tag to
+          all of them — pending/tagged rows tag in place, posted rows go
+          through retag (reversal + new version) automatically. */}
+      {inView > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-success/30 bg-success-soft/60 p-2">
           <form id="bulk-tag" action={bulkTag} className="flex flex-wrap items-center gap-2">
             <SelectAll />
@@ -504,6 +506,7 @@ export default async function TaggingPage(props: {
             </details>
             <button
               type="submit"
+              title="Pending/tagged rows tag in place; posted rows repost as reversal + new version"
               className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong"
             >
               Apply to selected
@@ -655,10 +658,20 @@ export default async function TaggingPage(props: {
           <h2 className="font-medium text-ink">Tagged — awaiting post ({tagged.length})</h2>
           <div className={tableWrapClass}>
             <table className="w-full min-w-[74rem] text-left text-sm">
-              {tableHead(false)}
+              {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {tagged.map((txn) => (
                   <tr key={txn.id} className="align-top hover:bg-surface-2/60">
+                    <td className="px-2 py-1.5">
+                      <input
+                        type="checkbox"
+                        name="ids"
+                        value={txn.id}
+                        form="bulk-tag"
+                        className="accent-primary"
+                        aria-label="Select for bulk tagging"
+                      />
+                    </td>
                     {leadCells(
                       txn,
                       txn.tagSource === 'ai'
@@ -718,7 +731,7 @@ export default async function TaggingPage(props: {
         {posted.length > 0 && (
           <div className={tableWrapClass}>
             <table className="w-full min-w-[74rem] text-left text-sm">
-              {tableHead(false)}
+              {tableHead(true)}
               <tbody className="divide-y divide-line-2">
                 {posted.map((txn) => {
                   const doc = txn.docId ? docById.get(txn.docId) : undefined
@@ -748,6 +761,19 @@ export default async function TaggingPage(props: {
                       key={txn.id}
                       className={deleted ? 'bg-danger-soft/40 opacity-70' : 'align-top hover:bg-surface-2/60'}
                     >
+                      <td className="px-2 py-1.5">
+                        {/* mirrors / deleted docs can't be retagged — no box */}
+                        {editable && (
+                          <input
+                            type="checkbox"
+                            name="ids"
+                            value={txn.id}
+                            form="bulk-tag"
+                            className="accent-primary"
+                            aria-label="Select for bulk retagging"
+                          />
+                        )}
+                      </td>
                       {leadCells(
                         txn,
                         !txn.docId ? 'mirror of own-account transfer' : undefined,
