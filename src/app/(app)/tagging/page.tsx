@@ -58,8 +58,10 @@ export default async function TaggingPage(props: {
 
   // Search reaches the whole tag, not just the narration: matching heads and
   // cost centres resolve to ids first (no relation on the txn row), natures
-  // match by label or value.
-  const [qHeads, qCcs] = q
+  // match by label or value. Accounting Head matches BOTH ways (Himal,
+  // 20 Aug): the per-entry pick (accountingHeadId in qHeads) and rows whose
+  // head's MASTER row maps to a matching Accounting Head (qMappedHeads).
+  const [qHeads, qCcs, qMappedHeads] = q
     ? await Promise.all([
         prisma.ledgerAccount.findMany({
           where: {
@@ -76,8 +78,25 @@ export default async function TaggingPage(props: {
           where: { entityId: entity.id, name: { contains: q, mode: 'insensitive' } },
           select: { id: true },
         }),
+        prisma.headMode
+          .findMany({
+            where: { accountingHead: { contains: q, mode: 'insensitive' } },
+            select: { category: true },
+          })
+          .then((rows) =>
+            rows.length
+              ? prisma.ledgerAccount.findMany({
+                  where: {
+                    entityId: entity.id,
+                    isGroup: false,
+                    OR: rows.map((r) => ({ name: { equals: r.category, mode: 'insensitive' as const } })),
+                  },
+                  select: { id: true },
+                })
+              : [],
+          ),
       ])
-    : [[], []]
+    : [[], [], []]
   const qNatures = q
     ? NATURES.filter(
         (n) =>
@@ -96,7 +115,19 @@ export default async function TaggingPage(props: {
           OR: [
             { narration: { contains: q, mode: 'insensitive' as const } },
             { reference: { contains: q, mode: 'insensitive' as const } },
-            ...(qHeads.length ? [{ headAccountId: { in: qHeads.map((h) => h.id) } }] : []),
+            ...(qHeads.length
+              ? [
+                  { headAccountId: { in: qHeads.map((h) => h.id) } },
+                  // entries whose Accounting Head was picked to a matching head
+                  { accountingHeadId: { in: qHeads.map((h) => h.id) } },
+                ]
+              : []),
+            // mirror entries of categories whose MASTER maps to a matching
+            // Accounting Head (an own pick on the entry overrides the master,
+            // so only accountingHeadId-null rows follow the mapping)
+            ...(qMappedHeads.length
+              ? [{ AND: [{ headAccountId: { in: qMappedHeads.map((h) => h.id) } }, { accountingHeadId: null }] }]
+              : []),
             ...(qCcs.length ? [{ costCentreId: { in: qCcs.map((c) => c.id) } }] : []),
             ...(qNatures.length ? [{ nature: { in: qNatures } }] : []),
           ],
@@ -394,7 +425,7 @@ export default async function TaggingPage(props: {
           defaultValue={q}
           list="tag-search-suggest"
           autoComplete="off"
-          placeholder="Search — narration / head / cost centre"
+          placeholder="Search — narration / head / Accounting Head / cost centre"
           className={`${controlClass} w-72`}
         />
         {/* Auto-suggest: first letters filter heads, natures, cost centres
