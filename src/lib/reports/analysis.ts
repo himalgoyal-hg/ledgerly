@@ -116,13 +116,26 @@ export interface BudgetRow {
  * Budget vs Actual (spec §10) for a period. Budgets are per account-month;
  * actuals come from the ledger on the account's normal side.
  */
-export async function budgetVsActual(entityId: string, year: number, months: number[]) {
+/**
+ * Budget vs Actual over an explicit list of (year, month) periods.
+ *
+ * It takes periods rather than a calendar year because budgets are stored
+ * on the FINANCIAL year, Apr–Mar (Himal, 20 Aug): asking for "2026" used to
+ * match only Apr–Dec, so a ₹30,000/month head reported ₹270,000 for the
+ * year instead of ₹360,000 — the Jan–Mar quarter sits under year 2027.
+ */
+export async function budgetVsActual(
+  entityId: string,
+  periods: { year: number; month: number }[],
+) {
   const budgets = await prisma.budget.findMany({
-    where: { entityId, year, month: { in: months } },
+    where: { entityId, OR: periods.map((p) => ({ year: p.year, month: p.month })) },
   })
   const accountIds = [...new Set(budgets.map((b) => b.accountId))]
-  const from = new Date(Date.UTC(year, Math.min(...months) - 1, 1))
-  const to = new Date(Date.UTC(year, Math.max(...months), 0))
+  const first = periods[0]
+  const last = periods[periods.length - 1]
+  const from = new Date(Date.UTC(first.year, first.month - 1, 1))
+  const to = new Date(Date.UTC(last.year, last.month, 0))
 
   const accounts = await prisma.ledgerAccount.findMany({
     where: { entityId, ...(accountIds.length ? { id: { in: accountIds } } : {}) },

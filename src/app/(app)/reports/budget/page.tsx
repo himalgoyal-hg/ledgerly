@@ -25,12 +25,22 @@ export default async function BudgetPage(props: {
   if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
-  const year = Number(params.year) || new Date().getUTCFullYear()
-  const monthFilter = Number(params.month) || 0 // 0 = whole year
-  const months = monthFilter ? [monthFilter] : Array.from({ length: 12 }, (_, i) => i + 1)
+  // Budgets live on the FINANCIAL year (Apr–Mar), like the rest of the app,
+  // so this report reads Apr fy … Mar fy+1 rather than Jan–Dec (Himal,
+  // 20 Aug: a ₹30,000/month head was reporting ₹2,70,000, i.e. 9 months).
+  const now = new Date()
+  const currentFy = now.getUTCMonth() + 1 >= 4 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
+  const year = Number(params.year) || currentFy
+  const monthFilter = Number(params.month) || 0 // 0 = the whole FY
+  const fyPeriods = Array.from({ length: 12 }, (_, i) =>
+    i < 9 ? { year, month: i + 4 } : { year: year + 1, month: i - 8 },
+  )
+  const periods = monthFilter
+    ? [monthFilter >= 4 ? { year, month: monthFilter } : { year: year + 1, month: monthFilter }]
+    : fyPeriods
 
   const [report, accounts] = await Promise.all([
-    budgetVsActual(entity.id, year, months),
+    budgetVsActual(entity.id, periods),
     prisma.ledgerAccount.findMany({
       where: {
         entityId: entity.id,
@@ -57,13 +67,18 @@ export default async function BudgetPage(props: {
       <ReportHeader
         title="Budget vs Actual"
         entityLabel={`${entity.name} (${entity.code})`}
-        subtitle={monthFilter ? `${MONTHS[monthFilter - 1]} ${year}` : `Full year ${year}`}
+        subtitle={
+          monthFilter
+            ? `${MONTHS[monthFilter - 1]} ${monthFilter >= 4 ? year : year + 1}`
+            : `FY ${year}-${String(year + 1).slice(2)} (Apr–Mar)`
+        }
         filters={
           <>
             <input
               type="number"
               name="year"
               defaultValue={year}
+              title="Financial year — 2026 means Apr 2026 to Mar 2027"
               className={`${controlClass} w-24`}
             />
             <select
@@ -71,9 +86,11 @@ export default async function BudgetPage(props: {
               defaultValue={String(monthFilter)}
               className={controlClass}
             >
-              <option value="0">Full year</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i + 1}>{m}</option>
+              <option value="0">Full FY (Apr–Mar)</option>
+              {fyPeriods.map((p) => (
+                <option key={`${p.year}-${p.month}`} value={p.month}>
+                  {MONTHS[p.month - 1]} {String(p.year).slice(2)}
+                </option>
               ))}
             </select>
             <button
@@ -95,7 +112,7 @@ export default async function BudgetPage(props: {
           <div className="border-t border-line-2 p-4">
           <form action={setBudget} className="mt-3 flex flex-wrap items-center gap-2">
             <input type="hidden" name="entityId" value={entity.id} />
-            <input type="hidden" name="year" value={year} />
+            <input type="hidden" name="fy" value={year} />
             <select
               name="accountId"
               required
@@ -109,9 +126,11 @@ export default async function BudgetPage(props: {
               ))}
             </select>
             <select name="month" className={controlClass}>
-              <option value="">Whole year</option>
-              {MONTHS.map((m, i) => (
-                <option key={m} value={i + 1}>{m} {year}</option>
+              <option value="">Whole FY (Apr–Mar)</option>
+              {fyPeriods.map((p) => (
+                <option key={`${p.year}-${p.month}`} value={p.month}>
+                  {MONTHS[p.month - 1]} {p.year}
+                </option>
               ))}
             </select>
             <input
@@ -135,8 +154,8 @@ export default async function BudgetPage(props: {
             </button>
           </form>
           <p className="mt-2 text-xs text-ink-3">
-            Whole-year targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and
-            spread over the twelve months. Picking a specific month takes the amount as-is.
+            Whole-FY targets are annualised from the frequency (₹1,000/week → ₹52,000/yr) and spread
+            over the twelve months of Apr–Mar. Picking a specific month takes the amount as-is.
           </p>
           </div>
         </details>
@@ -170,7 +189,7 @@ export default async function BudgetPage(props: {
                       <form action={setBudget} className="flex items-center justify-end gap-1">
                         <input type="hidden" name="entityId" value={entity.id} />
                         <input type="hidden" name="accountId" value={row.accountId} />
-                        <input type="hidden" name="year" value={year} />
+                        <input type="hidden" name="fy" value={year} />
                         <input type="hidden" name="month" value={monthFilter ? String(monthFilter) : ''} />
                         <input type="hidden" name="frequency" value="ANNUAL" />
                         <input
@@ -180,7 +199,7 @@ export default async function BudgetPage(props: {
                           title={
                             monthFilter
                               ? 'Target for this month — Enter to save, blank clears'
-                              : 'Whole-year target, spread over 12 months — Enter to save, blank clears'
+                              : 'Whole-FY target, spread over Apr–Mar — Enter to save, blank clears'
                           }
                           className="w-28 rounded border border-transparent bg-transparent px-1.5 py-0.5 text-right tabular-nums text-ink-2 hover:border-line focus:border-primary focus:bg-surface focus:outline-none"
                         />

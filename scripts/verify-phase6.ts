@@ -273,7 +273,7 @@ async function main() {
       { entityId: entity.id, accountId: travel.id, year: 2026, month: 7, amount: '2000.00' },
     ],
   })
-  const budget = await budgetVsActual(entity.id, 2026, [7])
+  const budget = await budgetVsActual(entity.id, [7].map((m) => ({ year: m >= 4 ? 2026 : 2027, month: m })))
   const rentBudget = budget.rows.find((r) => r.accountId === rent.id)
   const travelBudget = budget.rows.find((r) => r.accountId === travel.id)
   check(

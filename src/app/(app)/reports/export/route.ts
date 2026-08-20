@@ -131,13 +131,21 @@ export async function GET(request: Request) {
       break
     }
     case 'budget': {
-      const year = Number(url.searchParams.get('year')) || new Date().getUTCFullYear()
+      // same FY window the screen uses: Apr fy … Mar fy+1
+      const nowB = new Date()
+      const year =
+        Number(url.searchParams.get('year')) ||
+        (nowB.getUTCMonth() + 1 >= 4 ? nowB.getUTCFullYear() : nowB.getUTCFullYear() - 1)
       const monthParam = Number(url.searchParams.get('month')) || 0
-      const months = monthParam ? [monthParam] : Array.from({ length: 12 }, (_, i) => i + 1)
-      const budget = await budgetVsActual(entity.id, year, months)
+      const periods = monthParam
+        ? [monthParam >= 4 ? { year, month: monthParam } : { year: year + 1, month: monthParam }]
+        : Array.from({ length: 12 }, (_, i) =>
+            i < 9 ? { year, month: i + 4 } : { year: year + 1, month: i - 8 },
+          )
+      const budget = await budgetVsActual(entity.id, periods)
       rows = [
         header,
-        [`Period: ${monthParam ? `${year}-${String(monthParam).padStart(2, '0')}` : year}`],
+        [`Period: ${monthParam ? `${monthParam >= 4 ? year : year + 1}-${String(monthParam).padStart(2, '0')}` : `FY ${year}-${String(year + 1).slice(2)}`}`],
         [],
         ['Budget vs Actual'], [],
         ['Code', 'Account', 'Budget', 'Actual', 'Variance', 'Used %'],
