@@ -26,11 +26,12 @@ const DAY_OPTIONS = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday',
   'End of month', 'End of quarter',
 ]
-// The sheet's canonical four seed the list; every OTHER cost centre that
-// exists in any books joins it below (Himal, 20 Aug: "cost center je add
-// kelet te master made dist nahit") — spelling variants (Growth /
-// Optional-growth / Invesment…) dedupe to one entry via stripCcType.
-const CC_TYPES = ['Compulsory', 'Optional-Lifestyle', 'Optional-growth', 'Optional-Investment']
+// Himal's cost-centre vocabulary (20 Aug 2026) — exactly these seven, his
+// spellings ("Invesment" included). They seed the dropdown first so they
+// win as the displayed names; the books' own spellings (Optional-growth,
+// Optional-Lifestyle…) fold into them via stripCcType, and any centre
+// added later in any books still joins the list below.
+const CC_TYPES = ['Company Essentials', 'Company Growth', 'Compulsory', 'Growth', 'Invesment', 'Lifestyle', 'Optional']
 const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',
   HALF_YEARLY: 'Half yearly', ANNUAL: 'Annual',
