@@ -548,7 +548,19 @@ export default async function TaggingPage(props: {
         <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
         <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
         <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
-        <th className="px-2 py-2" />
+        {/* right after Accounting Head — one click drops every column
+            filter and the search, back to the plain daybook */}
+        <th className="px-2 py-2">
+          {filtered && (
+            <Link
+              href="/tagging"
+              title="Clear every filter — date, account, Narration, amount and the search"
+              className="whitespace-nowrap rounded border border-primary/30 bg-primary-soft px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-primary hover:bg-primary/15"
+            >
+              ✕ Clear filters
+            </Link>
+          )}
+        </th>
       </tr>
     </thead>
   )
