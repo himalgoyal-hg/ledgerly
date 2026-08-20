@@ -6,6 +6,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
 import { describeNarration } from '@/lib/statements/rules'
+import { countAutoTaggable } from '@/lib/statements/auto-tag'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
@@ -22,6 +23,7 @@ import {
   dismissAiSuggestion,
   bulkTag,
   acceptAllSuggestions,
+  autoTagRepeats,
 } from './actions'
 
 // The tagging queue (spec §3 steps 4–6): pending rows get their 3-tier tag,
@@ -256,6 +258,12 @@ export default async function TaggingPage(props: {
   const ccName = (id: string | null) => costCentres.find((c) => c.id === id)?.name
   const aiReady = aiConfigured()
   const awaitingSuggestion = pending.filter((t) => t.aiSuggestedAt === null).length
+
+  // Repeats the engine can settle on its own: pending rows whose party has
+  // been tagged before (Himal, 20 Aug). Import applies rules as they land;
+  // this catches the ones that were already waiting, or whose sibling was
+  // tagged through a path that does not spread.
+  const repeatable = await countAutoTaggable(prisma, entity.id, pending)
 
   // Search auto-suggest: the parties the rule engine knows, busiest first.
   const topParties = (
@@ -573,6 +581,18 @@ export default async function TaggingPage(props: {
         subtitle="Pick head, nature and cost centre — the engine posts the books underneath. Every manual tag teaches the auto-verifier."
         actions={
           <>
+            {repeatable > 0 && (
+              <form action={autoTagRepeats}>
+                <input type="hidden" name="entityId" value={entity.id} />
+                <button
+                  type="submit"
+                  title="Rows whose party you have tagged before — tag them the same way, cost centre and Accounting Head included"
+                  className="rounded-lg border border-success/30 bg-success-soft px-3 py-2 text-sm font-medium text-success hover:bg-success/15"
+                >
+                  Auto-tag {repeatable} repeat{repeatable === 1 ? '' : 's'}
+                </button>
+              </form>
+            )}
             {awaitingSuggestion > 0 && (
               <form action={requestAiSuggestions}>
                 <input type="hidden" name="entityId" value={entity.id} />

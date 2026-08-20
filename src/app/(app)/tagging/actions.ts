@@ -458,3 +458,27 @@ export async function retagPosted(formData: FormData) {
 // retagPosted (reversal + new version), and a wrong import goes out through
 // the Statements page's "Delete import", which reverses everything together.
 
+
+/**
+ * Auto-tag the repeats — the sweep itself lives in
+ * `lib/statements/auto-tag.ts` so it can be tested without Next's
+ * server-action plumbing.
+ */
+export async function autoTagRepeats(formData: FormData) {
+  const user = await requirePermission('transactionTagging')
+  const entityId = String(formData.get('entityId') ?? '')
+
+  await auditedTransaction(async (tx) => {
+    const { autoTagKnownParties } = await import('@/lib/statements/auto-tag')
+    const { tagged, parties } = await autoTagKnownParties(tx, { entityId, actorId: user.id })
+    if (tagged === 0) throw new Error('No pending row matches a party you have tagged before')
+    await audit(tx, {
+      actorId: user.id,
+      action: 'statement_txn.auto_tag_repeats',
+      targetType: 'Entity',
+      targetId: entityId,
+      summary: `Auto-tagged ${tagged} repeat row(s) across ${parties} known part${parties === 1 ? 'y' : 'ies'}`,
+    })
+  })
+  revalidatePath('/tagging')
+}
