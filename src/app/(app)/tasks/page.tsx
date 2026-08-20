@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth'
 import { ConfirmButton } from '@/components/confirm-button'
 import { LiveFilter } from '@/components/live-filter'
 import { CellInput, DateCell } from './cell-input'
-import { Badge, PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
+import { Badge, PageHeader, tableWrapClass, theadClass } from '@/components/ui'
 import {
   saveFinanceCellAction,
   createFinanceTaskAction,
@@ -13,25 +13,23 @@ import {
   addFinanceMonthAction,
 } from './actions'
 
-// Finance tasks — Himal's sheet, as a screen: columns are the recurring
-// payments (with paying account + due day), rows are months, and each cell
-// IS an input — type the amount/"Yes"/note, Enter, saved. Nothing posts;
-// the checklist just tracks that the payment happened.
-//
-// Professional-register structure (Himal, 19 Aug): fixed colgroup grid like
-// the master register, a summary strip with the month's progress, labeled
-// column editor, count chip in the header.
-
-const inputCls = controlClass
+// Finance tasks — Himal's sheet, as a screen: a Bills register sits above
+// the checklist. The register is built exactly like Accounts — master
+// register (Himal, 19 Aug): one row per bill, real always-visible columns
+// (name / bank mode / due day), ✓ saves the row, a dashed first row adds a
+// new one. Below it, the checklist grid keeps its own shape — columns are
+// the bills, rows are months, and each cell IS an input (amount / date /
+// remark). Nothing posts; the checklist just tracks that payment happened.
 
 const ord = (d: number) => {
   const s = ['th', 'st', 'nd', 'rd'][d % 100 > 10 && d % 100 < 14 ? 0 : Math.min(d % 10, 4) % 4] ?? 'th'
   return `${d}${s}`
 }
 
-const field = (label: string) => (
-  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">{label}</span>
-)
+// Same inline-cell style as the master register — border only shows on
+// hover/focus, so a row reads as data until you touch a field.
+const cellCls =
+  'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
 export default async function FinanceTasksPage() {
   await requireAdmin()
@@ -158,45 +156,97 @@ export default async function FinanceTasksPage() {
         )}
       </div>
 
-      {/* New bill / task — the sheet's column format: name, paying account,
-          due day, and (fill-what-you-know) the first month's value */}
-      <details className="rounded-2xl border border-line bg-surface shadow-card">
-        <summary className="cursor-pointer rounded-2xl px-4 py-2.5 text-sm font-medium text-ink hover:bg-surface-2/60">
-          ＋ New bill / task (a new column in the register)
-        </summary>
-        <form action={createFinanceTaskAction} className="border-t border-line-2 p-4">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
-            <label className="block">
-              {field('Bill / task *')}
-              <input name="name" required placeholder="New EMI Rs. 12,000 / Netflix…" className={`mt-1 w-full ${inputCls}`} />
-            </label>
-            <label className="block">
-              {field('Bank mode')}
-              <input name="account" list="task-bank-modes" placeholder="HDFC 2762 / MG Axis bank / Cash" className={`mt-1 w-full ${inputCls}`} />
-            </label>
-            <label className="block">
-              {field('Due day')}
-              <input name="dueDay" inputMode="numeric" placeholder="7" className={`mt-1 w-full ${inputCls}`} />
-            </label>
-            <label className="block">
-              {field('Month (optional)')}
-              <input name="firstMonth" type="month" defaultValue={nowKey} className={`mt-1 w-full ${inputCls}`} />
-            </label>
-            <label className="block">
-              {field('Amount / note (optional)')}
-              <input name="firstValue" placeholder="₹12,000 / Yes" className={`mt-1 w-full ${inputCls}`} />
-            </label>
-            <div className="flex items-end">
-              <button type="submit" className={buttonClass('primary')}>
-                Add
-              </button>
-            </div>
-          </div>
-          <p className="mt-2 text-[11px] text-ink-3">
-            Fill what you have — name is enough; the amount and other cells can be filled later, right in the grid.
-          </p>
-        </form>
-      </details>
+      {/* Bills register — same pattern as Accounts — master register: one
+          row per bill, real editable columns, ✓ saves, ✕ removes. The
+          first row is the add-row (dashed border), exactly like master's. */}
+      <div>
+        <h2 className="mb-1.5 text-sm font-semibold text-ink">Bills</h2>
+        <div className={tableWrapClass}>
+          <table className="w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[38%]" />
+              <col className="w-[28%]" />
+              <col className="w-[10%]" />
+              <col className="w-[24%]" />
+            </colgroup>
+            <thead className={theadClass}>
+              <tr>
+                <th className="px-4 py-2.5">Bill / task</th>
+                <th className="px-2 py-2.5">Bank mode</th>
+                <th className="px-2 py-2.5">Due day</th>
+                <th className="px-2 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line-2">
+              <tr className="border-l-2 border-success bg-surface-2/60">
+                <td className="px-4 py-1">
+                  <input
+                    name="name"
+                    form="task-new"
+                    required
+                    placeholder="＋ New EMI Rs. 12,000 / Netflix…"
+                    className={`${cellCls} border-dashed border-success/40`}
+                  />
+                </td>
+                <td className="px-1 py-0.5">
+                  <input name="account" form="task-new" list="task-bank-modes" placeholder="HDFC 2762 / Cash" className={cellCls} />
+                </td>
+                <td className="px-1 py-0.5">
+                  <input name="dueDay" form="task-new" inputMode="numeric" placeholder="7" className={`${cellCls} text-right tabular-nums`} />
+                </td>
+                <td className="px-2 py-1 text-right">
+                  <form id="task-new" action={createFinanceTaskAction} className="flex flex-wrap items-center justify-end gap-1">
+                    {/* fill-what-you-know: the new bill's first month can be
+                        born already filled, same as adding it on the sheet */}
+                    <input name="firstMonth" type="month" defaultValue={nowKey} title="First month (optional)" className={`${cellCls} w-28`} />
+                    <input name="firstValue" placeholder="₹ / Yes" title="First value (optional)" className={`${cellCls} w-16`} />
+                    <button type="submit" className="rounded bg-success px-2 py-0.5 text-[11px] font-medium text-white hover:opacity-90">
+                      Add
+                    </button>
+                  </form>
+                </td>
+              </tr>
+              {tasks.map((t) => {
+                const fid = `task-${t.id}`
+                return (
+                  <tr key={t.id} className="even:bg-surface-2/40 hover:bg-primary-soft/40">
+                    <td className="px-4 py-1 text-xs font-medium text-ink">
+                      <input type="hidden" name="taskId" form={fid} value={t.id} />
+                      <input name="name" form={fid} defaultValue={t.name} required className={cellCls} />
+                    </td>
+                    <td className="px-1 py-0.5">
+                      <input name="account" form={fid} list="task-bank-modes" defaultValue={t.account ?? ''} placeholder="HDFC 2762 / Cash" className={cellCls} />
+                    </td>
+                    <td className="px-1 py-0.5">
+                      <input name="dueDay" form={fid} defaultValue={t.dueDay ?? ''} inputMode="numeric" placeholder="7" className={`${cellCls} text-right tabular-nums`} />
+                    </td>
+                    <td className="whitespace-nowrap px-2 py-0.5 text-right">
+                      <form id={fid} action={updateFinanceTaskAction} className="inline">
+                        <button
+                          type="submit"
+                          title="Save — updates the register and this bill's column below"
+                          className="rounded border border-line px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2"
+                        >
+                          ✓
+                        </button>
+                      </form>
+                      <form action={archiveFinanceTaskAction} className="ml-1 inline">
+                        <input type="hidden" name="taskId" value={t.id} />
+                        <ConfirmButton
+                          message={`Remove "${t.name}" from the register? History stays in the database.`}
+                          className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger/70 hover:bg-danger-soft hover:text-danger"
+                        >
+                          ✕
+                        </ConfirmButton>
+                      </form>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       {/* The register — the sheet itself: months × tasks, every cell an
           input. Each bill is an Amount + Date column pair (Himal, 19 Aug).
@@ -224,44 +274,11 @@ export default async function FinanceTasksPage() {
                 <th key={t.id} colSpan={2} className="border-l border-line-2 px-1.5 pb-0 pt-2 font-medium">
                   <div className="normal-case tracking-normal">
                     <div className="truncate text-[10px] text-ink-3" title={t.account ?? undefined}>
-                      {t.account ?? ' '}
+                      {t.account ?? ' '}
                       {t.dueDay ? ` · due ${ord(t.dueDay)}` : ''}
                     </div>
-                    <div className="mt-0.5 flex items-start gap-1 text-xs font-semibold text-ink">
-                      <span className="truncate" title={t.name}>{t.name}</span>
-                      {/* header ✎ — edit the column in place */}
-                      <details className="relative shrink-0">
-                        <summary className="cursor-pointer list-none rounded px-1 text-ink-3 hover:bg-surface-2 hover:text-ink-2">✎</summary>
-                        <div className="absolute left-0 top-6 z-20 w-60 rounded-xl border border-line bg-surface p-3 shadow-pop">
-                          <form action={updateFinanceTaskAction} className="space-y-2">
-                            <input type="hidden" name="taskId" value={t.id} />
-                            <label className="block">
-                              {field('Bill / task')}
-                              <input name="name" defaultValue={t.name} required className={`mt-1 w-full ${inputCls}`} />
-                            </label>
-                            <label className="block">
-                              {field('Bank mode')}
-                              <input name="account" list="task-bank-modes" defaultValue={t.account ?? ''} placeholder="HDFC 2762 / Cash" className={`mt-1 w-full ${inputCls}`} />
-                            </label>
-                            <label className="block">
-                              {field('Due day')}
-                              <input name="dueDay" defaultValue={t.dueDay ?? ''} inputMode="numeric" placeholder="7" className={`mt-1 w-full ${inputCls}`} />
-                            </label>
-                            <button type="submit" className="w-full rounded-lg bg-primary px-2 py-1.5 text-xs font-medium text-white hover:bg-primary-strong">
-                              Save
-                            </button>
-                          </form>
-                          <form action={archiveFinanceTaskAction} className="mt-1.5">
-                            <input type="hidden" name="taskId" value={t.id} />
-                            <ConfirmButton
-                              message={`Remove "${t.name}" from the register? History stays in the database.`}
-                              className="w-full rounded-lg border border-danger/30 px-2 py-1.5 text-xs text-danger hover:bg-danger-soft"
-                            >
-                              Remove column
-                            </ConfirmButton>
-                          </form>
-                        </div>
-                      </details>
+                    <div className="mt-0.5 truncate text-xs font-semibold text-ink" title={t.name}>
+                      {t.name}
                     </div>
                   </div>
                 </th>
@@ -369,7 +386,7 @@ export default async function FinanceTasksPage() {
         </table>
       </div>
       <p className="text-[11px] text-ink-3">
-        Every bill has an Amount and a Date column — type or pick, Enter or click away saves. Clearing the amount removes the whole cell, date and remark included. ⋯ under an amount holds its Remark. ✎ edits a column, ＋ adds a new one.
+        Every bill has an Amount and a Date column — type or pick, Enter or click away saves. Clearing the amount removes the whole cell, date and remark included. ⋯ under an amount holds its Remark. Add, rename or remove a bill in the Bills register above — ✓ saves, ✕ removes.
       </p>
       <datalist id="task-bank-modes">
         {bankModes.map((m) => (
