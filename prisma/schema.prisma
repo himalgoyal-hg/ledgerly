@@ -278,9 +278,11 @@ model JournalLine {
   // Tier 3 of tagging (spec §3 step 5) — flows into cost centre reports.
   costCentreId String?
   costCentre   CostCentre? @relation(fields: [costCentreId], references: [id])
-  // The second tagging dimension (Himal, 19 Aug 2026): Yes while tagging →
-  // this line joins the separate-report lens on Reports → By. Default No
-  // everywhere. Carried through reversals so retags cancel there too.
+  // The tag's 2nd head (Himal, 19/20 Aug 2026): NULL = same as accountId's
+  // head (mirror); an id = the Accounting Head the user picked instead.
+  // Carried through reversals/undo so retags cancel in that report too.
+  accountingHeadId String?
+  // retired 20 Aug 2026: the per-line Yes/No became accountingHeadId above
   separateReport Boolean @default(false)
 
   @@index([accountId])
@@ -368,8 +370,14 @@ model StatementTransaction {
   headAccountId String?
   nature        String? // expense | income | transfer_own | loan_given | loan_received | capital
   costCentreId  String?
-  // 2nd tagging type (Himal, 19 Aug 2026): Yes → the posted head line joins
-  // the separate-report lens. Default No; rides onto the journal line.
+  // 2nd head of the tag (Himal, 19/20 Aug 2026): the Accounting Head. NULL =
+  // mirrors headAccountId (follows it automatically); a stored id = the user
+  // changed it — that change never flows back into the Expense Head. Rides
+  // onto the posted journal line; the Reports → By "Accounting Head" scope
+  // groups by it and shows entries whose effective Accounting Head is a
+  // master Yes-flagged head.
+  accountingHeadId String?
+  // retired 20 Aug 2026: the per-entry Yes/No became accountingHeadId above
   separateReport Boolean  @default(false)
   autoTagged    Boolean   @default(false) // "Verified by System"
   taggedById    String?
@@ -523,7 +531,9 @@ model CashEntry {
   toLocationId  String? // TRANSFER target
   headAccountId String? // RECEIPT / PAYMENT / ADJUSTMENT counter-head
   costCentreId  String?
-  // 2nd tagging type: Yes → the head line joins the separate-report lens
+  // The tag's 2nd head: NULL = same as headAccountId; an id = user's pick
+  accountingHeadId String?
+  // retired 20 Aug 2026: the per-entry Yes/No became accountingHeadId above
   separateReport Boolean      @default(false)
   inflow        Boolean       @default(false) // ADJUSTMENT direction (cash increases)
   amount        Decimal       @db.Decimal(14, 2)

@@ -73,6 +73,25 @@ async function assertHeadTaggable(
 }
 
 /**
+ * The tag's 2nd head. Same as the Expense Head (or absent) → NULL, meaning
+ * "mirror" — it keeps following the Expense Head on every retag. A different
+ * id is validated like a head and stored; it never changes the Expense Head.
+ */
+async function resolveAccountingHead(
+  tx: Prisma.TransactionClient,
+  entityId: string,
+  headAccountId: string,
+  accountingHeadId: string | null | undefined,
+): Promise<string | null> {
+  if (!accountingHeadId || accountingHeadId === headAccountId) return null
+  const ah = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: accountingHeadId } })
+  if (ah.entityId !== entityId) throw new TagError('Accounting Head belongs to other books')
+  if (ah.isGroup) throw new TagError(`"${ah.name}" is a group head — pick a leaf account`)
+  if (ah.archivedAt) throw new TagError(`"${ah.name}" is archived`)
+  return ah.id
+}
+
+/**
  * Step 5: apply a 3-tier tag. Manual tags feed the learning engine so the
  * next import auto-verifies the same party (spec §3 step 4).
  */
@@ -83,9 +102,11 @@ export async function applyTag(
     headAccountId: string
     nature: string
     costCentreId?: string | null
-    /** 2nd tagging type (Himal, 19 Aug): Yes → the posted head line joins
-     *  the separate-report lens. Defaults to No everywhere. */
-    separateReport?: boolean
+    /** The tag's 2nd head (Himal, 20 Aug): absent / same as headAccountId →
+     *  stored NULL, i.e. it mirrors the Expense Head and keeps following it.
+     *  A different id = the user's own pick; it never writes back into the
+     *  Expense Head. */
+    accountingHeadId?: string | null
     tax?: TagTaxInput
     actorId: string
     /**
@@ -126,6 +147,7 @@ export async function applyTag(
     const cc = await tx.costCentre.findUnique({ where: { id: args.costCentreId } })
     if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
   }
+  const accountingHeadId = await resolveAccountingHead(tx, txn.entityId, args.headAccountId, args.accountingHeadId)
   const tax = args.tax ?? {}
   validateTax(tax, args.nature)
   const hasGst = Boolean(tax.gstRate)
@@ -138,7 +160,7 @@ export async function applyTag(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId,
-      separateReport: args.separateReport ?? false,
+      accountingHeadId,
       gstType: hasGst ? (tax.gstType ?? 'intra') : null,
       gstRate: hasGst ? tax.gstRate : null,
       hsn: hasGst ? tax.hsn ?? null : null,
@@ -180,7 +202,7 @@ export async function clearTag(tx: Prisma.TransactionClient, txnId: string) {
       headAccountId: null,
       nature: null,
       costCentreId: null,
-      separateReport: false,
+      accountingHeadId: null,
       gstType: null,
       gstRate: null,
       hsn: null,
@@ -218,7 +240,7 @@ async function buildLines(
   tx: Prisma.TransactionClient,
   txn: Pick<
     StatementTransaction,
-    'entityId' | 'debit' | 'credit' | 'costCentreId' | 'separateReport' | 'gstRate' | 'tdsRate' | 'tdsSection'
+    'entityId' | 'debit' | 'credit' | 'costCentreId' | 'accountingHeadId' | 'gstRate' | 'tdsRate' | 'tdsSection'
   >,
   headAccountId: string,
   bankLedgerAccountId: string,
@@ -226,8 +248,8 @@ async function buildLines(
   const outflow = Number(txn.debit) > 0
   const bankAmount = parsePaise(outflow ? String(txn.debit) : String(txn.credit))
   const cc = txn.costCentreId ?? undefined
-  // the 2nd tag rides the head line only — bank/tax lines stay unmarked
-  const sep = txn.separateReport
+  // the 2nd head rides the head line only — bank/tax lines stay unmarked
+  const acct = txn.accountingHeadId ?? undefined
 
   // Both taxes on one row: bank amount = taxable + GST − TDS.
   if (txn.gstRate && txn.tdsRate) {
@@ -241,7 +263,7 @@ async function buildLines(
       const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, accountingHeadId: acct },
           { accountId: inputCredit.id, debit: formatPaise(gst) },
           { accountId: tdsPayable.id, credit: formatPaise(tds) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
@@ -262,7 +284,7 @@ async function buildLines(
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
         { accountId: tdsReceivable.id, debit: formatPaise(tds) },
-        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, accountingHeadId: acct },
         { accountId: output.id, credit: formatPaise(gst) },
       ],
       // Register the GST side (GSTR); their TDS deduction isn't our register.
@@ -282,7 +304,7 @@ async function buildLines(
       const inputCredit = await getSystemAccount(tx, txn.entityId, '1500')
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
+          { accountId: headAccountId, debit: formatPaise(taxable), costCentreId: cc, accountingHeadId: acct },
           { accountId: inputCredit.id, debit: formatPaise(gst) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
         ],
@@ -293,7 +315,7 @@ async function buildLines(
     return {
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
-        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, separateReport: sep },
+        { accountId: headAccountId, credit: formatPaise(taxable), costCentreId: cc, accountingHeadId: acct },
         { accountId: output.id, credit: formatPaise(gst) },
       ],
       tax: { direction: 'output', taxableValue: formatPaise(taxable), gstAmount: formatPaise(gst), tdsAmount: '0', withholdsTds: false },
@@ -307,7 +329,7 @@ async function buildLines(
       const tdsPayable = await getSystemAccount(tx, txn.entityId, COA.TDS_PAYABLE)
       return {
         lines: [
-          { accountId: headAccountId, debit: formatPaise(gross), costCentreId: cc, separateReport: sep },
+          { accountId: headAccountId, debit: formatPaise(gross), costCentreId: cc, accountingHeadId: acct },
           { accountId: tdsPayable.id, credit: formatPaise(tds) },
           { accountId: bankLedgerAccountId, credit: formatPaise(bankAmount) },
         ],
@@ -320,7 +342,7 @@ async function buildLines(
       lines: [
         { accountId: bankLedgerAccountId, debit: formatPaise(bankAmount) },
         { accountId: tdsReceivable.id, debit: formatPaise(tds) },
-        { accountId: headAccountId, credit: formatPaise(gross), costCentreId: cc, separateReport: sep },
+        { accountId: headAccountId, credit: formatPaise(gross), costCentreId: cc, accountingHeadId: acct },
       ],
       tax: null, // their deduction, not our register
     }
@@ -330,12 +352,12 @@ async function buildLines(
   return {
     lines: outflow
       ? [
-          { accountId: headAccountId, debit: amount, costCentreId: cc, separateReport: sep },
+          { accountId: headAccountId, debit: amount, costCentreId: cc, accountingHeadId: acct },
           { accountId: bankLedgerAccountId, credit: amount },
         ]
       : [
           { accountId: bankLedgerAccountId, debit: amount },
-          { accountId: headAccountId, credit: amount, costCentreId: cc, separateReport: sep },
+          { accountId: headAccountId, credit: amount, costCentreId: cc, accountingHeadId: acct },
         ],
     tax: null,
   }
@@ -483,8 +505,9 @@ export async function retagPostedTransaction(
     headAccountId: string
     nature: string
     costCentreId?: string | null
-    /** 2nd tagging type — the form's Yes/No is the source of truth on retag. */
-    separateReport?: boolean
+    /** The tag's 2nd head — the form's pick is the source of truth on retag;
+     *  same as the Expense Head (or absent) stores NULL = mirror. */
+    accountingHeadId?: string | null
     tax?: TagTaxInput
     actorId: string
   },
@@ -523,6 +546,7 @@ export async function retagPostedTransaction(
     const cc = await tx.costCentre.findUnique({ where: { id: head.defaultCostCentreId } })
     if (cc && cc.entityId === txn.entityId && !cc.archivedAt) costCentreId = cc.id
   }
+  const accountingHeadId = await resolveAccountingHead(tx, txn.entityId, args.headAccountId, args.accountingHeadId)
 
   const taxFields = {
     gstType: hasGst ? (tax.gstType ?? 'intra') : null,
@@ -542,7 +566,7 @@ export async function retagPostedTransaction(
       debit: txn.debit,
       credit: txn.credit,
       costCentreId,
-      separateReport: args.separateReport ?? false,
+      accountingHeadId,
       gstRate: taxFields.gstRate,
       tdsRate: taxFields.tdsRate,
       tdsSection: taxFields.tdsSection,
@@ -566,7 +590,7 @@ export async function retagPostedTransaction(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId,
-      separateReport: args.separateReport ?? false,
+      accountingHeadId,
       ...taxFields,
       autoTagged: false,
       taggedById: args.actorId,

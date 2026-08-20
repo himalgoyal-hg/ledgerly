@@ -331,9 +331,9 @@ export default async function TaggingPage(props: {
         <th className="px-2 py-2">A/c</th>
         <th className="px-2 py-2">Narration</th>
         <th className="px-2 py-2 text-right">Amount</th>
-        <th className="w-[24%] min-w-44 px-2 py-2">Expense Head</th>
-        <th className="w-[22%] min-w-44 px-2 py-2">Cost centre</th>
-        <th className="min-w-24 px-2 py-2">Accounting Head</th>
+        <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
+        <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
+        <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
         <th className="px-2 py-2" />
       </tr>
     </thead>
@@ -466,15 +466,15 @@ export default async function TaggingPage(props: {
               placeholder="Cost centre — type or add"
               className={`${controlClass} w-56`}
             />
-            {/* 2nd tag for every ticked row — default No */}
-            <select
-              name="separateReport"
-              title="Accounting Head — Yes shows these entries in their own report on Reports → By"
-              className="rounded-lg border border-line bg-surface px-2 py-1 text-xs text-ink-2"
-            >
-              <option value="">Accounting Head: No</option>
-              <option value="Yes">Accounting Head: Yes</option>
-            </select>
+            {/* the 2nd head for every ticked row — blank = same as the head */}
+            <HeadCombobox
+              heads={heads}
+              name="accountingHeadId"
+              createName="accountingHeadText"
+              required={false}
+              placeholder="Accounting Head — same as head"
+              className={`${controlClass} w-56`}
+            />
             {/* Same GST/TDS for every ticked row (spec §7) */}
             <details>
               <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
@@ -700,7 +700,7 @@ export default async function TaggingPage(props: {
                         headAccountId: txn.headAccountId,
                         nature: txn.nature,
                         costCentreId: txn.costCentreId,
-                        separateReport: txn.separateReport,
+                        accountingHeadId: txn.accountingHeadId,
                         gstType: txn.gstType,
                         gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                         hsn: txn.hsn,
@@ -785,7 +785,7 @@ export default async function TaggingPage(props: {
                             headAccountId: txn.headAccountId,
                             nature: txn.nature,
                             costCentreId: txn.costCentreId,
-                            separateReport: txn.separateReport,
+                            accountingHeadId: txn.accountingHeadId,
                             gstType: txn.gstType,
                             gstRate: txn.gstRate === null ? null : String(txn.gstRate),
                             hsn: txn.hsn,
@@ -816,10 +816,13 @@ export default async function TaggingPage(props: {
                             {ccName(txn.costCentreId) ?? '—'}
                           </td>
                           <td className="px-2 py-1.5 text-xs">
-                            {txn.separateReport ? (
-                              <span className="rounded bg-primary-soft px-1.5 py-0.5 font-semibold text-primary">Yes</span>
+                            {/* overridden 2nd head shows highlighted; mirror shows muted */}
+                            {txn.accountingHeadId ? (
+                              <span className="rounded bg-primary-soft px-1.5 py-0.5 font-medium text-primary">
+                                {headName(txn.accountingHeadId)}
+                              </span>
                             ) : (
-                              <span className="text-ink-3">No</span>
+                              <span className="text-ink-3" title="Same as the Expense Head">—</span>
                             )}
                           </td>
                           <td className="px-2 py-1.5">

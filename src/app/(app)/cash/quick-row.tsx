@@ -36,6 +36,9 @@ export function CashQuickRow(props: {
   const [locationId, setLocationId] = useState(props.locations[0]?.id ?? '')
   const entityId = props.locations.find((l) => l.id === locationId)?.entityId ?? ''
   const [costCentreId, setCostCentreId] = useState('')
+  // the 2nd head mirrors the picked head; changing it never flows back
+  const [acctHeadId, setAcctHeadId] = useState('')
+  const [expHeadId, setExpHeadId] = useState('')
   const [ccSeed, setCcSeed] = useState(0)
 
   return (
@@ -72,10 +75,14 @@ export function CashQuickRow(props: {
         className={`w-52 ${inputCls}`}
         onPick={(head) => {
           setCostCentreId(head?.defaultCostCentreId ?? '')
+          setExpHeadId(head?.id ?? '')
+          setAcctHeadId(head?.id ?? '')
           setCcSeed((s) => s + 1)
         }}
         onCreateText={() => {
           setCostCentreId('')
+          setExpHeadId('')
+          setAcctHeadId('')
           setCcSeed((s) => s + 1)
         }}
       />
@@ -90,16 +97,20 @@ export function CashQuickRow(props: {
         onPick={(opt) => setCostCentreId(opt?.id ?? '')}
       />
       <input name="comments" placeholder="Comments" className={`w-36 ${inputCls}`} />
-      {/* 2nd tag — Yes routes the entry to the separate-report lens; No is
-          the default everywhere */}
-      <select
-        name="separateReport"
-        title="Accounting Head — Yes shows this entry in its own report on Reports → By"
-        className={inputCls}
-      >
-        <option value="">Accounting Head: No</option>
-        <option value="Yes">Accounting Head: Yes</option>
-      </select>
+      {/* the 2nd head — mirrors the picked head (re-mounts on every pick),
+          changeable, and the change never flows back into the head */}
+      <HeadCombobox
+        key={`ah-${entityId}-${ccSeed}`}
+        heads={props.headsByEntity[entityId] ?? []}
+        name="accountingHeadId"
+        createName="accountingHeadText"
+        defaultHeadId={acctHeadId || undefined}
+        placeholder="Accounting Head (auto)"
+        className={`w-44 ${inputCls} ${
+          acctHeadId && acctHeadId !== expHeadId ? 'border-primary/40 bg-primary-soft font-medium text-primary' : ''
+        }`}
+        onPick={(h) => setAcctHeadId(h?.id ?? '')}
+      />
       <button
         type="submit"
         className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-strong"

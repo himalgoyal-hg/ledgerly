@@ -11,10 +11,12 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 // groups). Every figure is a live ledger query — tagging fills it, nothing
 // is typed. Rows link to the ledger where they can.
 //
-// Second tagging dimension (Himal, 19 Aug — named "Accounting Head"): the
-// master register's Yes-flagged heads plus entries flagged Yes while tagging
-// form their own scope — the same lenses, with EVERY nature included so
-// asset buys (laptop, car) count alongside expenses.
+// Second tagging dimension (Himal, 19/20 Aug — the "Accounting Head"):
+// every tag carries a 2nd head that mirrors the Expense Head unless changed
+// while tagging. The Accounting Head scope keeps lines whose effective 2nd
+// head is a master Yes-flagged head, groups them under that head's name,
+// and includes EVERY nature so asset buys (laptop, car) count alongside
+// expenses. The change never affects the books view (All heads scope).
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -58,13 +60,17 @@ export default async function ByDimensionPage({
   })
 
   // one query shape per lens: name × month × net movement (Dr − Cr).
-  // Normal scope = expense + income heads; separate scope = ONLY what was
-  // explicitly marked Yes — entries flagged while tagging, plus every line
-  // of a master-flagged head — in EVERY nature (asset buys count too).
+  // Normal scope = expense + income heads, grouped by the head that POSTED.
+  // Accounting Head scope: every line has an effective Accounting Head —
+  // the one picked while tagging, or (NULL = mirror) the posting head
+  // itself — and the scope keeps lines whose effective Accounting Head is
+  // a master Yes-flagged head, in EVERY nature (asset buys count too),
+  // grouped under the Accounting Head's name, not the Expense Head's.
+  const eff = Prisma.sql`COALESCE(ah.name, a.name)`
   const scopeFilter = sep
     ? sepHeads.length
-      ? Prisma.sql`AND (l."separateReport" OR lower(a.name) = ANY(${sepHeads}))`
-      : Prisma.sql`AND l."separateReport"`
+      ? Prisma.sql`AND lower(${eff}) = ANY(${sepHeads})`
+      : Prisma.sql`AND false`
     : Prisma.sql`AND a.kind IN ('EXPENSE', 'INCOME')`
   let rows: { name: string; id: string | null; month: string; amt: string }[] = []
   if (by === 'cc') {
@@ -75,18 +81,21 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
+      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
       LEFT JOIN "CostCentre" cc ON cc.id = l."costCentreId"
       WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
   } else if (by === 'head') {
     rows = await prisma.$queryRaw`
-      SELECT a.name AS name, a.id AS id,
+      SELECT ${sep ? eff : Prisma.sql`a.name`} AS name,
+             ${sep ? Prisma.sql`COALESCE(ah.id, a.id)` : Prisma.sql`a.id`} AS id,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
              SUM(l.debit - l.credit)::text AS amt
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
+      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
       WHERE e."entityId" = ${entity.id} ${scopeFilter}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
@@ -98,8 +107,10 @@ export default async function ByDimensionPage({
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
+      LEFT JOIN "LedgerAccount" ah ON ah.id = l."accountingHeadId"
       JOIN "LedgerAccount" root
-        ON root."entityId" = a."entityId" AND root.code = left(a.code, 1) || '000'
+        ON root."entityId" = a."entityId"
+        AND root.code = left(${sep ? Prisma.sql`COALESCE(ah.code, a.code)` : Prisma.sql`a.code`}, 1) || '000'
       WHERE e."entityId" = ${entity.id} ${sep ? scopeFilter : Prisma.empty}
         AND e.date >= ${from}::date AND e.date < ${to}::date
       GROUP BY 1, 2, 3`
@@ -129,7 +140,7 @@ export default async function ByDimensionPage({
         title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Accounting Head' : ''} — ${entity.code}`}
         subtitle={
           sep
-            ? `Only what was marked Yes — entries flagged while tagging, plus every line of a master-flagged head. Every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
+            ? `Entries whose Accounting Head is a Yes-flagged master head — grouped under the Accounting Head, every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
             : `Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`
         }
         actions={
@@ -198,8 +209,9 @@ export default async function ByDimensionPage({
         <p className="text-sm text-ink-3">
           {sep ? (
             <>
-              Nothing marked Accounting Head = Yes in FY {fy}-{String(fy + 1).slice(2)} yet — pick Yes while
-              tagging an entry, or flag a whole head on{' '}
+              Nothing here for FY {fy}-{String(fy + 1).slice(2)} yet — flag a head Accounting Head = Yes on{' '}
+              Accounts, then entries land here by tagging to it (or by picking it as an entry&apos;s Accounting Head).
+              Set the flag on{' '}
               <Link href="/admin/coa" className="text-primary hover:underline">
                 Accounts — master register
               </Link>

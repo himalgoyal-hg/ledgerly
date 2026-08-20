@@ -23,9 +23,12 @@ function tagFields(formData: FormData) {
   const headAccountId = String(formData.get('headAccountId') ?? '')
   const nature = String(formData.get('nature') ?? '')
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
-  // 2nd tagging type — Yes sends this entry to the separate-report lens;
-  // anything else (including absent) is No, the default everywhere.
-  const separateReport = String(formData.get('separateReport') ?? '') === 'Yes'
+  // The tag's 2nd head — the Accounting Head column. It arrives prefilled
+  // with the Expense Head (mirror); a different pick is the user's own and
+  // never writes back into the Expense Head. Unmatched text creates the
+  // head (find-or-create), same as the Expense Head combobox.
+  const accountingHeadId = String(formData.get('accountingHeadId') ?? '') || null
+  const accountingHeadText = String(formData.get('accountingHeadText') ?? '').trim() || null
   // Creatable comboboxes: text that matched no head / cost centre arrives
   // here and is found-or-created in the books being tagged.
   const headText = String(formData.get('headText') ?? '').trim() || null
@@ -43,13 +46,13 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  return { headAccountId, nature, costCentreId, separateReport, headText, costCentreText, tax }
+  return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, headText, costCentreText, tax }
 }
 
 export async function tagTransaction(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -66,6 +69,17 @@ export async function tagTransaction(formData: FormData) {
         costCentreId: raw.costCentreId,
         costCentreText,
       }),
+      // typed-but-unknown Accounting Head is born like an Expense Head would
+      // be — under the master's nature and cost-centre rules
+      accountingHeadId:
+        raw.accountingHeadId ||
+        (accountingHeadText
+          ? await resolveHeadAccount(tx, {
+              entityId: txn.entityId,
+              headText: accountingHeadText,
+              isOutflow: Number(txn.debit) > 0,
+            })
+          : null),
     }
     await applyTag(tx, { txnId, ...fields, actorId: user.id })
     await tx.statementTransaction.update({
@@ -121,7 +135,8 @@ export async function bulkTag(formData: FormData) {
   const headText = String(formData.get('headText') ?? '').trim() || null
   if (!pickedHeadId && !headText) throw new Error('Pick a head')
   const natureRaw = String(formData.get('nature') ?? '')
-  const separateReport = String(formData.get('separateReport') ?? '') === 'Yes'
+  const bulkAcctId = String(formData.get('accountingHeadId') ?? '') || null
+  const bulkAcctText = String(formData.get('accountingHeadText') ?? '').trim() || null
   const field = (name: string) => String(formData.get(name) ?? '').trim() || null
   const tax = {
     gstType: field('gstType'),
@@ -148,12 +163,22 @@ export async function bulkTag(formData: FormData) {
       costCentreId: String(formData.get('costCentreId') ?? '') || null,
       costCentreText: String(formData.get('costCentreText') ?? '').trim() || null,
     })
+    // one Accounting Head for every ticked row — blank means mirror the head
+    const accountingHeadId =
+      bulkAcctId ||
+      (bulkAcctText
+        ? await resolveHeadAccount(tx, {
+            entityId: head.entityId,
+            headText: bulkAcctText,
+            isOutflow: Number(first.debit) > 0,
+          })
+        : null)
     let tagged = 0
     for (const id of ids) {
       const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id } })
       if (txn.status !== 'PENDING' || txn.entityId !== head.entityId) continue
       const nature = natureRaw || suggestNature(head, Number(txn.debit) > 0)
-      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, separateReport, tax, actorId: user.id })
+      await applyTag(tx, { txnId: id, headAccountId, nature, costCentreId, accountingHeadId, tax, actorId: user.id })
       await tx.statementTransaction.update({ where: { id }, data: { tagSource: 'manual' } })
       tagged++
     }
@@ -353,7 +378,7 @@ export async function postAll(formData: FormData) {
 export async function retagPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const before = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -370,6 +395,15 @@ export async function retagPosted(formData: FormData) {
         costCentreId: raw.costCentreId,
         costCentreText,
       }),
+      accountingHeadId:
+        raw.accountingHeadId ||
+        (accountingHeadText
+          ? await resolveHeadAccount(tx, {
+              entityId: before.entityId,
+              headText: accountingHeadText,
+              isOutflow: Number(before.debit) > 0,
+            })
+          : null),
     }
     await retagPostedTransaction(tx, { txnId, ...fields, actorId: user.id })
     await audit(tx, {
@@ -413,7 +447,7 @@ export async function undoPosted(formData: FormData) {
         data: {
           headAccountId: headLine.accountId,
           costCentreId: headLine.costCentreId,
-          separateReport: headLine.separateReport,
+          accountingHeadId: headLine.accountingHeadId,
         },
       })
     }

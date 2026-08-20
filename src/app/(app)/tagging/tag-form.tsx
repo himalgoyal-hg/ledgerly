@@ -39,7 +39,8 @@ export function TagRowCells(props: {
     headAccountId?: string | null
     nature?: string | null
     costCentreId?: string | null
-    separateReport?: boolean | null
+    /** The tag's 2nd head; null = mirrors the Expense Head. */
+    accountingHeadId?: string | null
     // Stored GST/TDS details — prefilled into the panel so a re-save or
     // retag carries them forward instead of silently blanking them.
     gstType?: string | null
@@ -56,9 +57,13 @@ export function TagRowCells(props: {
   const formId = `tag-${props.txnId}`
   const [nature, setNature] = useState(props.defaults?.nature ?? '')
   const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
-  // 2nd tagging type — default No everywhere; Yes sends the posted line to
-  // the separate-report lens on Reports → By (Himal, 19 Aug).
-  const [sepReport, setSepReport] = useState(props.defaults?.separateReport ? 'Yes' : '')
+  // The tag's 2nd head (Himal, 20 Aug): whatever lands in Expense Head
+  // mirrors into Accounting Head automatically; changing the Accounting
+  // Head is allowed and NEVER writes back into the Expense Head.
+  const [expHeadId, setExpHeadId] = useState(props.defaults?.headAccountId ?? '')
+  const [acctHeadId, setAcctHeadId] = useState(
+    props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? '',
+  )
   const [seed, setSeed] = useState(0)
 
   // GST and TDS can ride together on a row (professional fees: taxable +
@@ -85,9 +90,9 @@ export function TagRowCells(props: {
   return (
     <>
       {/* The tag tiers share the table's slack (narration and amount stay
-          snug) and the same input styling; the Accounting Head Yes/No gets
-          its own column like the sheet would give it. */}
-      <td className="w-[24%] px-2 py-1">
+          snug) and the same input styling; the Accounting Head is a head
+          picker of its own — it mirrors the Expense Head until changed. */}
+      <td className="w-[22%] px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
@@ -100,6 +105,10 @@ export function TagRowCells(props: {
             if (head) {
               setNature(suggestNature(head, props.isOutflow))
               setCostCentreId(head.defaultCostCentreId ?? '')
+              // the Accounting Head follows the Expense Head pick (mirror);
+              // the user can still change it after — one-way only
+              setExpHeadId(head.id)
+              setAcctHeadId(head.id)
               setSeed((s) => s + 1)
             }
           }}
@@ -108,13 +117,16 @@ export function TagRowCells(props: {
             // (inflow) on the server — suggest the matching nature here.
             setNature(props.isOutflow ? 'expense' : 'income')
             setCostCentreId('')
+            // no id yet to mirror — the server stores NULL (= mirror)
+            setExpHeadId('')
+            setAcctHeadId('')
             setSeed((s) => s + 1)
           }}
         />
       </td>
       {/* Nature rides hidden — auto from the head / master, per Himal
           (18 Aug): it posts correctly without taking a column. */}
-      <td className="w-[22%] px-2 py-1">
+      <td className="w-[18%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -127,24 +139,26 @@ export function TagRowCells(props: {
           onPick={(opt) => setCostCentreId(opt?.id ?? '')}
         />
       </td>
-      {/* 2nd tag — its own column, like the sheet: Yes routes this entry to
-          the Accounting Head report (Reports → By). No is the default. */}
-      <td className="px-2 py-1">
-        <select
-          name="separateReport"
-          form={formId}
-          value={sepReport}
-          onChange={(e) => setSepReport(e.target.value)}
-          title="Accounting Head — Yes shows this entry in its own report on Reports → By (head / cost centre)"
-          className={`w-full rounded border px-1.5 py-1 text-xs ${
-            sepReport === 'Yes'
-              ? 'border-primary/40 bg-primary-soft font-semibold text-primary'
-              : 'border-line bg-surface text-ink-2'
+      {/* The tag's 2nd head — its own column: it mirrors whatever the
+          Expense Head is (re-mounts on every head pick, the `seed` key),
+          stays editable, and an override never flows back leftwards.
+          Overridden = highlighted so a changed head is visible at a glance. */}
+      <td className="w-[18%] px-2 py-1">
+        <HeadCombobox
+          key={`a${seed}`}
+          heads={props.heads}
+          name="accountingHeadId"
+          createName="accountingHeadText"
+          defaultHeadId={acctHeadId || undefined}
+          formId={formId}
+          placeholder="= Expense Head"
+          className={`${inputCls} ${
+            acctHeadId && acctHeadId !== expHeadId
+              ? 'border-primary/40 bg-primary-soft font-medium text-primary'
+              : ''
           }`}
-        >
-          <option value="">No</option>
-          <option value="Yes">Yes</option>
-        </select>
+          onPick={(h) => setAcctHeadId(h?.id ?? '')}
+        />
       </td>
       <td className="px-2 py-1">
         <div className="flex items-start gap-1.5">
