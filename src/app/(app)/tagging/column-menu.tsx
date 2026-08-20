@@ -8,7 +8,8 @@ import { useEffect, useRef, useState } from 'react'
 // actions first, then Show filters, the active one ticked. The menu is
 // position:fixed so it escapes the table's overflow box instead of being
 // clipped by it; it closes on outside click, Escape, scroll or navigation.
-// What is currently applied stays visible on the header as a small chip.
+// Nothing is printed under the header (Himal, 20 Aug) — an applied filter
+// shows by colouring the label itself, and the menu's ✓ says which one.
 
 export interface MenuGroup {
   label: string
@@ -19,7 +20,7 @@ const MENU_W = 232
 
 export function ColumnMenu(props: {
   label: string
-  /** The applied filter, shown under the label when there is one. */
+  /** The applied filter — colours the label and rides in its tooltip. */
   state?: string | null
   arrow?: 'asc' | 'desc' | null
   groups: MenuGroup[]
@@ -74,7 +75,7 @@ export function ColumnMenu(props: {
         ref={btnRef}
         type="button"
         onClick={toggle}
-        title={`${props.label} — click to sort and filter`}
+        title={props.state ? `${props.label}: ${props.state} — click to change` : `${props.label} — click to sort and filter`}
         aria-expanded={open}
         className={`flex w-full items-center gap-1 rounded px-1 py-0.5 hover:bg-surface-2 ${
           props.align === 'right' ? 'justify-end' : ''
@@ -84,16 +85,6 @@ export function ColumnMenu(props: {
         {props.arrow && <span>{props.arrow === 'asc' ? '▲' : '▼'}</span>}
         <span className="text-[8px] opacity-60">▼</span>
       </button>
-      {props.state && (
-        <span
-          className={`mt-0.5 block truncate rounded bg-primary-soft px-1 text-[9px] font-medium normal-case tracking-normal text-primary ${
-            props.align === 'right' ? 'text-right' : ''
-          }`}
-          title={props.state}
-        >
-          {props.state}
-        </span>
-      )}
       {open && pos && (
         <div
           ref={menuRef}
