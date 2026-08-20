@@ -56,7 +56,7 @@ export default async function TaggingPage(props: {
   // is the normal state, so what's worth listing is the changed ones).
   const tagFilter = ['blank', 'notag', 'nocc', 'ahother'].includes(sp.tag ?? '') ? sp.tag! : 'all'
   // Excel-style column sort: which column, which way (default date ↑)
-  const sortKey = ['date', 'ac', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
+  const sortKey = ['date', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
   const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
 
   // Date filter — a whole year, or one month inside it (month wins)
@@ -287,8 +287,7 @@ export default async function TaggingPage(props: {
   const dirMul = sortDir === 'desc' ? -1 : 1
   const byDateAc = (a: SortableTxn, b: SortableTxn) => {
     let v = 0
-    if (sortKey === 'ac') v = (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '')
-    else if (sortKey === 'narration')
+    if (sortKey === 'narration')
       v = (titleOf.get(a.id) ?? '').localeCompare(titleOf.get(b.id) ?? '', undefined, { sensitivity: 'base', numeric: true })
     else if (sortKey === 'amount') v = amtOf(a) - amtOf(b)
     if (v !== 0) return v * dirMul
@@ -467,17 +466,11 @@ export default async function TaggingPage(props: {
         <th className="px-1 py-1.5">
           <ColumnMenu
             label="A/c"
-            arrow={sortKey === 'ac' ? sortDir : null}
             state={bank ? bankName(bank) : null}
             groups={[
               {
-                label: 'Sort',
-                options: [
-                  opt('A → Z', sortHref('ac', 'asc'), sortKey === 'ac' && sortDir === 'asc'),
-                  opt('Z → A', sortHref('ac', 'desc'), sortKey === 'ac' && sortDir === 'desc'),
-                ],
-              },
-              {
+                // no sort here (Himal, 20 Aug) — the account is picked, not
+                // ordered; A/c still breaks ties inside the date order
                 label: 'Show',
                 options: [
                   opt('All accounts', hrefWith({ bank: null }), !bank),
