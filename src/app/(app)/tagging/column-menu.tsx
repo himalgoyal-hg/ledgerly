@@ -1,0 +1,131 @@
+'use client'
+
+import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
+
+// Excel's filter arrow (Himal, 20 Aug: "hyavar click kelyavar aal pahije"):
+// the column header IS the button — click it and a menu drops with Sort
+// actions first, then Show filters, the active one ticked. The menu is
+// position:fixed so it escapes the table's overflow box instead of being
+// clipped by it; it closes on outside click, Escape, scroll or navigation.
+// What is currently applied stays visible on the header as a small chip.
+
+export interface MenuGroup {
+  label: string
+  options: { label: string; href: string; active?: boolean }[]
+}
+
+const MENU_W = 232
+
+export function ColumnMenu(props: {
+  label: string
+  /** The applied filter, shown under the label when there is one. */
+  state?: string | null
+  arrow?: 'asc' | 'desc' | null
+  groups: MenuGroup[]
+  align?: 'right'
+}) {
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const active = Boolean(props.state)
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (menuRef.current?.contains(t) || btnRef.current?.contains(t)) return
+      setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    const onMove = () => setOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [open])
+
+  const toggle = () => {
+    const r = btnRef.current?.getBoundingClientRect()
+    if (r) {
+      setPos({
+        top: r.bottom + 4,
+        left:
+          props.align === 'right'
+            ? Math.max(8, r.right - MENU_W)
+            : Math.min(r.left, window.innerWidth - MENU_W - 8),
+      })
+    }
+    setOpen((o) => !o)
+  }
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={toggle}
+        title={`${props.label} — click to sort and filter`}
+        aria-expanded={open}
+        className={`flex w-full items-center gap-1 rounded px-1 py-0.5 hover:bg-surface-2 ${
+          props.align === 'right' ? 'justify-end' : ''
+        } ${active ? 'text-primary' : 'hover:text-ink'}`}
+      >
+        <span>{props.label}</span>
+        {props.arrow && <span>{props.arrow === 'asc' ? '▲' : '▼'}</span>}
+        <span className="text-[8px] opacity-60">▼</span>
+      </button>
+      {props.state && (
+        <span
+          className={`mt-0.5 block truncate rounded bg-primary-soft px-1 text-[9px] font-medium normal-case tracking-normal text-primary ${
+            props.align === 'right' ? 'text-right' : ''
+          }`}
+          title={props.state}
+        >
+          {props.state}
+        </span>
+      )}
+      {open && pos && (
+        <div
+          ref={menuRef}
+          style={{ top: pos.top, left: pos.left, width: MENU_W }}
+          className="fixed z-50 overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
+        >
+          <div className="max-h-80 overflow-y-auto py-1">
+            {props.groups.map((g) => (
+              <div key={g.label}>
+                <div className="px-3 pb-0.5 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-ink-3">
+                  {g.label}
+                </div>
+                {g.options.map((o) => (
+                  <Link
+                    key={o.href}
+                    href={o.href}
+                    onClick={() => setOpen(false)}
+                    className={`block truncate px-3 py-1 text-xs font-normal normal-case tracking-normal ${
+                      o.active
+                        ? 'bg-primary-soft font-medium text-primary'
+                        : 'text-ink-2 hover:bg-surface-2 hover:text-ink'
+                    }`}
+                  >
+                    {o.active ? '✓ ' : ''}
+                    {o.label}
+                  </Link>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}

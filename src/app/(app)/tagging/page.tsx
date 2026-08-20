@@ -10,7 +10,7 @@ import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
-import { FilterSelect } from './filter-select'
+import { ColumnMenu } from './column-menu'
 import { TxnDetails } from './txn-details'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
@@ -409,13 +409,6 @@ export default async function TaggingPage(props: {
   // the options never shrink to what the current filter left behind)
   const allMonths = monthRows.map((r) => r.m)
   const allYears = [...new Set(allMonths.map((m) => m.slice(0, 4)))].sort().reverse()
-  const sortGroup = (key: string, asc: string, desc: string) => ({
-    label: 'Sort',
-    options: [
-      { label: asc, href: sortHref(key, 'asc') },
-      { label: desc, href: sortHref(key, 'desc') },
-    ],
-  })
   const TAG_LABEL: Record<string, string> = {
     all: 'All rows',
     notag: 'Not tagged (no head)',
@@ -423,87 +416,105 @@ export default async function TaggingPage(props: {
     noah: 'No Accounting Head',
   }
 
-  const sortTh = (key: string, label: string, extra = '') => (
-    <Link href={flipHref(key)} title="Sort — click again to flip" className={`hover:text-ink ${extra}`}>
-      {label}
-      {sortKey === key && <span className="ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-    </Link>
-  )
+  const opt = (label: string, href: string, active: boolean) => ({ label, href, active })
+
   const tableHead = (withCheckbox: boolean) => (
     <thead className={theadClass}>
-      <tr>
-        {withCheckbox && <th rowSpan={2} className="w-8 px-2 py-2" />}
-        <th className="px-2 pb-0.5 pt-2">{sortTh('date', 'Date')}</th>
-        <th className="px-2 pb-0.5 pt-2">{sortTh('ac', 'A/c')}</th>
-        <th className="px-2 pb-0.5 pt-2">{sortTh('narration', 'Narration')}</th>
-        <th className="px-2 pb-0.5 pt-2 text-right">{sortTh('amount', 'Amount')}</th>
-        <th rowSpan={2} className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
-        <th rowSpan={2} className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
-        <th rowSpan={2} className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
-        <th rowSpan={2} className="px-2 py-2" />
-      </tr>
-      {/* Excel's filter arrows, as one dropdown per column */}
-      <tr>
-        <th className="px-1 pb-1.5">
-          <FilterSelect
-            title="Date — sort, or show one year / one month"
-            active={Boolean(month || year)}
-            current={month ? monthLabel(month) : year || 'All dates'}
+      <tr className="align-top">
+        {withCheckbox && <th className="w-8 px-2 py-2" />}
+        <th className="px-1 py-1.5">
+          <ColumnMenu
+            label="Date"
+            arrow={sortKey === 'date' ? sortDir : null}
+            state={month ? monthLabel(month) : year ? `Year ${year}` : null}
             groups={[
-              sortGroup('date', 'Oldest first ▲', 'Newest first ▼'),
+              {
+                label: 'Sort',
+                options: [
+                  opt('Oldest first ▲', sortHref('date', 'asc'), sortKey === 'date' && sortDir === 'asc'),
+                  opt('Newest first ▼', sortHref('date', 'desc'), sortKey === 'date' && sortDir === 'desc'),
+                ],
+              },
               {
                 label: 'Show',
                 options: [
-                  { label: 'All dates', href: hrefWith({ month: null, year: null }) },
-                  ...allYears.map((y) => ({ label: `Year ${y}`, href: hrefWith({ year: y, month: null }) })),
-                  ...allMonths.map((m) => ({ label: monthLabel(m), href: hrefWith({ month: m, year: null }) })),
+                  opt('All dates', hrefWith({ month: null, year: null }), !month && !year),
+                  ...allYears.map((y) => opt(`Year ${y}`, hrefWith({ year: y, month: null }), !month && year === y)),
+                  ...allMonths.map((m) => opt(monthLabel(m), hrefWith({ month: m, year: null }), month === m)),
                 ],
               },
             ]}
           />
         </th>
-        <th className="px-1 pb-1.5">
-          <FilterSelect
-            title="A/c — sort, or show one account (new accounts appear here on their own)"
-            active={Boolean(bank)}
-            current={bank ? bankName(bank) : 'All accounts'}
+        <th className="px-1 py-1.5">
+          <ColumnMenu
+            label="A/c"
+            arrow={sortKey === 'ac' ? sortDir : null}
+            state={bank ? bankName(bank) : null}
             groups={[
-              sortGroup('ac', 'A → Z', 'Z → A'),
+              {
+                label: 'Sort',
+                options: [
+                  opt('A → Z', sortHref('ac', 'asc'), sortKey === 'ac' && sortDir === 'asc'),
+                  opt('Z → A', sortHref('ac', 'desc'), sortKey === 'ac' && sortDir === 'desc'),
+                ],
+              },
               {
                 label: 'Show',
                 options: [
-                  { label: 'All accounts', href: hrefWith({ bank: null }) },
-                  ...entityBanks.map((b) => ({ label: b.nickname, href: hrefWith({ bank: b.id }) })),
+                  opt('All accounts', hrefWith({ bank: null }), !bank),
+                  // live list — an account added later shows up here on its own
+                  ...entityBanks.map((b) => opt(b.nickname, hrefWith({ bank: b.id }), bank === b.id)),
                 ],
               },
             ]}
           />
         </th>
-        <th className="px-1 pb-1.5">
-          <FilterSelect
-            title="Narration — sort A→Z / Z→A, or show only the rows still missing a tag"
-            active={tagFilter !== 'all'}
-            current={TAG_LABEL[tagFilter]}
+        <th className="px-1 py-1.5">
+          <ColumnMenu
+            label="Narration"
+            arrow={sortKey === 'narration' ? sortDir : null}
+            state={tagFilter !== 'all' ? TAG_LABEL[tagFilter] : null}
             groups={[
-              sortGroup('narration', 'A → Z', 'Z → A'),
               {
+                label: 'Sort',
+                options: [
+                  opt('A → Z', sortHref('narration', 'asc'), sortKey === 'narration' && sortDir === 'asc'),
+                  opt('Z → A', sortHref('narration', 'desc'), sortKey === 'narration' && sortDir === 'desc'),
+                ],
+              },
+              {
+                // which rows still need an Expense Head / Cost centre /
+                // Accounting Head — one pick away
                 label: 'Show',
-                options: (['all', 'notag', 'nocc', 'noah'] as const).map((t) => ({
-                  label: TAG_LABEL[t],
-                  href: hrefWith({ tag: t === 'all' ? null : t }),
-                })),
+                options: (['all', 'notag', 'nocc', 'noah'] as const).map((t) =>
+                  opt(TAG_LABEL[t], hrefWith({ tag: t === 'all' ? null : t }), tagFilter === t),
+                ),
               },
             ]}
           />
         </th>
-        <th className="px-1 pb-1.5">
-          <FilterSelect
-            title="Amount — low to high or high to low"
-            active={sortKey === 'amount'}
-            current={sortKey === 'amount' ? (sortDir === 'asc' ? 'Low → High' : 'High → Low') : 'Any amount'}
-            groups={[sortGroup('amount', 'Low → High ▲', 'High → Low ▼')]}
+        <th className="px-1 py-1.5 text-right">
+          <ColumnMenu
+            label="Amount"
+            align="right"
+            arrow={sortKey === 'amount' ? sortDir : null}
+            state={sortKey === 'amount' ? (sortDir === 'asc' ? 'Low → High' : 'High → Low') : null}
+            groups={[
+              {
+                label: 'Sort',
+                options: [
+                  opt('Low → High ▲', sortHref('amount', 'asc'), sortKey === 'amount' && sortDir === 'asc'),
+                  opt('High → Low ▼', sortHref('amount', 'desc'), sortKey === 'amount' && sortDir === 'desc'),
+                ],
+              },
+            ]}
           />
         </th>
+        <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
+        <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
+        <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
+        <th className="px-2 py-2" />
       </tr>
     </thead>
   )
