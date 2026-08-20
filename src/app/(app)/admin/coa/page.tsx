@@ -27,10 +27,10 @@ const DAY_OPTIONS = [
   'End of month', 'End of quarter',
 ]
 // Himal's cost-centre vocabulary (20 Aug 2026) — exactly these seven, his
-// spellings ("Invesment" included). They seed the dropdown first so they
-// win as the displayed names; the books' own spellings (Optional-growth,
-// Optional-Lifestyle…) fold into them via stripCcType, and any centre
-// added later in any books still joins the list below.
+// spellings ("Invesment" included), the SAME in every books since the
+// 20 Aug unification renamed the old per-book variants in place. They seed
+// the dropdown first; any centre added later in any books joins the list
+// below, and stripCcType still bridges legacy spellings wherever stored.
 const CC_TYPES = ['Company Essentials', 'Company Growth', 'Compulsory', 'Growth', 'Invesment', 'Lifestyle', 'Optional']
 const FREQ_LABEL: Record<string, string> = {
   DAILY: 'Daily', WEEKLY: 'Weekly', MONTHLY: 'Monthly', QUARTERLY: 'Quarterly',

@@ -5,9 +5,10 @@ import { createCostCentre, archiveCostCentre, restoreCostCentre, renameCostCentr
 import { PageHeader, buttonClass, controlClass } from '@/components/ui'
 
 // Cost centre masters (Admin) — tier 3 of the tag, summing into cost centre
-// reports. Since 19 Aug 2026 the set is deliberately narrow: only the
-// master register's own types (Compulsory, Optional-Lifestyle,
-// Optional-growth, Optional-Investment) — no book-invented extras.
+// reports. Since 20 Aug 2026 every books carries the SAME seven, Himal's
+// spellings (Company Essentials, Company Growth, Compulsory, Growth,
+// Invesment, Lifestyle, Optional) — no per-book variants; a new centre
+// added via the master register is born with one name in every books.
 
 export default async function CostCentresPage() {
   const admin = await requireAdmin()
