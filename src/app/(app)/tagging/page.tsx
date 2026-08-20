@@ -121,9 +121,8 @@ export default async function TaggingPage(props: {
       prisma.statementTransaction.findMany({
         where: { ...filter, status: 'POSTED' },
         orderBy: [{ taggedAt: 'desc' }, { date: 'desc' }],
-        // the all-sections overview shows the recent 50; the Posted view
-        // shows EVERY row (Himal, 20 Aug: rows looked "missing" past the cap)
-        ...(view === 'posted' ? {} : { take: 50 }),
+        // no cap (Himal, 20 Aug: "50 distet fkt, baki dist nahit") — every
+        // posted row the filter matches shows; month/bank/search narrow it
       }),
       prisma.ledgerAccount.findMany({
         where: { entityId: entity.id, isGroup: false, archivedAt: null },
@@ -735,9 +734,7 @@ export default async function TaggingPage(props: {
           (reversal + new version). */}
       {showPosted && (
       <div className="space-y-2">
-        <h2 className="font-medium text-ink">
-          {view === 'posted' ? `Posted — all ${posted.length}` : 'Recently posted (latest 50 — open the Posted view for all)'}
-        </h2>
+        <h2 className="font-medium text-ink">Posted — all {posted.length}</h2>
         {posted.length > 0 && (
           <div className={tableWrapClass}>
             <table className="w-full min-w-[74rem] text-left text-sm">
