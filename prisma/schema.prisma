@@ -426,6 +426,9 @@ model TagRule {
   headAccountId String
   nature        String
   costCentreId  String?
+  // The tag's 2nd head is learned too (Himal, 20 Aug): a party pointed at
+  // another Accounting Head once stays pointed there on the next import.
+  accountingHeadId String?
   // Tax rides on the rule too — a party billed with GST/TDS once is billed
   // that way every time, so auto-tagged rows carry the same split.
   gstType           String?

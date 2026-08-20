@@ -73,6 +73,7 @@ export interface RuleMatch {
   headAccountId: string
   nature: string
   costCentreId: string | null
+  accountingHeadId: string | null
 }
 
 /** Find the best rule for a narration within an entity's books. */
@@ -92,6 +93,7 @@ export async function matchRule(
     headAccountId: rule.headAccountId,
     nature: rule.nature,
     costCentreId: rule.costCentreId,
+    accountingHeadId: rule.accountingHeadId,
   }
 }
 
@@ -118,6 +120,8 @@ export async function learnRule(
     headAccountId: string
     nature: string
     costCentreId?: string | null
+    /** The tag's 2nd head — remembered so the next same-party row keeps it. */
+    accountingHeadId?: string | null
     tax?: RuleTax
   },
 ) {
@@ -140,13 +144,16 @@ export async function learnRule(
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId: args.costCentreId ?? null,
+      accountingHeadId: args.accountingHeadId ?? null,
       ...tax,
     },
-    // A correction retrains the rule to the newest choice, tax included.
+    // A correction retrains the rule to the newest choice — head, cost
+    // centre, Accounting Head and tax alike.
     update: {
       headAccountId: args.headAccountId,
       nature: args.nature,
       costCentreId: args.costCentreId ?? null,
+      accountingHeadId: args.accountingHeadId ?? null,
       ...tax,
     },
   })

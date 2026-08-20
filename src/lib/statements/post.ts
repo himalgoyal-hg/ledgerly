@@ -182,6 +182,7 @@ export async function applyTag(
     headAccountId: args.headAccountId,
     nature: args.nature,
     costCentreId,
+    accountingHeadId,
     tax: {
       gstType: hasGst ? (tax.gstType ?? 'intra') : null,
       gstRate: hasGst ? tax.gstRate : null,
@@ -637,6 +638,7 @@ export async function retagPostedTransaction(
     headAccountId: args.headAccountId,
     nature: args.nature,
     costCentreId,
+    accountingHeadId,
     tax: taxFields,
   })
 }

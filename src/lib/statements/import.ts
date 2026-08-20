@@ -209,6 +209,9 @@ export async function confirmStatementImport(
         headAccountId: rule?.headAccountId,
         nature: rule?.nature,
         costCentreId: rule?.costCentreId,
+        // …and the 2nd head, so a party pointed at another Accounting Head
+        // keeps landing there without being re-tagged (Himal, 20 Aug).
+        accountingHeadId: rule?.accountingHeadId,
         // The rule's GST/TDS ride along — the split posts exactly like the
         // manual tag it was learned from.
         gstType: rule?.gstType,
