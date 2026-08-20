@@ -50,8 +50,9 @@ export default async function TaggingPage(props: {
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : ''
-  // Which rows still need work — the Narration column's Show filter
-  const tagFilter = ['notag', 'nocc', 'noah'].includes(sp.tag ?? '') ? sp.tag! : 'all'
+  // Which rows still need work — the Narration column's Show filter.
+  // 'blank' = anything missing; the rest name one column each.
+  const tagFilter = ['blank', 'notag', 'nocc', 'noah'].includes(sp.tag ?? '') ? sp.tag! : 'all'
   // Excel-style column sort: which column, which way (default date ↑)
   const sortKey = ['date', 'ac', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
   const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
@@ -146,8 +147,22 @@ export default async function TaggingPage(props: {
         }
       : {}),
     ...(monthFrom && monthTo ? { date: { gte: monthFrom, lt: monthTo } } : {}),
-    // "which rows aren't properly tagged" — no head at all, no cost centre,
-    // or no Accounting Head of their own (the mirror ones)
+    // "which rows aren't properly tagged": Blank = any of the three missing
+    // (nested in AND so it composes with the search's own OR), or one named
+    // column at a time.
+    ...(tagFilter === 'blank'
+      ? {
+          AND: [
+            {
+              OR: [
+                { headAccountId: null },
+                { costCentreId: null },
+                { accountingHeadId: null },
+              ],
+            },
+          ],
+        }
+      : {}),
     ...(tagFilter === 'notag' ? { headAccountId: null } : {}),
     ...(tagFilter === 'nocc' ? { costCentreId: null } : {}),
     ...(tagFilter === 'noah' ? { accountingHeadId: null } : {}),
@@ -411,9 +426,10 @@ export default async function TaggingPage(props: {
   const allYears = [...new Set(allMonths.map((m) => m.slice(0, 4)))].sort().reverse()
   const TAG_LABEL: Record<string, string> = {
     all: 'All rows',
-    notag: 'Not tagged (no head)',
-    nocc: 'No cost centre',
-    noah: 'No Accounting Head',
+    blank: 'Blank',
+    notag: 'Blank — Expense Head',
+    nocc: 'Blank — Cost centre',
+    noah: 'Blank — Accounting Head',
   }
 
   const opt = (label: string, href: string, active: boolean) => ({ label, href, active })
@@ -479,15 +495,15 @@ export default async function TaggingPage(props: {
               {
                 label: 'Sort',
                 options: [
-                  opt('A → Z', sortHref('narration', 'asc'), sortKey === 'narration' && sortDir === 'asc'),
-                  opt('Z → A', sortHref('narration', 'desc'), sortKey === 'narration' && sortDir === 'desc'),
+                  opt('A → Z (abc)', sortHref('narration', 'asc'), sortKey === 'narration' && sortDir === 'asc'),
+                  opt('Z → A (zyx)', sortHref('narration', 'desc'), sortKey === 'narration' && sortDir === 'desc'),
                 ],
               },
               {
                 // which rows still need an Expense Head / Cost centre /
                 // Accounting Head — one pick away
                 label: 'Show',
-                options: (['all', 'notag', 'nocc', 'noah'] as const).map((t) =>
+                options: (['all', 'blank', 'notag', 'nocc', 'noah'] as const).map((t) =>
                   opt(TAG_LABEL[t], hrefWith({ tag: t === 'all' ? null : t }), tagFilter === t),
                 ),
               },
