@@ -35,10 +35,8 @@ import {
 // spreadsheet-style table — one transaction per line, tag inputs inline —
 // so a screenful shows dozens of rows, not 4-5 cards.
 
-const PER_PAGE = 60
-
 export default async function TaggingPage(props: {
-  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string; page?: string }>
+  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string }>
 }) {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
@@ -52,7 +50,6 @@ export default async function TaggingPage(props: {
   const bank = sp.bank ?? ''
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
-  const pageNo = Math.max(1, Number(sp.page) || 1)
 
   const monthFrom = month ? new Date(`${month}-01T00:00:00Z`) : null
   const monthTo = monthFrom
@@ -120,9 +117,9 @@ export default async function TaggingPage(props: {
       }),
       prisma.statementTransaction.findMany({
         where: { ...filter, status: 'POSTED' },
-        orderBy: [{ taggedAt: 'desc' }, { date: 'desc' }],
         // no cap (Himal, 20 Aug: "50 distet fkt, baki dist nahit") — every
-        // posted row the filter matches shows; month/bank/search narrow it
+        // posted row the filter matches shows, date → A/c like a daybook
+        orderBy: [{ date: 'asc' }, { id: 'asc' }],
       }),
       prisma.ledgerAccount.findMany({
         where: { entityId: entity.id, isGroup: false, archivedAt: null },
@@ -211,24 +208,26 @@ export default async function TaggingPage(props: {
     })
   ).map((r) => r.pattern)
 
-  // v2-prototype chrome: KPIs, filter summary, pagination.
+  // v2-prototype chrome: KPIs, filter summary.
   const entityBanks = banks.filter((b) => b.entityId === entity.id)
   const suggestionCount = pending.filter((t) => t.aiHeadAccountId && t.aiNature).length
   const inView = pending.length + tagged.length + posted.length
   const net = Number(sums._sum.debit ?? 0) - Number(sums._sum.credit ?? 0)
-  const pages = Math.max(1, Math.ceil(pending.length / PER_PAGE))
-  const page = Math.min(pageNo, pages)
-  const pendingSlice = pending.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  const hrefFor = (p: number) => {
-    const s = new URLSearchParams()
-    if (q) s.set('q', q)
-    if (bank) s.set('bank', bank)
-    if (month) s.set('month', month)
-    if (view !== 'all') s.set('view', view)
-    if (p > 1) s.set('page', String(p))
-    const str = s.toString()
-    return str ? `/tagging?${str}` : '/tagging'
-  }
+  // Every row shows, one below the other, in date → A/c order (Himal,
+  // 20 Aug: "kiti pan upload karu, sagle aka khali ak — date chya, ac
+  // chya hyani") — no pagination, no caps, in every section.
+  const nickOf = new Map(banks.map((b) => [b.id, b.nickname]))
+  const byDateAc = (
+    a: { date: Date; bankAccountId: string; id: string },
+    b: { date: Date; bankAccountId: string; id: string },
+  ) =>
+    a.date.getTime() - b.date.getTime() ||
+    (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '') ||
+    a.id.localeCompare(b.id)
+  pending.sort(byDateAc)
+  tagged.sort(byDateAc)
+  posted.sort(byDateAc)
+  const pendingSlice = pending
   const monthLabel = (m: string) => {
     const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
@@ -527,11 +526,7 @@ export default async function TaggingPage(props: {
       {/* Pending queue */}
       {showPending && (
       <div className="space-y-2">
-        <h2 className="font-medium text-ink">
-          Pending ({pending.length}){pages > 1 && (
-            <span className="ml-2 text-xs font-normal text-ink-3">Page {page} of {pages}</span>
-          )}
-        </h2>
+        <h2 className="font-medium text-ink">Pending ({pending.length})</h2>
         {pendingSlice.length > 0 && (
           <div className={tableWrapClass}>
             <table className="w-full min-w-[74rem] text-left text-sm">
@@ -650,21 +645,6 @@ export default async function TaggingPage(props: {
           <p className="text-sm text-ink-3">
             {filtered ? 'No pending entries match these filters.' : 'Queue is clear — nothing waiting.'}
           </p>
-        )}
-        {pages > 1 && (
-          <div className="flex items-center gap-3 pt-1 text-sm">
-            {page > 1 && (
-              <Link href={hrefFor(page - 1)} className="rounded-lg border border-line px-3 py-1.5 text-ink-2 hover:bg-surface-2">
-                ← Previous
-              </Link>
-            )}
-            <span className="text-xs text-ink-3">Page {page} of {pages}</span>
-            {page < pages && (
-              <Link href={hrefFor(page + 1)} className="rounded-lg border border-line px-3 py-1.5 text-ink-2 hover:bg-surface-2">
-                Next →
-              </Link>
-            )}
-          </div>
         )}
       </div>
       )}
