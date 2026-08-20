@@ -34,7 +34,7 @@ import {
 // so a screenful shows dozens of rows, not 4-5 cards.
 
 export default async function TaggingPage(props: {
-  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string }>
+  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string; sort?: string; dir?: string }>
 }) {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
@@ -48,6 +48,9 @@ export default async function TaggingPage(props: {
   const bank = sp.bank ?? ''
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
+  // Excel-style column sort: which column, which way (default date ↑)
+  const sortKey = ['date', 'ac', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
+  const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
 
   const monthFrom = month ? new Date(`${month}-01T00:00:00Z`) : null
   const monthTo = monthFrom
@@ -242,17 +245,26 @@ export default async function TaggingPage(props: {
   const suggestionCount = pending.filter((t) => t.aiHeadAccountId && t.aiNature).length
   const inView = pending.length + tagged.length + posted.length
   const net = Number(sums._sum.debit ?? 0) - Number(sums._sum.credit ?? 0)
-  // Every row shows, one below the other, in date → A/c order (Himal,
-  // 20 Aug: "kiti pan upload karu, sagle aka khali ak — date chya, ac
-  // chya hyani") — no pagination, no caps, in every section.
+  // Every row shows, one below the other — no pagination, no caps, in
+  // every section. Column headers sort Excel-style (Himal, 20 Aug): click
+  // Date / A/c / Narration / Amount to sort, click again to flip; date →
+  // A/c → id always break ties. The same order runs through all sections.
   const nickOf = new Map(banks.map((b) => [b.id, b.nickname]))
-  const byDateAc = (
-    a: { date: Date; bankAccountId: string; id: string },
-    b: { date: Date; bankAccountId: string; id: string },
-  ) =>
-    a.date.getTime() - b.date.getTime() ||
-    (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '') ||
-    a.id.localeCompare(b.id)
+  type SortableTxn = { date: Date; bankAccountId: string; id: string; narration: string; debit: unknown; credit: unknown }
+  const amtOf = (t: SortableTxn) => (Number(t.debit) > 0 ? Number(t.debit) : Number(t.credit))
+  const dirMul = sortDir === 'desc' ? -1 : 1
+  const byDateAc = (a: SortableTxn, b: SortableTxn) => {
+    let v = 0
+    if (sortKey === 'ac') v = (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '')
+    else if (sortKey === 'narration') v = a.narration.localeCompare(b.narration, undefined, { sensitivity: 'base' })
+    else if (sortKey === 'amount') v = amtOf(a) - amtOf(b)
+    if (v !== 0) return v * dirMul
+    return (
+      (a.date.getTime() - b.date.getTime() ||
+        (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '') ||
+        a.id.localeCompare(b.id)) * dirMul
+    )
+  }
   pending.sort(byDateAc)
   tagged.sort(byDateAc)
   posted.sort(byDateAc)
@@ -352,14 +364,38 @@ export default async function TaggingPage(props: {
     )
   }
 
+  // Excel-style sort links: click a column to sort by it, click again to
+  // flip. Default (date ↑) keeps a clean URL; filters ride along.
+  const sortHref = (key: string) => {
+    const s = new URLSearchParams()
+    if (q) s.set('q', q)
+    if (bank) s.set('bank', bank)
+    if (month) s.set('month', month)
+    if (view !== 'all') s.set('view', view)
+    const nextDir = sortKey === key && sortDir === 'asc' ? 'desc' : 'asc'
+    if (!(key === 'date' && nextDir === 'asc')) {
+      s.set('sort', key)
+      s.set('dir', nextDir)
+    }
+    const str = s.toString()
+    return str ? `/tagging?${str}` : '/tagging'
+  }
+  const sortTh = (key: string, label: string, extra = '') => (
+    <th className={`px-2 py-2 ${extra}`}>
+      <Link href={sortHref(key)} title="Sort — click again to flip" className="hover:text-ink">
+        {label}
+        {sortKey === key && <span className="ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+      </Link>
+    </th>
+  )
   const tableHead = (withCheckbox: boolean) => (
     <thead className={theadClass}>
       <tr>
         {withCheckbox && <th className="w-8 px-2 py-2" />}
-        <th className="px-2 py-2">Date</th>
-        <th className="px-2 py-2">A/c</th>
-        <th className="px-2 py-2">Narration</th>
-        <th className="px-2 py-2 text-right">Amount</th>
+        {sortTh('date', 'Date')}
+        {sortTh('ac', 'A/c')}
+        {sortTh('narration', 'Narration')}
+        {sortTh('amount', 'Amount', 'text-right')}
         <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
         <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
         <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
@@ -418,6 +454,13 @@ export default async function TaggingPage(props: {
 
       {/* Search & filters (v2 prototype) */}
       <form className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 shadow-card">
+        {/* a chosen column sort survives a new search */}
+        {(sortKey !== 'date' || sortDir !== 'asc') && (
+          <>
+            <input type="hidden" name="sort" value={sortKey} />
+            <input type="hidden" name="dir" value={sortDir} />
+          </>
+        )}
         <input
           name="q"
           defaultValue={q}
