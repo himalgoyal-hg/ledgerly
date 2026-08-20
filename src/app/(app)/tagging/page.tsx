@@ -276,11 +276,20 @@ export default async function TaggingPage(props: {
   const nickOf = new Map(banks.map((b) => [b.id, b.nickname]))
   type SortableTxn = { date: Date; bankAccountId: string; id: string; narration: string; debit: unknown; credit: unknown }
   const amtOf = (t: SortableTxn) => (Number(t.debit) > 0 ? Number(t.debit) : Number(t.credit))
+  // A→Z must follow what the Narration column SHOWS — the party title
+  // ("Somesh ashwini narwa"), not the raw bank string ("UPI-SOMESH…-
+  // SOMESH.AB@ybl"), or the order looks random next to the screen
+  // (Himal, 20 Aug). Resolved once per row, not per comparison.
+  const titleOf = new Map<string, string>()
+  for (const t of [...pending, ...tagged, ...posted]) {
+    if (!titleOf.has(t.id)) titleOf.set(t.id, describeNarration(t.narration).title)
+  }
   const dirMul = sortDir === 'desc' ? -1 : 1
   const byDateAc = (a: SortableTxn, b: SortableTxn) => {
     let v = 0
     if (sortKey === 'ac') v = (nickOf.get(a.bankAccountId) ?? '').localeCompare(nickOf.get(b.bankAccountId) ?? '')
-    else if (sortKey === 'narration') v = a.narration.localeCompare(b.narration, undefined, { sensitivity: 'base' })
+    else if (sortKey === 'narration')
+      v = (titleOf.get(a.id) ?? '').localeCompare(titleOf.get(b.id) ?? '', undefined, { sensitivity: 'base', numeric: true })
     else if (sortKey === 'amount') v = amtOf(a) - amtOf(b)
     if (v !== 0) return v * dirMul
     return (
