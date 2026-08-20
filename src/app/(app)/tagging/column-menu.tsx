@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 
 // Excel's filter arrow (Himal, 20 Aug: "hyavar click kelyavar aal pahije"):
@@ -25,7 +26,12 @@ export function ColumnMenu(props: {
   arrow?: 'asc' | 'desc' | null
   groups: MenuGroup[]
   align?: 'right'
+  /** A native date picker at the top of the menu — pick one exact day.
+   *  hrefTemplate carries __DAY__ where the chosen date belongs (a function
+   *  can't cross the server/client boundary, a template can). */
+  dayPicker?: { value: string; hrefTemplate: string; clearHref: string }
 }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -92,6 +98,36 @@ export function ColumnMenu(props: {
           className="fixed z-50 overflow-hidden rounded-xl border border-line bg-surface shadow-pop"
         >
           <div className="max-h-80 overflow-y-auto py-1">
+            {props.dayPicker && (
+              <div className="border-b border-line-2 px-3 pb-2 pt-1.5">
+                <div className="pb-1 text-[9px] font-semibold uppercase tracking-wider text-ink-3">
+                  Pick a date
+                </div>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="date"
+                    defaultValue={props.dayPicker.value}
+                    className="w-full rounded border border-line bg-surface px-1 py-0.5 text-xs font-normal normal-case tracking-normal text-ink"
+                    onChange={(e) => {
+                      const v = e.target.value
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return
+                      setOpen(false)
+                      router.push(props.dayPicker!.hrefTemplate.replace('__DAY__', v))
+                    }}
+                  />
+                  {props.dayPicker.value && (
+                    <Link
+                      href={props.dayPicker.clearHref}
+                      onClick={() => setOpen(false)}
+                      title="Clear the date"
+                      className="rounded border border-line px-1.5 py-0.5 text-xs font-normal text-ink-3 hover:bg-surface-2 hover:text-ink"
+                    >
+                      ✕
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
             {props.groups.map((g) => (
               <div key={g.label}>
                 <div className="px-3 pb-0.5 pt-1.5 text-[9px] font-semibold uppercase tracking-wider text-ink-3">

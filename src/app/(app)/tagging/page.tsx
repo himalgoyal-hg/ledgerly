@@ -35,7 +35,7 @@ import {
 // so a screenful shows dozens of rows, not 4-5 cards.
 
 export default async function TaggingPage(props: {
-  searchParams: Promise<{ q?: string; bank?: string; month?: string; year?: string; tag?: string; view?: string; sort?: string; dir?: string }>
+  searchParams: Promise<{ q?: string; bank?: string; month?: string; year?: string; day?: string; tag?: string; view?: string; sort?: string; dir?: string }>
 }) {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
@@ -50,6 +50,7 @@ export default async function TaggingPage(props: {
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : ''
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? '') ? sp.day! : ''
   // The Narration column's Show filter. 'blank' = a real gap (no Expense
   // Head or no Cost centre); 'ahother' is the opposite question — the rows
   // deliberately pointed at ANOTHER Accounting Head (Himal, 20 Aug: mirror
@@ -59,17 +60,21 @@ export default async function TaggingPage(props: {
   const sortKey = ['date', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
   const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
 
-  // Date filter — a whole year, or one month inside it (month wins)
-  const monthFrom = month
-    ? new Date(`${month}-01T00:00:00Z`)
-    : year
-      ? new Date(Date.UTC(Number(year), 0, 1))
-      : null
-  const monthTo = month
-    ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1))
-    : year
-      ? new Date(Date.UTC(Number(year) + 1, 0, 1))
-      : null
+  // Date filter — one exact day, one month, or a whole year (narrowest wins)
+  const monthFrom = day
+    ? new Date(`${day}T00:00:00Z`)
+    : month
+      ? new Date(`${month}-01T00:00:00Z`)
+      : year
+        ? new Date(Date.UTC(Number(year), 0, 1))
+        : null
+  const monthTo = day
+    ? new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10)) + 1))
+    : month
+      ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1))
+      : year
+        ? new Date(Date.UTC(Number(year) + 1, 0, 1))
+        : null
 
   // Search reaches the whole tag, not just the narration: matching heads and
   // cost centres resolve to ids first (no relation on the txn row), natures
@@ -301,6 +306,13 @@ export default async function TaggingPage(props: {
   tagged.sort(byDateAc)
   posted.sort(byDateAc)
   const pendingSlice = pending
+  const dayLabel = (d: string) =>
+    new Date(`${d}T00:00:00Z`).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
   const monthLabel = (m: string) => {
     const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
@@ -308,7 +320,7 @@ export default async function TaggingPage(props: {
   const showPending = view === 'all' || view === 'pending'
   const showTagged = view === 'all' || view === 'tagged'
   const showPosted = view === 'all' || view === 'posted'
-  const filtered = Boolean(q || bank || month || year || tagFilter !== 'all')
+  const filtered = Boolean(q || bank || month || year || day || tagFilter !== 'all')
 
   const kpiTiles: [string, string, string, string][] = [
     ['Entries in view', String(inView), bank ? (bankName(bank) ?? '') : 'all accounts', 'border-ink'],
@@ -405,6 +417,7 @@ export default async function TaggingPage(props: {
     if (bank) base.bank = bank
     if (month) base.month = month
     if (year) base.year = year
+    if (day) base.day = day
     if (tagFilter !== 'all') base.tag = tagFilter
     if (view !== 'all') base.view = view
     if (!(sortKey === 'date' && sortDir === 'asc')) {
@@ -443,7 +456,13 @@ export default async function TaggingPage(props: {
           <ColumnMenu
             label="Date"
             arrow={sortKey === 'date' ? sortDir : null}
-            state={month ? monthLabel(month) : year ? `Year ${year}` : null}
+            state={day ? dayLabel(day) : month ? monthLabel(month) : year ? `Year ${year}` : null}
+            // pick one exact date — the narrowest window there is
+            dayPicker={{
+              value: day,
+              hrefTemplate: hrefWith({ day: '__DAY__', month: null, year: null }),
+              clearHref: hrefWith({ day: null }),
+            }}
             groups={[
               {
                 label: 'Sort',
@@ -455,9 +474,13 @@ export default async function TaggingPage(props: {
               {
                 label: 'Show',
                 options: [
-                  opt('All dates', hrefWith({ month: null, year: null }), !month && !year),
-                  ...allYears.map((y) => opt(`Year ${y}`, hrefWith({ year: y, month: null }), !month && year === y)),
-                  ...allMonths.map((m) => opt(monthLabel(m), hrefWith({ month: m, year: null }), month === m)),
+                  opt('All dates', hrefWith({ month: null, year: null, day: null }), !month && !year && !day),
+                  ...allYears.map((y) =>
+                    opt(`Year ${y}`, hrefWith({ year: y, month: null, day: null }), !month && !day && year === y),
+                  ),
+                  ...allMonths.map((m) =>
+                    opt(monthLabel(m), hrefWith({ month: m, year: null, day: null }), !day && month === m),
+                  ),
                 ],
               },
             ]}
@@ -588,6 +611,7 @@ export default async function TaggingPage(props: {
           </>
         )}
         {year && <input type="hidden" name="year" value={year} />}
+        {day && <input type="hidden" name="day" value={day} />}
         {tagFilter !== 'all' && <input type="hidden" name="tag" value={tagFilter} />}
         <input
           name="q"
@@ -703,6 +727,28 @@ export default async function TaggingPage(props: {
               </button>
             </form>
           )}
+        </div>
+      )}
+
+      {/* A filter that matches nothing used to take the whole table — and
+          with it every column menu — off the screen, leaving no way back
+          except the reset link. The head stays. */}
+      {inView === 0 && filtered && (
+        <div className={tableWrapClass}>
+          <table className="w-full min-w-[74rem] text-left text-sm">
+            {tableHead(false)}
+            <tbody>
+              <tr>
+                <td colSpan={8} className="px-3 py-8 text-center text-sm text-ink-3">
+                  Nothing matches these filters —{' '}
+                  <Link href="/tagging" className="text-primary hover:underline">
+                    clear all
+                  </Link>
+                  , or change one from a column above.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 
