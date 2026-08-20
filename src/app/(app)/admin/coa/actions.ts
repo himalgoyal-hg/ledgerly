@@ -154,9 +154,6 @@ export async function saveMasterRowAction(formData: FormData) {
     frequency: f('frequency') || null,
     dayNote: f('dayNote') || null,
     nature: f('nature') || null,
-    // the second tagging dimension: Yes → the head joins the separate-report
-    // lens on Reports → By; absent field = leave the flag as it is
-    ...(formData.has('separateReport') ? { separateReport: f('separateReport') === 'Yes' } : {}),
   }
   if ((row.bankBudget !== 0 || row.cashBudget !== 0) && !row.frequency) {
     throw new Error('A budget needs its frequency')

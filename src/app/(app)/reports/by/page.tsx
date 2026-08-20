@@ -13,10 +13,10 @@ import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from 
 //
 // Second tagging dimension (Himal, 19/20 Aug — the "Accounting Head"):
 // every tag carries a 2nd head that mirrors the Expense Head unless changed
-// while tagging. The Accounting Head scope keeps lines whose effective 2nd
-// head is a master Yes-flagged head, groups them under that head's name,
-// and includes EVERY nature so asset buys (laptop, car) count alongside
-// expenses. The change never affects the books view (All heads scope).
+// while tagging. The Accounting Head scope shows exactly the entries whose
+// 2nd head was changed, grouped under that head's name, in EVERY nature so
+// asset buys (laptop, car) count alongside expenses. No master flag — the
+// tag itself decides. The books view (All heads scope) never moves.
 
 const L = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar']
 const inr = (n: number) => (Math.round(n) ? (n < 0 ? '-₹' : '₹') + Math.abs(Math.round(n)).toLocaleString('en-IN') : '—')
@@ -42,12 +42,6 @@ export default async function ByDimensionPage({
   const params = await searchParams
   const by = LENSES.some((l) => l.key === params.by) ? (params.by as string) : 'cc'
   const sep = params.scope === 'sep'
-  // the Yes-flagged heads from the master register — the separate scope
-  const sepHeads = sep
-    ? (await prisma.headMode.findMany({ where: { separateReport: true }, select: { category: true } })).map((h) =>
-        h.category.toLowerCase(),
-      )
-    : []
   const now = new Date()
   const currentFy = now.getUTCMonth() + 1 >= 4 ? now.getUTCFullYear() : now.getUTCFullYear() - 1
   const fy = Number(params.fy) || currentFy
@@ -61,16 +55,13 @@ export default async function ByDimensionPage({
 
   // one query shape per lens: name × month × net movement (Dr − Cr).
   // Normal scope = expense + income heads, grouped by the head that POSTED.
-  // Accounting Head scope: every line has an effective Accounting Head —
-  // the one picked while tagging, or (NULL = mirror) the posting head
-  // itself — and the scope keeps lines whose effective Accounting Head is
-  // a master Yes-flagged head, in EVERY nature (asset buys count too),
-  // grouped under the Accounting Head's name, not the Expense Head's.
+  // Accounting Head scope: exactly the lines whose tag was given its own
+  // Accounting Head (accountingHeadId set — mirror lines stay out), in
+  // EVERY nature (asset buys count too), grouped under the Accounting
+  // Head's name, not the Expense Head's. No master flag — the tag decides.
   const eff = Prisma.sql`COALESCE(ah.name, a.name)`
   const scopeFilter = sep
-    ? sepHeads.length
-      ? Prisma.sql`AND lower(${eff}) = ANY(${sepHeads})`
-      : Prisma.sql`AND false`
+    ? Prisma.sql`AND l."accountingHeadId" IS NOT NULL`
     : Prisma.sql`AND a.kind IN ('EXPENSE', 'INCOME')`
   let rows: { name: string; id: string | null; month: string; amt: string }[] = []
   if (by === 'cc') {
@@ -140,7 +131,7 @@ export default async function ByDimensionPage({
         title={`By ${LENSES.find((l) => l.key === by)?.label}${sep ? ' · Accounting Head' : ''} — ${entity.code}`}
         subtitle={
           sep
-            ? `Entries whose Accounting Head is a Yes-flagged master head — grouped under the Accounting Head, every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
+            ? `Entries given their own Accounting Head while tagging — grouped under it, every nature, asset buys included. FY ${fy}-${String(fy + 1).slice(2)}.`
             : `Live from tagged entries, FY ${fy}-${String(fy + 1).slice(2)}. Positive = money out, negative = money in.`
         }
         actions={
@@ -209,13 +200,12 @@ export default async function ByDimensionPage({
         <p className="text-sm text-ink-3">
           {sep ? (
             <>
-              Nothing here for FY {fy}-{String(fy + 1).slice(2)} yet — flag a head Accounting Head = Yes on{' '}
-              Accounts, then entries land here by tagging to it (or by picking it as an entry&apos;s Accounting Head).
-              Set the flag on{' '}
-              <Link href="/admin/coa" className="text-primary hover:underline">
-                Accounts — master register
+              Nothing here for FY {fy}-{String(fy + 1).slice(2)} yet — while{' '}
+              <Link href="/tagging" className="text-primary hover:underline">
+                tagging
               </Link>
-              .
+              , change an entry&apos;s Accounting Head (it mirrors the Expense Head until you do); those entries
+              show here, grouped under the head you picked.
             </>
           ) : (
             <>Nothing tagged in FY {fy}-{String(fy + 1).slice(2)} for this lens yet.</>

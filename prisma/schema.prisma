@@ -1001,9 +1001,10 @@ model HeadMode {
   dayNote    String?
   bankBudget Decimal? @db.Decimal(14, 2)
   cashBudget Decimal? @db.Decimal(14, 2)
-  // Second tagging dimension (Himal, 19 Aug 2026): Yes = this head's lines
-  // also appear in the separate-report lens on Reports → By (all natures,
-  // asset purchases included). No/blank = normal head, business view only.
+  // retired 20 Aug 2026 ("yes no je kelt te remove kar"): the master-level
+  // Yes/No is gone — the Accounting Head report now shows exactly the
+  // entries whose tag carries an overridden accountingHeadId. Column kept
+  // (additive-only migrations); never read or written.
   separateReport Boolean @default(false)
   updatedAt   DateTime @updatedAt
 }

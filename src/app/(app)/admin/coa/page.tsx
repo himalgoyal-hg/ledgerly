@@ -75,16 +75,15 @@ export default async function CoaPage() {
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
         <div className="overflow-x-auto">
-        <table data-live-filter="master" className="w-full min-w-[84rem] table-fixed text-left text-sm">
+        <table data-live-filter="master" className="w-full min-w-[76rem] table-fixed text-left text-sm">
           <colgroup>
-            <col className="w-[19%]" />
-            <col className="w-[8%]" />
-            <col className="w-[12%]" />
-            <col className="w-[12%]" />
-            <col className="w-[7%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
+            <col className="w-[21%]" />
             <col className="w-[9%]" />
+            <col className="w-[13%]" />
+            <col className="w-[13%]" />
+            <col className="w-[9%]" />
+            <col className="w-[8%]" />
+            <col className="w-[10%]" />
             <col className="w-[9%]" />
             <col className="w-[8%]" />
           </colgroup>
@@ -94,9 +93,6 @@ export default async function CoaPage() {
               <th className="px-2 py-2.5 font-semibold">Nature</th>
               <th className="px-2 py-2.5 font-semibold">Bank mode</th>
               <th className="px-2 py-2.5 font-semibold">Cost centre</th>
-              <th className="px-2 py-2.5 font-semibold" title="Yes = this head gets its own report on Reports → By → Accounting Head. Entries land there by being tagged to it, or by picking it in the tagging screen's Accounting Head column.">
-                Accounting Head
-              </th>
               <th className="px-2 py-2.5 text-right font-semibold">Bank budget ₹</th>
               <th className="px-2 py-2.5 text-right font-semibold">Cash budget ₹</th>
               <th className="px-2 py-2.5 font-semibold">Frequency</th>
@@ -120,7 +116,7 @@ export default async function CoaPage() {
                 <Fragment key={m?.id ?? 'new'}>
                 {sectionHeader && (
                   <tr data-filter-keep="1" className="border-t border-line bg-surface-2/60">
-                    <td colSpan={10} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                    <td colSpan={9} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       {sectionHeader}
                     </td>
                   </tr>
@@ -192,18 +188,6 @@ export default async function CoaPage() {
                     />
                   </td>
                   <td className="px-1 py-0.5">
-                    {/* the second tagging type: Yes → this head's entries also
-                        land in the separate-report lens (Reports → By) */}
-                    <SmartCombobox
-                      options={[{ id: 'Yes', label: 'Yes' }, { id: 'No', label: 'No' }]}
-                      name="separateReport"
-                      defaultId={m?.separateReport ? 'Yes' : ''}
-                      formId={fid}
-                      placeholder="No"
-                      className={`${cellCls} bg-surface ${m?.separateReport ? 'font-medium text-primary' : ''}`}
-                    />
-                  </td>
-                  <td className="px-1 py-0.5">
                     <input
                       name="bankBudget"
                       form={fid}
@@ -270,7 +254,7 @@ export default async function CoaPage() {
                 </tr>
                 {sectionEnds && (
                   <tr data-filter-keep="1" className="bg-surface-2/60">
-                    <td className="px-4 py-0.5" colSpan={9}>
+                    <td className="px-4 py-0.5" colSpan={8}>
                       <input
                         name="category"
                         form={`mr-sec-${sectionEnds.replace(/[^a-zA-Z0-9]/g, '_')}`}
@@ -315,9 +299,9 @@ export default async function CoaPage() {
           This register is the master — ✓ saves a row and updates the plan, budgets, modes and cost centres everywhere.
           Books says whose books (or the cash pool) the plan sits in. Negative budget = receipt. The ↗ next to a bank
           mode means it is linked to a real bank account — click it to open that account&apos;s statement ledger.
-          Accounting Head = Yes gives the head its own report on Reports → By (head / cost centre), asset purchases
-          included. While tagging, every entry&apos;s Accounting Head column mirrors its Expense Head — change it there
-          to point the entry at a Yes-flagged head without touching what posts in the books.
+          The tagging screen&apos;s Accounting Head column mirrors each entry&apos;s Expense Head — change it there to
+          give an entry its own Accounting Head; those entries build the Accounting Head report on Reports → By
+          without touching what posts in the books.
         </p>
       </div>
     </div>
