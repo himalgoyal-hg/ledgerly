@@ -23,6 +23,8 @@ export function ColumnMenu(props: {
   label: string
   /** The applied filter — colours the label and rides in its tooltip. */
   state?: string | null
+  /** Current sort direction for this column — shown in the tooltip and
+   *  ticked inside the menu, not as a second arrow on the header. */
   arrow?: 'asc' | 'desc' | null
   groups: MenuGroup[]
   align?: 'right'
@@ -81,14 +83,18 @@ export function ColumnMenu(props: {
         ref={btnRef}
         type="button"
         onClick={toggle}
-        title={props.state ? `${props.label}: ${props.state} — click to change` : `${props.label} — click to sort and filter`}
+        title={[
+          props.label,
+          props.state ? `: ${props.state}` : '',
+          props.arrow ? ` (${props.arrow === 'asc' ? 'ascending' : 'descending'})` : '',
+          ' — click to sort and filter',
+        ].join('')}
         aria-expanded={open}
         className={`flex w-full items-center gap-1 rounded px-1 py-0.5 hover:bg-surface-2 ${
           props.align === 'right' ? 'justify-end' : ''
         } ${active ? 'text-primary' : 'hover:text-ink'}`}
       >
         <span>{props.label}</span>
-        {props.arrow && <span>{props.arrow === 'asc' ? '▲' : '▼'}</span>}
         <span className="text-[8px] opacity-60">▼</span>
       </button>
       {open && pos && (
