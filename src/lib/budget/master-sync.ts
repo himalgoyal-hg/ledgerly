@@ -267,25 +267,19 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
     { timeout: 60_000 },
   )
 
-  for (const headId of touched) {
+  // Rebuild the FY budget for EVERY head of this category, in every books —
+  // not just the one that took the plan line (Himal, 20 Aug: "budget vs
+  // actual veglach dakvty"). A category's line lives in one books, so the
+  // same-named heads elsewhere used to keep whatever Budget rows an older
+  // sync left them, and the report kept showing those. syncBudgetForHead
+  // rebuilds from the live plan lines and clears the head when it has none,
+  // which also covers a budget that was just set back to zero.
+  const sameName = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' } },
+    select: { id: true },
+  })
+  for (const headId of new Set([...touched, ...sameName.map((h) => h.id)])) {
     await prisma.$transaction((tx) => syncBudgetForHead(tx, headId))
-  }
-  if (!active) {
-    const heads = await prisma.ledgerAccount.findMany({
-      where: { isGroup: false, name: { equals: r.category, mode: 'insensitive' } },
-      select: { id: true },
-    })
-    if (heads.length) {
-      await prisma.budget.deleteMany({
-        where: {
-          accountId: { in: heads.map((h) => h.id) },
-          OR: [
-            { year: 2026, month: { gte: 4 } },
-            { year: 2027, month: { lte: 3 } },
-          ],
-        },
-      })
-    }
   }
   if (r.expenseType) {
     const strip = stripCcType
@@ -337,20 +331,14 @@ export async function removeMasterRow(category: string): Promise<void> {
   await prisma.budgetLine.deleteMany({
     where: { archivedAt: null, frequency: { not: 'ONCE' }, label: { equals: category, mode: 'insensitive' } },
   })
+  // every books' head of this name re-derives from what's left (nothing),
+  // through the same path a save uses
   const heads = await prisma.ledgerAccount.findMany({
     where: { isGroup: false, name: { equals: category, mode: 'insensitive' } },
     select: { id: true },
   })
-  if (heads.length) {
-    await prisma.budget.deleteMany({
-      where: {
-        accountId: { in: heads.map((h) => h.id) },
-        OR: [
-          { year: 2026, month: { gte: 4 } },
-          { year: 2027, month: { lte: 3 } },
-        ],
-      },
-    })
+  for (const h of heads) {
+    await prisma.$transaction((tx) => syncBudgetForHead(tx, h.id))
   }
 }
 
