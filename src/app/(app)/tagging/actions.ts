@@ -9,7 +9,6 @@ import {
   postAllConfirmed,
   retagPostedTransaction,
 } from '@/lib/statements/post'
-import { undoJournalDocument } from '@/lib/ledger/posting'
 import { partyToken } from '@/lib/statements/rules'
 import { suggestNature } from '@/lib/statements/natures'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
@@ -39,7 +38,7 @@ function tagFields(formData: FormData) {
   if (!nature) throw new Error('Pick a nature')
   // Optional tax details (spec §3 step 5 / §7) — validated in the service.
   const field = (name: string) => String(formData.get(name) ?? '').trim() || null
-  const tax = {
+  const taxRaw = {
     gstType: field('gstType'),
     gstRate: field('gstRate'),
     hsn: field('hsn'),
@@ -48,6 +47,9 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
+  // Nothing sent = say nothing: retag then falls back to the row's stored
+  // tax instead of blanking it (the GST/TDS panel is gone from the UI).
+  const tax = Object.values(taxRaw).some(Boolean) ? taxRaw : undefined
   return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, note, headText, costCentreText, tax }
 }
 
@@ -456,41 +458,3 @@ export async function retagPosted(formData: FormData) {
 // retagPosted (reversal + new version), and a wrong import goes out through
 // the Statements page's "Delete import", which reverses everything together.
 
-export async function undoPosted(formData: FormData) {
-  const user = await requirePermission('transactionEditDelete')
-  const txnId = String(formData.get('txnId') ?? '')
-
-  await auditedTransaction(async (tx) => {
-    const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
-    if (!txn.docId) throw new Error('Mirror rows have no journal of their own — undo the other side')
-    await undoJournalDocument(tx, { docId: txn.docId, actorId: user.id })
-
-    // Re-sync the visible tag with the journal the undo restored: the head is
-    // whichever line isn't the bank ledger account. (Nature is display-only
-    // metadata and keeps its last value.)
-    const doc = await tx.journalDoc.findUniqueOrThrow({
-      where: { id: txn.docId },
-      include: { currentEntry: { include: { lines: true } } },
-    })
-    const bank = await tx.bankAccount.findUniqueOrThrow({ where: { id: txn.bankAccountId } })
-    const headLine = doc.currentEntry?.lines.find((l) => l.accountId !== bank.ledgerAccountId)
-    if (headLine) {
-      await tx.statementTransaction.update({
-        where: { id: txn.id },
-        data: {
-          headAccountId: headLine.accountId,
-          costCentreId: headLine.costCentreId,
-          accountingHeadId: headLine.accountingHeadId,
-        },
-      })
-    }
-    await audit(tx, {
-      actorId: user.id,
-      action: 'statement_txn.undo',
-      targetType: 'StatementTransaction',
-      targetId: txnId,
-      summary: 'Undid last operation on posted transaction',
-    })
-  })
-  revalidatePath('/tagging')
-}

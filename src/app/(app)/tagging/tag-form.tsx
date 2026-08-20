@@ -2,7 +2,6 @@
 
 import { useState, type ReactNode } from 'react'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
-import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 
@@ -103,8 +102,9 @@ export function TagRowCells(props: {
     accountingHeadId?: string | null
     /** Free comment on the row. */
     note?: string | null
-    // Stored GST/TDS details — prefilled into the panel so a re-save or
-    // retag carries them forward instead of silently blanking them.
+    // Stored GST/TDS details. The panel that edited them was removed
+    // (Himal, 20 Aug); they ride here only so nothing reads as missing —
+    // a Save sends no tax fields, and the server then keeps what is stored.
     gstType?: string | null
     gstRate?: string | null
     hsn?: string | null
@@ -127,27 +127,6 @@ export function TagRowCells(props: {
     props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? '',
   )
   const [seed, setSeed] = useState(0)
-
-  // GST and TDS can ride together on a row (professional fees: taxable +
-  // GST − TDS; the server splits with TDS on the taxable value). The panel
-  // prefills stored values so a re-save or retag never blanks them.
-  const [gst, setGst] = useState({
-    type: props.defaults?.gstType ?? '',
-    rate: props.defaults?.gstRate ?? '',
-    hsn: props.defaults?.hsn ?? '',
-    gstin: props.defaults?.counterpartyGstin ?? '',
-  })
-  const [tds, setTds] = useState({
-    section: props.defaults?.tdsSection ?? '',
-    rate: props.defaults?.tdsRate ?? '',
-    pan: props.defaults?.deducteePan ?? '',
-  })
-  const setGstField = (field: keyof typeof gst) => (value: string) => {
-    setGst((g) => ({ ...g, [field]: value }))
-  }
-  const setTdsField = (field: keyof typeof tds) => (value: string) => {
-    setTds((t) => ({ ...t, [field]: value }))
-  }
 
   return (
     <>
@@ -247,71 +226,6 @@ export function TagRowCells(props: {
             </button>
           </form>
           {props.children}
-          {/* Optional GST / TDS details (spec §3 step 5 / §7) — expands the
-              row inline; absolute popovers would clip inside the scroll box.
-              Prefilled from the stored tag, and the toggle shows what's set
-              so a filled row is visible without opening it. */}
-          <details>
-            <summary
-              className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
-                gst.rate || tds.rate
-                  ? 'font-semibold text-warning'
-                  : 'text-ink-3 hover:text-ink-2'
-              }`}
-            >
-              {[
-                gst.rate ? `GST ${gst.rate}%` : '',
-                tds.rate ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}` : '',
-              ]
-                .filter(Boolean)
-                .join(' + ') || 'GST/TDS'}
-            </summary>
-            <div className="mt-1 w-44 space-y-1 rounded-lg bg-surface-2/60 p-1.5">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-3">
-                GST
-              </p>
-              <select name="gstType" form={formId} value={gst.type} onChange={(e) => setGstField('type')(e.target.value)} className={inputCls}>
-                <option value="">GST type</option>
-                {GST_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <select name="gstRate" form={formId} value={gst.rate} onChange={(e) => setGstField('rate')(e.target.value)} className={inputCls}>
-                <option value="">GST rate %</option>
-                {GST_RATES.map((r) => (
-                  <option key={r} value={r}>{r}%</option>
-                ))}
-              </select>
-              <input name="hsn" form={formId} value={gst.hsn} onChange={(e) => setGstField('hsn')(e.target.value)} placeholder="HSN/SAC" className={inputCls} />
-              <input
-                name="counterpartyGstin"
-                form={formId}
-                value={gst.gstin}
-                onChange={(e) => setGstField('gstin')(e.target.value)}
-                placeholder="Party GSTIN"
-                className={inputCls}
-              />
-              <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-ink-3">
-                TDS — on the taxable value, both may apply
-              </p>
-              <select name="tdsSection" form={formId} value={tds.section} onChange={(e) => setTdsField('section')(e.target.value)} className={inputCls}>
-                <option value="">TDS section</option>
-                {TDS_SECTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-              <input
-                name="tdsRate"
-                form={formId}
-                value={tds.rate}
-                onChange={(e) => setTdsField('rate')(e.target.value)}
-                placeholder="TDS rate %"
-                inputMode="decimal"
-                className={inputCls}
-              />
-              <input name="deducteePan" form={formId} value={tds.pan} onChange={(e) => setTdsField('pan')(e.target.value)} placeholder="Deductee PAN" className={inputCls} />
-            </div>
-          </details>
         </div>
       </td>
     </>

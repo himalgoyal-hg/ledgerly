@@ -5,7 +5,6 @@ import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
-import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells, BulkTagFields } from './tag-form'
@@ -18,7 +17,6 @@ import {
   untagTransaction,
   postAll,
   retagPosted,
-  undoPosted,
   requestAiSuggestions,
   acceptAiSuggestion,
   dismissAiSuggestion,
@@ -694,33 +692,6 @@ export default async function TaggingPage(props: {
             {/* head pick auto-fills cost centre + Accounting Head, both stay
                 editable — same manners as a tag row */}
             <BulkTagFields heads={heads} costCentres={costCentres} className={`${controlClass} w-56`} />
-            {/* Same GST/TDS for every ticked row (spec §7) */}
-            <details>
-              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
-              <div className="mt-1 flex flex-wrap items-center gap-2">
-                <select name="gstType" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-                  <option value="">GST type</option>
-                  {GST_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </select>
-                <select name="gstRate" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-                  <option value="">GST rate %</option>
-                  {GST_RATES.map((r) => (
-                    <option key={r} value={r}>{r}%</option>
-                  ))}
-                </select>
-                <input name="hsn" placeholder="HSN/SAC" className="w-24 rounded-lg border border-line px-2 py-1 text-xs" />
-                <select name="tdsSection" className="rounded-lg border border-line bg-surface px-2 py-1 text-xs">
-                  <option value="">TDS section</option>
-                  {TDS_SECTIONS.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-                <input name="tdsRate" placeholder="TDS rate %" inputMode="decimal" className="w-20 rounded-lg border border-line px-2 py-1 text-xs" />
-                <input name="deducteePan" placeholder="Deductee PAN" className="w-28 rounded-lg border border-line px-2 py-1 text-xs" />
-              </div>
-            </details>
             <button
               type="submit"
               title="Pending/tagged rows tag in place; posted rows repost as reversal + new version"
@@ -1042,19 +1013,7 @@ export default async function TaggingPage(props: {
                             tdsRate: txn.tdsRate === null ? null : String(txn.tdsRate),
                             deducteePan: txn.deducteePan,
                           }}
-                        >
-                          {(doc?._count.entries ?? 0) > 1 && (
-                            <form action={undoPosted}>
-                              <input type="hidden" name="txnId" value={txn.id} />
-                              <button
-                                type="submit"
-                                className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
-                              >
-                                Undo
-                              </button>
-                            </form>
-                          )}
-                        </TagRowCells>
+                        />
                       ) : (
                         <>
                           <td className="px-2 py-1.5 text-xs text-ink-2">
@@ -1076,19 +1035,7 @@ export default async function TaggingPage(props: {
                           <td className="px-2 py-1.5 text-xs text-ink-2" title={txn.note ?? undefined}>
                             {txn.note ?? <span className="text-ink-3">—</span>}
                           </td>
-                          <td className="px-2 py-1.5">
-                            {canEditPosted && txn.docId && deleted && (
-                              <form action={undoPosted}>
-                                <input type="hidden" name="txnId" value={txn.id} />
-                                <button
-                                  type="submit"
-                                  className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
-                                >
-                                  Undo delete
-                                </button>
-                              </form>
-                            )}
-                          </td>
+                          <td className="px-2 py-1.5" />
                         </>
                       )}
                     </tr>
