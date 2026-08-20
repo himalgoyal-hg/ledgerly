@@ -133,7 +133,7 @@ export function TagRowCells(props: {
       {/* The tag tiers share the table's slack (narration and amount stay
           snug) and the same input styling; the Accounting Head is a head
           picker of its own — it mirrors the Expense Head until changed. */}
-      <td className="w-[20%] px-2 py-1">
+      <td className="w-[19%] px-2 py-1">
         <HeadCombobox
           heads={props.heads}
           defaultHeadId={props.defaults?.headAccountId}
@@ -167,7 +167,7 @@ export function TagRowCells(props: {
       </td>
       {/* Nature rides hidden — auto from the head / master, per Himal
           (18 Aug): it posts correctly without taking a column. */}
-      <td className="w-[16%] px-2 py-1">
+      <td className="w-[15%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -184,7 +184,7 @@ export function TagRowCells(props: {
           Expense Head is (re-mounts on every head pick, the `seed` key),
           stays editable, and an override never flows back leftwards.
           Overridden = highlighted so a changed head is visible at a glance. */}
-      <td className="w-[16%] px-2 py-1">
+      <td className="w-[15%] px-2 py-1">
         <HeadCombobox
           key={`a${seed}`}
           heads={props.heads}
@@ -202,7 +202,7 @@ export function TagRowCells(props: {
         />
       </td>
       {/* Note — a free comment on the row, saved with the tag */}
-      <td className="w-[14%] px-2 py-1">
+      <td className="w-[13%] px-2 py-1">
         <input
           name="note"
           form={formId}
@@ -212,7 +212,7 @@ export function TagRowCells(props: {
           className={inputCls}
         />
       </td>
-      <td className="px-2 py-1">
+      <td className="sticky right-0 z-10 bg-surface px-2 py-1">
         <div className="flex items-start gap-1.5">
           <form id={formId} action={props.action}>
             <input type="hidden" name="txnId" value={props.txnId} />

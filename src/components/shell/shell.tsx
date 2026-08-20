@@ -285,7 +285,7 @@ export function Shell(props: ShellProps) {
 
       <div className={`transition-[padding] duration-200 print:!pl-0 ${collapsed ? 'lg:pl-[72px]' : 'lg:pl-[264px]'}`}>
         <Header {...props} onMenu={() => setDrawer(true)} pathname={pathname} />
-        <main className="mx-auto w-full max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none">
+        <main className="mx-auto w-full max-w-[1700px] px-4 py-6 sm:px-6 lg:px-8 print:max-w-none">
           {props.children}
         </main>
       </div>
@@ -298,7 +298,7 @@ export function Shell(props: ShellProps) {
 function Header(props: ShellProps & { onMenu: () => void; pathname: string }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface/80 backdrop-blur-md print:hidden">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-[1700px] items-center gap-2 px-4 sm:gap-3 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={props.onMenu}
