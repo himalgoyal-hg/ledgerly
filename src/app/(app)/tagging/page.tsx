@@ -10,6 +10,7 @@ import { describeNarration } from '@/lib/statements/rules'
 import { aiConfigured } from '@/lib/ai/client'
 import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
+import { FilterSelect } from './filter-select'
 import { TxnDetails } from './txn-details'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
@@ -34,7 +35,7 @@ import {
 // so a screenful shows dozens of rows, not 4-5 cards.
 
 export default async function TaggingPage(props: {
-  searchParams: Promise<{ q?: string; bank?: string; month?: string; view?: string; sort?: string; dir?: string }>
+  searchParams: Promise<{ q?: string; bank?: string; month?: string; year?: string; tag?: string; view?: string; sort?: string; dir?: string }>
 }) {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
@@ -48,14 +49,24 @@ export default async function TaggingPage(props: {
   const bank = sp.bank ?? ''
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
   const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
+  const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : ''
+  // Which rows still need work — the Narration column's Show filter
+  const tagFilter = ['notag', 'nocc', 'noah'].includes(sp.tag ?? '') ? sp.tag! : 'all'
   // Excel-style column sort: which column, which way (default date ↑)
   const sortKey = ['date', 'ac', 'narration', 'amount'].includes(sp.sort ?? '') ? sp.sort! : 'date'
   const sortDir = sp.dir === 'desc' ? 'desc' : 'asc'
 
-  const monthFrom = month ? new Date(`${month}-01T00:00:00Z`) : null
-  const monthTo = monthFrom
-    ? new Date(Date.UTC(monthFrom.getUTCFullYear(), monthFrom.getUTCMonth() + 1, 1))
-    : null
+  // Date filter — a whole year, or one month inside it (month wins)
+  const monthFrom = month
+    ? new Date(`${month}-01T00:00:00Z`)
+    : year
+      ? new Date(Date.UTC(Number(year), 0, 1))
+      : null
+  const monthTo = month
+    ? new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 1))
+    : year
+      ? new Date(Date.UTC(Number(year) + 1, 0, 1))
+      : null
 
   // Search reaches the whole tag, not just the narration: matching heads and
   // cost centres resolve to ids first (no relation on the txn row), natures
@@ -135,6 +146,11 @@ export default async function TaggingPage(props: {
         }
       : {}),
     ...(monthFrom && monthTo ? { date: { gte: monthFrom, lt: monthTo } } : {}),
+    // "which rows aren't properly tagged" — no head at all, no cost centre,
+    // or no Accounting Head of their own (the mirror ones)
+    ...(tagFilter === 'notag' ? { headAccountId: null } : {}),
+    ...(tagFilter === 'nocc' ? { costCentreId: null } : {}),
+    ...(tagFilter === 'noah' ? { accountingHeadId: null } : {}),
   }
 
   const [pending, tagged, posted, heads, costCentres, banks, users, totalEntries, sums, monthRows] =
@@ -276,7 +292,7 @@ export default async function TaggingPage(props: {
   const showPending = view === 'all' || view === 'pending'
   const showTagged = view === 'all' || view === 'tagged'
   const showPosted = view === 'all' || view === 'posted'
-  const filtered = Boolean(q || bank || month)
+  const filtered = Boolean(q || bank || month || year || tagFilter !== 'all')
 
   const kpiTiles: [string, string, string, string][] = [
     ['Entries in view', String(inView), bank ? (bankName(bank) ?? '') : 'all accounts', 'border-ink'],
@@ -364,42 +380,130 @@ export default async function TaggingPage(props: {
     )
   }
 
-  // Excel-style sort links: click a column to sort by it, click again to
-  // flip. Default (date ↑) keeps a clean URL; filters ride along.
-  const sortHref = (key: string) => {
-    const s = new URLSearchParams()
-    if (q) s.set('q', q)
-    if (bank) s.set('bank', bank)
-    if (month) s.set('month', month)
-    if (view !== 'all') s.set('view', view)
-    const nextDir = sortKey === key && sortDir === 'asc' ? 'desc' : 'asc'
-    if (!(key === 'date' && nextDir === 'asc')) {
-      s.set('sort', key)
-      s.set('dir', nextDir)
+  // Every column's dropdown is built from the CURRENT url with one or two
+  // params swapped, so sort, date, account and tag-state filters compose
+  // instead of clobbering each other. A null value drops the param.
+  const hrefWith = (over: Record<string, string | null>) => {
+    const base: Record<string, string> = {}
+    if (q) base.q = q
+    if (bank) base.bank = bank
+    if (month) base.month = month
+    if (year) base.year = year
+    if (tagFilter !== 'all') base.tag = tagFilter
+    if (view !== 'all') base.view = view
+    if (!(sortKey === 'date' && sortDir === 'asc')) {
+      base.sort = sortKey
+      base.dir = sortDir
     }
+    const s = new URLSearchParams()
+    for (const [k, v] of Object.entries({ ...base, ...over })) if (v) s.set(k, v)
     const str = s.toString()
     return str ? `/tagging?${str}` : '/tagging'
   }
+  const sortHref = (key: string, dir: 'asc' | 'desc') =>
+    key === 'date' && dir === 'asc' ? hrefWith({ sort: null, dir: null }) : hrefWith({ sort: key, dir })
+  // clicking the label itself sorts, and clicking again flips — the quick path
+  const flipHref = (key: string) => sortHref(key, sortKey === key && sortDir === 'asc' ? 'desc' : 'asc')
+
+  // the years and months that actually exist in these books (unfiltered, so
+  // the options never shrink to what the current filter left behind)
+  const allMonths = monthRows.map((r) => r.m)
+  const allYears = [...new Set(allMonths.map((m) => m.slice(0, 4)))].sort().reverse()
+  const sortGroup = (key: string, asc: string, desc: string) => ({
+    label: 'Sort',
+    options: [
+      { label: asc, href: sortHref(key, 'asc') },
+      { label: desc, href: sortHref(key, 'desc') },
+    ],
+  })
+  const TAG_LABEL: Record<string, string> = {
+    all: 'All rows',
+    notag: 'Not tagged (no head)',
+    nocc: 'No cost centre',
+    noah: 'No Accounting Head',
+  }
+
   const sortTh = (key: string, label: string, extra = '') => (
-    <th className={`px-2 py-2 ${extra}`}>
-      <Link href={sortHref(key)} title="Sort — click again to flip" className="hover:text-ink">
-        {label}
-        {sortKey === key && <span className="ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-      </Link>
-    </th>
+    <Link href={flipHref(key)} title="Sort — click again to flip" className={`hover:text-ink ${extra}`}>
+      {label}
+      {sortKey === key && <span className="ml-0.5">{sortDir === 'asc' ? '▲' : '▼'}</span>}
+    </Link>
   )
   const tableHead = (withCheckbox: boolean) => (
     <thead className={theadClass}>
       <tr>
-        {withCheckbox && <th className="w-8 px-2 py-2" />}
-        {sortTh('date', 'Date')}
-        {sortTh('ac', 'A/c')}
-        {sortTh('narration', 'Narration')}
-        {sortTh('amount', 'Amount', 'text-right')}
-        <th className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
-        <th className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
-        <th className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
-        <th className="px-2 py-2" />
+        {withCheckbox && <th rowSpan={2} className="w-8 px-2 py-2" />}
+        <th className="px-2 pb-0.5 pt-2">{sortTh('date', 'Date')}</th>
+        <th className="px-2 pb-0.5 pt-2">{sortTh('ac', 'A/c')}</th>
+        <th className="px-2 pb-0.5 pt-2">{sortTh('narration', 'Narration')}</th>
+        <th className="px-2 pb-0.5 pt-2 text-right">{sortTh('amount', 'Amount')}</th>
+        <th rowSpan={2} className="w-[22%] min-w-44 px-2 py-2">Expense Head</th>
+        <th rowSpan={2} className="w-[18%] min-w-40 px-2 py-2">Cost centre</th>
+        <th rowSpan={2} className="w-[18%] min-w-40 px-2 py-2">Accounting Head</th>
+        <th rowSpan={2} className="px-2 py-2" />
+      </tr>
+      {/* Excel's filter arrows, as one dropdown per column */}
+      <tr>
+        <th className="px-1 pb-1.5">
+          <FilterSelect
+            title="Date — sort, or show one year / one month"
+            active={Boolean(month || year)}
+            current={month ? monthLabel(month) : year || 'All dates'}
+            groups={[
+              sortGroup('date', 'Oldest first ▲', 'Newest first ▼'),
+              {
+                label: 'Show',
+                options: [
+                  { label: 'All dates', href: hrefWith({ month: null, year: null }) },
+                  ...allYears.map((y) => ({ label: `Year ${y}`, href: hrefWith({ year: y, month: null }) })),
+                  ...allMonths.map((m) => ({ label: monthLabel(m), href: hrefWith({ month: m, year: null }) })),
+                ],
+              },
+            ]}
+          />
+        </th>
+        <th className="px-1 pb-1.5">
+          <FilterSelect
+            title="A/c — sort, or show one account (new accounts appear here on their own)"
+            active={Boolean(bank)}
+            current={bank ? bankName(bank) : 'All accounts'}
+            groups={[
+              sortGroup('ac', 'A → Z', 'Z → A'),
+              {
+                label: 'Show',
+                options: [
+                  { label: 'All accounts', href: hrefWith({ bank: null }) },
+                  ...entityBanks.map((b) => ({ label: b.nickname, href: hrefWith({ bank: b.id }) })),
+                ],
+              },
+            ]}
+          />
+        </th>
+        <th className="px-1 pb-1.5">
+          <FilterSelect
+            title="Narration — sort A→Z / Z→A, or show only the rows still missing a tag"
+            active={tagFilter !== 'all'}
+            current={TAG_LABEL[tagFilter]}
+            groups={[
+              sortGroup('narration', 'A → Z', 'Z → A'),
+              {
+                label: 'Show',
+                options: (['all', 'notag', 'nocc', 'noah'] as const).map((t) => ({
+                  label: TAG_LABEL[t],
+                  href: hrefWith({ tag: t === 'all' ? null : t }),
+                })),
+              },
+            ]}
+          />
+        </th>
+        <th className="px-1 pb-1.5">
+          <FilterSelect
+            title="Amount — low to high or high to low"
+            active={sortKey === 'amount'}
+            current={sortKey === 'amount' ? (sortDir === 'asc' ? 'Low → High' : 'High → Low') : 'Any amount'}
+            groups={[sortGroup('amount', 'Low → High ▲', 'High → Low ▼')]}
+          />
+        </th>
       </tr>
     </thead>
   )
@@ -454,13 +558,15 @@ export default async function TaggingPage(props: {
 
       {/* Search & filters (v2 prototype) */}
       <form className="flex flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface p-2 shadow-card">
-        {/* a chosen column sort survives a new search */}
+        {/* a chosen column sort / filter survives a new search */}
         {(sortKey !== 'date' || sortDir !== 'asc') && (
           <>
             <input type="hidden" name="sort" value={sortKey} />
             <input type="hidden" name="dir" value={sortDir} />
           </>
         )}
+        {year && <input type="hidden" name="year" value={year} />}
+        {tagFilter !== 'all' && <input type="hidden" name="tag" value={tagFilter} />}
         <input
           name="q"
           defaultValue={q}
