@@ -23,6 +23,16 @@ import { saveOpeningBalanceAction } from './actions'
 
 const inr = (n: number) => (n < 0 ? '−' : '') + '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
 
+const KINDS = ['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] as const
+
+const KIND_SHORT: Record<string, string> = {
+  ASSET: 'Assets',
+  LIABILITY: 'Liabilities',
+  EQUITY: 'Capital',
+  EXPENSE: 'Expense heads',
+  INCOME: 'Income heads',
+}
+
 const KIND_LABEL: Record<string, string> = {
   ASSET: 'Assets — what you own or are owed',
   LIABILITY: 'Liabilities — what you owe',
@@ -76,9 +86,11 @@ export default async function OpeningBalancesPage() {
   const editable = rows.filter((a) => !a.archivedAt)
   const done = editable.filter((a) => openingBy.has(a.id)).length
   const asAt = openingDateFor().toISOString().slice(0, 10)
+  const netOpening = rows.reduce((s, a) => s + (openingBy.get(a.id) ?? 0), 0)
+  const num = 'px-4 py-2 text-right tabular-nums'
 
   const cellCls =
-    'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-right text-xs tabular-nums hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
+    'w-full rounded border border-transparent bg-transparent px-2.5 py-1 text-right tabular-nums hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
   return (
     <div className="space-y-4">
@@ -96,26 +108,39 @@ export default async function OpeningBalancesPage() {
         }
       />
 
+      {/* One ruled grid, the same structure as the Balance Sheet (Himal,
+          21 Aug: "proper structure made banav, type nako dakvu"): the
+          account, then its opening in a ruled column, then Save. Each
+          nature is a band with its own subtotal, and the foot shows the
+          net figure — which is exactly what sits on Opening Balances. */}
       <div className={tableWrapClass}>
-        <table data-live-filter="ob" className="w-full min-w-[46rem] text-left text-sm">
+        <table data-live-filter="ob" className="w-full table-fixed text-left text-sm">
+          <colgroup>
+            <col />
+            <col className="w-40" />
+            <col className="w-28" />
+          </colgroup>
           <thead className={theadClass}>
             <tr>
-              <th className="px-4 py-2.5">Account</th>
-              <th className="px-2 py-2.5">Type</th>
-              <th className="px-2 py-2.5 text-right">Opening balance ₹</th>
-              <th className="px-2 py-2.5" />
+              <th className="px-4 py-2">Account</th>
+              <th className={`${num} border-l border-line-2`} title="As at the day before this financial year">
+                Opening balance
+              </th>
+              <th className="border-l border-line-2 px-3 py-2" />
             </tr>
           </thead>
           <tbody className="divide-y divide-line-2">
-            {(['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] as const).map((kind) => {
+            {KINDS.map((kind) => {
               const mine = rows
                 .filter((a) => a.kind === kind)
                 .sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt) || a.code.localeCompare(b.code))
               if (mine.length === 0) return null
+              const subtotal = mine.reduce((s, a) => s + (openingBy.get(a.id) ?? 0), 0)
+              const set = mine.filter((a) => openingBy.has(a.id)).length
               return (
                 <Fragment key={kind}>
                   <tr data-filter-keep="1" className="bg-surface-2/60">
-                    <td colSpan={4} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                    <td colSpan={3} className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       {KIND_LABEL[kind]}
                     </td>
                   </tr>
@@ -123,9 +148,9 @@ export default async function OpeningBalancesPage() {
                     const ob = openingBy.get(a.id) ?? 0
                     const fid = `ob-${a.id}`
                     return (
-                      <tr key={a.id} className="even:bg-surface-2/40 hover:bg-primary-soft/40">
-                        <td className="px-4 py-1 text-xs font-medium text-ink">
-                          {a.name}
+                      <tr key={a.id} className="hover:bg-surface-2/40">
+                        <td className="truncate px-4 py-1.5 text-ink">
+                          <span className="font-mono text-xs text-ink-3">{a.code}</span> {a.name}
                           {a.archivedAt && (
                             <span className="ml-1.5 rounded bg-warning-soft px-1 text-[9px] font-medium text-warning">
                               archived
@@ -137,14 +162,13 @@ export default async function OpeningBalancesPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-2 py-1 text-[11px] text-ink-3">{a.code}</td>
                         {/* An archived account cannot take a posting — the
                             ledger refuses one — so it is shown, not edited.
                             Restore it first if it needs an opening. */}
-                        <td className="px-1 py-0.5">
+                        <td className="border-l border-line-2 px-1.5 py-0.5">
                           {a.archivedAt ? (
                             <span
-                              className={`block px-1.5 py-1 text-right text-xs tabular-nums ${ob ? 'text-ink-3' : 'text-ink-3/60'}`}
+                              className={`block px-2.5 py-1 text-right tabular-nums ${ob ? 'text-ink-3' : 'text-ink-3/60'}`}
                               title="Archived — restore the account to set an opening balance"
                             >
                               {ob ? inr(ob) : '—'}
@@ -155,12 +179,13 @@ export default async function OpeningBalancesPage() {
                               form={fid}
                               inputMode="decimal"
                               defaultValue={ob ? String(Math.round(ob)) : ''}
+                              placeholder="—"
                               title={`Enter to save · blank clears · currently ${ob ? inr(ob) : 'not set'}`}
                               className={`${cellCls} ${ob < 0 ? 'font-medium text-success' : ''}`}
                             />
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-2 py-0.5 text-right">
+                        <td className="whitespace-nowrap border-l border-line-2 px-3 py-0.5 text-right">
                           {a.archivedAt ? (
                             <span className="text-[10px] text-ink-3">restore to edit</span>
                           ) : (
@@ -180,10 +205,32 @@ export default async function OpeningBalancesPage() {
                       </tr>
                     )
                   })}
+                  <tr className="bg-surface-2/30 font-medium text-ink">
+                    <td className="px-4 py-1.5 text-xs">
+                      Total {KIND_SHORT[kind].toLowerCase()}
+                      <span className="ml-2 font-normal text-ink-3">
+                        {set} of {mine.length} set
+                      </span>
+                    </td>
+                    <td className={`${num} border-l border-line-2`}>{subtotal ? inr(subtotal) : '—'}</td>
+                    <td className="border-l border-line-2" />
+                  </tr>
                 </Fragment>
               )
             })}
           </tbody>
+          <tfoot className="border-t-2 border-line font-semibold text-ink">
+            <tr data-filter-keep="1">
+              <td className="px-4 py-2">
+                Net opening
+                <span className="ml-2 text-xs font-normal text-ink-3">
+                  debits less credits — the figure carried on Opening Balances
+                </span>
+              </td>
+              <td className={`${num} border-l border-line-2`}>{netOpening ? inr(netOpening) : '—'}</td>
+              <td className="border-l border-line-2" />
+            </tr>
+          </tfoot>
         </table>
         <p className="border-t border-line-2 px-4 py-2 text-[11px] text-ink-3">
           Type a figure and press Enter — blank clears it. A correction reposts as a reversal plus a new version, so a
