@@ -2,6 +2,18 @@ import { Prisma } from '@/generated/prisma/client'
 import { nextChildCode } from '@/lib/ledger/coa'
 import { NATURE_GROUP, stripCcType, CC_TYPE_ALIAS } from '@/lib/budget/nature'
 
+/** Where a head created outside the master register lands on it. */
+export const NEW_HEAD_SECTION = 'New Added'
+
+/** The chart's kind → the master register's own word for it. */
+const NATURE_OF_KIND: Record<string, string> = {
+  EXPENSE: 'Expense',
+  INCOME: 'Income',
+  ASSET: 'Asset',
+  LIABILITY: 'Liability',
+  EQUITY: 'Liability',
+}
+
 /**
  * Resolve the head pair a creatable head-combobox submits: a picked id plus
  * free text. The id wins; otherwise non-empty text finds a same-named leaf
@@ -53,6 +65,29 @@ export async function resolveHeadAccount(
       parentId: group.id,
     },
   })
+
+  // A head born here also joins the master register (Himal, 20 Aug: "tag
+  // entry made new expense head add kela re to master register made javun
+  // add zala pahije"), under a "New Added" section that sorts above every
+  // other — so what was just created is the first thing on that screen,
+  // waiting for its bank mode, cost centre and budget.
+  if (!masterRow) {
+    const lowest = await tx.headMode.aggregate({ _min: { sortOrder: true } })
+    const entity = await tx.entity.findUniqueOrThrow({
+      where: { id: args.entityId },
+      select: { code: true },
+    })
+    await tx.headMode.create({
+      data: {
+        category: name,
+        section: NEW_HEAD_SECTION,
+        // newest first inside the section, and the whole section on top
+        sortOrder: (lowest._min.sortOrder ?? 1) - 1,
+        nature: NATURE_OF_KIND[created.kind] ?? 'Expense',
+        books: entity.code,
+      },
+    })
+  }
 
   if (masterRow?.expenseType) {
     const want = masterRow.expenseType
