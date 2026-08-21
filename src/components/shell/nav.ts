@@ -65,6 +65,7 @@ export function buildNav(user: CurrentUser): NavGroup[] {
       title: 'Setup & masters',
       items: [
         { href: '/admin/coa', label: 'Accounts', icon: 'accounts', show: admin },
+        { href: '/admin/opening-balances', label: 'Opening balances', icon: 'accounts', show: admin },
         { href: '/admin/cost-centres', label: 'Cost centres', icon: 'costCentres', show: admin },
         { href: '/admin/banking', label: 'Banks & cash locations', icon: 'entities', show: admin },
         { href: '/admin/entities', label: 'Entities', icon: 'entities', show: admin },

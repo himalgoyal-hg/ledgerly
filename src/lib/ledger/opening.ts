@@ -41,12 +41,17 @@ export async function setHeadOpeningBalance(
   })
   if (!head) throw new Error(`"${args.category}" has no head in these books yet`)
 
+  // The opening document for this account, however it was created: this
+  // helper keys on the ledger account, while a bank's opening (posted when
+  // the account was added) keys on the BankAccount row. Matching on the
+  // entry's own line finds both, so a bank's figure is corrected rather
+  // than double-posted.
   const existing = await tx.journalDoc.findFirst({
     where: {
       entityId: args.entityId,
       sourceType: 'opening_balance',
-      sourceId: head.id,
       deletedAt: null,
+      currentEntry: { lines: { some: { accountId: head.id } } },
     },
   })
   const raw = args.amount.replace(/[,₹\s]/g, '')
