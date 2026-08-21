@@ -41,6 +41,11 @@ export default async function BalanceSheetPage(props: {
     }),
   ])
   const emptied = Boolean(headAccountId) && bs.assets.lines.length + bs.liabilities.lines.length + bs.equity.lines.length === 0
+  // both are already on their own normal side, so they simply add
+  const openingLiabEquity =
+    bs.liabilities.openingTotal !== undefined && bs.equity.openingTotal !== undefined
+      ? (Number(bs.liabilities.openingTotal) + Number(bs.equity.openingTotal)).toFixed(2)
+      : undefined
   const nameOf = (id?: string) => sheetHeads.find((h) => h.id === id)?.name
   const query = new URLSearchParams({
     ...(params.to ? { to: params.to } : {}),
@@ -58,17 +63,15 @@ export default async function BalanceSheetPage(props: {
           `as at ${params.to ?? 'today'}`,
           showCash ? '' : 'cash hidden',
           headAccountId ? `only ${nameOf(headAccountId) ?? '—'}` : '',
-          // a narrowed sheet is one account's balance, not a statement
-          headAccountId
-            ? 'one account — totals are not meant to balance'
-            : bs.balances
-              ? '✓ balances'
-              : '✗ DOES NOT BALANCE',
         ]
           .filter(Boolean)
           .join(' · ')}
         filters={
           <>
+            {/* read left to right: as at when, which account, what to leave
+                out, and the way back */}
+            <span className="text-xs text-ink-3">as at</span>
+            <input type="date" name="to" defaultValue={params.to} className={controlClass} />
             {/* only balance-sheet accounts — an expense head would empty
                 the sheet, which is what made this look broken */}
             <HeadCombobox
@@ -78,21 +81,14 @@ export default async function BalanceSheetPage(props: {
               placeholder="All accounts — type to search"
               className={`${controlClass} w-56`}
             />
-            <CashToggle base="/reports/balance-sheet" showing={showCash} keep={{ to: params.to, head: params.head }} />
-            <ResetFilters base="/reports/balance-sheet" active={Boolean(params.head || params.to || params.cash)} />
-            <span className="text-xs text-ink-3">as at</span>
-            <input
-              type="date"
-              name="to"
-              defaultValue={params.to}
-              className={controlClass}
-            />
             <button
               type="submit"
               className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2"
             >
               Apply
             </button>
+            <CashToggle base="/reports/balance-sheet" showing={showCash} keep={{ to: params.to, head: params.head }} />
+            <ResetFilters base="/reports/balance-sheet" active={Boolean(params.head || params.to || params.cash)} />
           </>
         }
         exportHref={`/reports/export?report=balance-sheet&${query}`}
@@ -103,6 +99,46 @@ export default async function BalanceSheetPage(props: {
           Nothing on the balance sheet for that account — it has no balance as at this date.
         </p>
       )}
+
+      {/* The headline first: both sides, what they opened at and what they
+          are now, and whether they meet. The detail follows below. */}
+      <div className="rounded-2xl border border-line bg-surface shadow-card">
+        <div className="grid divide-y divide-line-2 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          {(
+            [
+              ['Total assets', bs.assets.openingTotal, bs.assetsTotal],
+              [
+                'Total liabilities + equity',
+                openingLiabEquity,
+                bs.liabilitiesEquityTotal,
+              ],
+            ] as const
+          ).map(([label, opening, now]) => (
+            <div key={label} className="px-4 py-3">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">{label}</div>
+              <div className="mt-0.5 text-xl font-semibold tabular-nums text-ink">{displayINR(now)}</div>
+              {opening !== undefined && (
+                <div className="text-[11px] tabular-nums text-ink-3">
+                  opened at {displayINR(opening)}
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="px-4 py-3">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Check</div>
+            <div
+              className={`mt-0.5 text-xl font-semibold ${
+                headAccountId ? 'text-ink-2' : bs.balances ? 'text-success' : 'text-danger'
+              }`}
+            >
+              {headAccountId ? 'one account' : bs.balances ? '✓ balances' : '✗ does not balance'}
+            </div>
+            <div className="text-[11px] text-ink-3">
+              {headAccountId ? 'a slice, not a statement' : `as at ${params.to ?? 'today'}`}
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="space-y-4">
@@ -142,7 +178,9 @@ export default async function BalanceSheetPage(props: {
         </div>
       </div>
 
-      {!bs.balances && (
+      {/* A narrowed sheet is a deliberate slice and is not meant to balance
+          — this warning is for a genuine integrity problem only. */}
+      {!bs.balances && !headAccountId && (
         <p className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger">
           The sheet does not balance. This should be impossible — the journal
           enforces Dr = Cr at the database level. Check the Trial Balance and
