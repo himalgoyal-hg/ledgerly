@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
-import { saveMasterRowAction, removeMasterRowAction } from './actions'
+import { saveMasterRowAction, removeMasterRowAction, setHeadOpeningBalanceAction } from './actions'
 import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Fragment } from 'react'
@@ -73,6 +73,27 @@ export default async function CoaPage() {
     headsByName.set(key, [...(headsByName.get(key) ?? []), { id: h.id, code: h.entity.code }])
   }
 
+  // Opening balances, straight from the ledger: the opening_balance document
+  // each head carries in THESE books (a master row can name a head in
+  // several books; each keeps its own figure).
+  const myHeadIds = allHeads.filter((h) => h.entity.code === entity.code).map((h) => h.id)
+  const openingDocs = myHeadIds.length
+    ? await prisma.journalDoc.findMany({
+        where: {
+          entityId: entity.id,
+          sourceType: 'opening_balance',
+          sourceId: { in: myHeadIds },
+          deletedAt: null,
+        },
+        select: { sourceId: true, currentEntry: { select: { lines: { select: { accountId: true, debit: true, credit: true } } } } },
+      })
+    : []
+  const openingByHead = new Map<string, number>()
+  for (const d of openingDocs) {
+    const line = d.currentEntry?.lines.find((l) => l.accountId === d.sourceId)
+    if (line) openingByHead.set(d.sourceId!, Number(line.debit) - Number(line.credit))
+  }
+
   const cellCls =
     'w-full rounded border border-transparent bg-transparent px-1.5 py-1 text-xs hover:border-line focus:border-primary focus:bg-surface focus:outline-none'
 
@@ -97,18 +118,19 @@ export default async function CoaPage() {
 
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
         <div className="overflow-x-auto">
-        <table data-live-filter="master" className="w-full min-w-[86rem] table-fixed text-left text-sm">
+        <table data-live-filter="master" className="w-full min-w-[94rem] table-fixed text-left text-sm">
           <colgroup>
-            <col className="w-[18%]" />
-            <col className="w-[8%]" />
-            <col className="w-[11%]" />
-            <col className="w-[11%]" />
-            <col className="w-[12%]" />
-            <col className="w-[8%]" />
+            <col className="w-[16%]" />
             <col className="w-[7%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[11%]" />
             <col className="w-[9%]" />
             <col className="w-[8%]" />
+            <col className="w-[7%]" />
             <col className="w-[8%]" />
+            <col className="w-[7%]" />
+            <col className="w-[7%]" />
           </colgroup>
           <thead>
             <tr className="border-b border-line bg-surface text-[10px] uppercase tracking-wider text-ink-3">
@@ -118,6 +140,9 @@ export default async function CoaPage() {
               <th className="px-2 py-2.5 font-semibold">Cost centre</th>
               <th className="px-2 py-2.5 font-semibold" title="Defaults to the Expense Head itself. Pick a different head to send every entry of this category into the Accounting Head report under that name — Reports → By → Accounting Head. A pick made while tagging still wins per entry.">
                 Accounting Head
+              </th>
+              <th className="px-2 py-2.5 text-right font-semibold" title={`This head's opening balance in ${entity.code}, brought forward as at 31 Mar. Type and press Enter; blank clears it. It posts a real journal against Opening Balances.`}>
+                Opening bal ₹
               </th>
               <th className="px-2 py-2.5 text-right font-semibold">Bank budget ₹</th>
               <th className="px-2 py-2.5 text-right font-semibold">Cash budget ₹</th>
@@ -142,7 +167,7 @@ export default async function CoaPage() {
                 <Fragment key={m?.id ?? 'new'}>
                 {sectionHeader && (
                   <tr data-filter-keep="1" className="border-t border-line bg-surface-2/60">
-                    <td colSpan={10} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                    <td colSpan={11} className="px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-ink-3">
                       {sectionHeader}
                     </td>
                   </tr>
@@ -240,6 +265,44 @@ export default async function CoaPage() {
                     />
                   </td>
                   <td className="px-1 py-0.5">
+                    {/* Opening balance — its own tiny form, because it posts
+                        a journal rather than editing the master row. */}
+                    {m && (() => {
+                      const mine = heads.find((h) => h.code === entity.code)
+                      if (!mine) {
+                        return (
+                          <span
+                            className="block px-1.5 text-right text-[10px] text-ink-3"
+                            title={`No "${m.category}" head in ${entity.code} yet`}
+                          >
+                            —
+                          </span>
+                        )
+                      }
+                      const ob = openingByHead.get(mine.id) ?? 0
+                      return (
+                        <form action={setHeadOpeningBalanceAction} className="flex items-center gap-0.5">
+                          <input type="hidden" name="entityId" value={entity.id} />
+                          <input type="hidden" name="category" value={m.category} />
+                          <input
+                            name="openingBalance"
+                            inputMode="decimal"
+                            defaultValue={ob ? String(Math.round(ob)) : ''}
+                            title={`Opening balance in ${entity.code} as at 31 Mar — Enter to save, blank clears`}
+                            className={`${cellCls} text-right tabular-nums ${ob < 0 ? 'font-medium text-success' : ''}`}
+                          />
+                          <button
+                            type="submit"
+                            title="Save opening balance"
+                            className="rounded border border-line px-1 text-[10px] text-ink-3 hover:bg-surface-2 hover:text-ink-2"
+                          >
+                            ✓
+                          </button>
+                        </form>
+                      )
+                    })()}
+                  </td>
+                  <td className="px-1 py-0.5">
                     <input
                       name="bankBudget"
                       form={fid}
@@ -306,7 +369,7 @@ export default async function CoaPage() {
                 </tr>
                 {sectionEnds && (
                   <tr data-filter-keep="1" className="bg-surface-2/60">
-                    <td className="px-4 py-0.5" colSpan={9}>
+                    <td className="px-4 py-0.5" colSpan={10}>
                       <input
                         name="category"
                         form={`mr-sec-${sectionEnds.replace(/[^a-zA-Z0-9]/g, '_')}`}
@@ -351,7 +414,9 @@ export default async function CoaPage() {
           This register is the master — ✓ saves a row and updates the plan, budgets, modes and cost centres everywhere.
           Books says whose books (or the cash pool) the plan sits in. Negative budget = receipt. The ↗ next to a bank
           mode means it is linked to a real bank account — click it to open that account&apos;s statement ledger.
-          Accounting Head defaults to the Expense Head itself; pick a different one to send the whole category into
+          Opening bal is that head&apos;s brought-forward figure in the books you are in, posted as at 31 Mar against
+          Opening Balances — type it and press Enter, blank clears it. Accounting Head defaults to the Expense Head
+          itself; pick a different one to send the whole category into
           the Accounting Head report (Reports → By) under that name — live, without touching what posts in the books.
           While tagging, each entry&apos;s own Accounting Head pick still wins over the master&apos;s.
         </p>
