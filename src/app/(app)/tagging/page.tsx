@@ -5,6 +5,7 @@ import { requirePermission, hasPermission } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { countAutoTaggable } from '@/lib/statements/auto-tag'
 import { aiConfigured } from '@/lib/ai/client'
@@ -713,6 +714,35 @@ export default async function TaggingPage(props: {
             {/* head pick auto-fills cost centre + Accounting Head, both stay
                 editable — same manners as a tag row */}
             <BulkTagFields heads={heads} costCentres={costCentres} className={`${controlClass} w-56`} />
+            {/* One GST/TDS for every ticked row (spec §7). Left blank it says
+                nothing, so a bulk retag keeps each row's stored tax. */}
+            <details>
+              <summary className="cursor-pointer text-xs text-ink-2 hover:text-ink">GST/TDS</summary>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <select name="gstType" className={controlClass}>
+                  <option value="">GST type</option>
+                  {GST_TYPES.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+                <select name="gstRate" className={controlClass}>
+                  <option value="">GST rate %</option>
+                  {GST_RATES.map((r) => (
+                    <option key={r} value={r}>{r}%</option>
+                  ))}
+                </select>
+                <input name="hsn" placeholder="HSN/SAC" className={`${controlClass} w-24`} />
+                <input name="counterpartyGstin" placeholder="Party GSTIN" className={`${controlClass} w-28`} />
+                <select name="tdsSection" className={controlClass}>
+                  <option value="">TDS section</option>
+                  {TDS_SECTIONS.map((x) => (
+                    <option key={x} value={x}>{x}</option>
+                  ))}
+                </select>
+                <input name="tdsRate" placeholder="TDS rate %" inputMode="decimal" className={`${controlClass} w-20`} />
+                <input name="deducteePan" placeholder="Deductee PAN" className={`${controlClass} w-28`} />
+              </div>
+            </details>
             <button
               type="submit"
               title="Pending/tagged rows tag in place; posted rows repost as reversal + new version"

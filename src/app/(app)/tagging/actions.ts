@@ -47,9 +47,11 @@ function tagFields(formData: FormData) {
     tdsRate: field('tdsRate'),
     deducteePan: field('deducteePan'),
   }
-  // Nothing sent = say nothing: retag then falls back to the row's stored
-  // tax instead of blanking it (the GST/TDS panel is gone from the UI).
-  const tax = Object.values(taxRaw).some(Boolean) ? taxRaw : undefined
+  // The row's GST/TDS panel posts a marker when it is on screen. With it,
+  // the panel is the truth — clearing every field really clears the tax.
+  // Without it (a form that has no panel), say nothing, so a retag keeps
+  // whatever the row already stores instead of blanking it.
+  const tax = formData.has('taxPanel') || Object.values(taxRaw).some(Boolean) ? taxRaw : undefined
   return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, note, headText, costCentreText, tax }
 }
 

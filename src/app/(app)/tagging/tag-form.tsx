@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { NATURES, suggestNature } from '@/lib/statements/natures'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
 import { SmartCombobox } from '@/components/smart-combobox'
 
@@ -102,9 +103,8 @@ export function TagRowCells(props: {
     accountingHeadId?: string | null
     /** Free comment on the row. */
     note?: string | null
-    // Stored GST/TDS details. The panel that edited them was removed
-    // (Himal, 20 Aug); they ride here only so nothing reads as missing —
-    // a Save sends no tax fields, and the server then keeps what is stored.
+    // Stored GST/TDS details — prefilled into the panel, so a re-save or
+    // a retag carries them forward instead of silently blanking them.
     gstType?: string | null
     gstRate?: string | null
     hsn?: string | null
@@ -127,6 +127,21 @@ export function TagRowCells(props: {
     props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? '',
   )
   const [seed, setSeed] = useState(0)
+
+  // GST and TDS can ride together on a row (professional fees: taxable +
+  // GST − TDS; the server splits with TDS on the taxable value). Back at
+  // Himal's ask, 20 Aug — prefilled, so re-saving never blanks them.
+  const [gst, setGst] = useState({
+    type: props.defaults?.gstType ?? '',
+    rate: props.defaults?.gstRate ?? '',
+    hsn: props.defaults?.hsn ?? '',
+    gstin: props.defaults?.counterpartyGstin ?? '',
+  })
+  const [tds, setTds] = useState({
+    section: props.defaults?.tdsSection ?? '',
+    rate: props.defaults?.tdsRate ?? '',
+    pan: props.defaults?.deducteePan ?? '',
+  })
 
   return (
     <>
@@ -226,6 +241,54 @@ export function TagRowCells(props: {
             </button>
           </form>
           {props.children}
+          {/* GST / TDS (spec §3 step 5 / §7) — expands inline; an absolute
+              popover would clip inside the table's scroll box. The summary
+              shows what is set, so a taxed row reads without opening. */}
+          <details>
+            <summary
+              className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
+                gst.rate || tds.rate ? 'font-semibold text-warning' : 'text-ink-3 hover:text-ink-2'
+              }`}
+            >
+              {[
+                gst.rate ? `GST ${gst.rate}%` : '',
+                tds.rate ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}` : '',
+              ]
+                .filter(Boolean)
+                .join(' + ') || 'GST/TDS'}
+            </summary>
+            <div className="mt-1 w-44 space-y-1 rounded-lg bg-surface-2/60 p-1.5">
+              {/* marks the panel as present, so a blank one means "no tax"
+                  rather than "say nothing" — see tagFields */}
+              <input type="hidden" name="taxPanel" value="1" form={formId} />
+              <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-3">GST</p>
+              <select name="gstType" form={formId} value={gst.type} onChange={(e) => setGst((g) => ({ ...g, type: e.target.value }))} className={inputCls}>
+                <option value="">GST type</option>
+                {GST_TYPES.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <select name="gstRate" form={formId} value={gst.rate} onChange={(e) => setGst((g) => ({ ...g, rate: e.target.value }))} className={inputCls}>
+                <option value="">GST rate %</option>
+                {GST_RATES.map((r) => (
+                  <option key={r} value={r}>{r}%</option>
+                ))}
+              </select>
+              <input name="hsn" form={formId} value={gst.hsn} onChange={(e) => setGst((g) => ({ ...g, hsn: e.target.value }))} placeholder="HSN/SAC" className={inputCls} />
+              <input name="counterpartyGstin" form={formId} value={gst.gstin} onChange={(e) => setGst((g) => ({ ...g, gstin: e.target.value }))} placeholder="Party GSTIN" className={inputCls} />
+              <p className="pt-1 text-[9px] font-semibold uppercase tracking-wider text-ink-3">
+                TDS — on the taxable value, both may apply
+              </p>
+              <select name="tdsSection" form={formId} value={tds.section} onChange={(e) => setTds((t) => ({ ...t, section: e.target.value }))} className={inputCls}>
+                <option value="">TDS section</option>
+                {TDS_SECTIONS.map((x) => (
+                  <option key={x} value={x}>{x}</option>
+                ))}
+              </select>
+              <input name="tdsRate" form={formId} value={tds.rate} onChange={(e) => setTds((t) => ({ ...t, rate: e.target.value }))} placeholder="TDS rate %" inputMode="decimal" className={inputCls} />
+              <input name="deducteePan" form={formId} value={tds.pan} onChange={(e) => setTds((t) => ({ ...t, pan: e.target.value }))} placeholder="Deductee PAN" className={inputCls} />
+            </div>
+          </details>
         </div>
       </td>
     </>
