@@ -9,6 +9,14 @@ import { COA } from '@/lib/ledger/coa'
 export interface DateRange {
   from?: Date
   to?: Date
+  /** Only lines posted to this head (Himal, 20 Aug — P&L filters). */
+  headAccountId?: string
+  /**
+   * Only lines whose EFFECTIVE Accounting Head is this one: the line's own
+   * pick, else the master register's mapping for the posting head, else the
+   * posting head itself — the same ladder Reports → By walks.
+   */
+  accountingHeadId?: string
 }
 
 export interface StatementLine {
@@ -45,9 +53,19 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
     FROM "LedgerAccount" a
     JOIN "JournalLine" l ON l."accountId" = a.id
     JOIN "JournalEntry" e ON e.id = l."entryId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
       AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
+      AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
+      AND (${range.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${range.accountingHeadId ?? null})
     GROUP BY a.id, a.code, a.name, a.kind, a."parentId"
     ORDER BY a.code
   `
