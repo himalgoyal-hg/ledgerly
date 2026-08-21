@@ -15,6 +15,12 @@ export async function saveOpeningBalanceAction(formData: FormData) {
   await auditedTransaction(async (tx) => {
     const account = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: accountId } })
     if (account.entityId !== entityId) throw new Error('Account belongs to other books')
+    // a P&L head opens at nothing (Himal, 21 Aug: "Income and Expenses
+    // remove karo") — the screen no longer offers them, and this holds
+    // the line for anything that still posts here
+    if (account.kind === 'EXPENSE' || account.kind === 'INCOME') {
+      throw new Error('Only assets, liabilities and capital take an opening balance')
+    }
     const { setHeadOpeningBalance, openingDateFor } = await import('@/lib/ledger/opening')
     const res = await setHeadOpeningBalance(tx, {
       entityId,
