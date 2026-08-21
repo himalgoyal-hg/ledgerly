@@ -4,16 +4,20 @@ import { displayINR } from '@/lib/ledger/money'
 import { prisma } from '@/lib/db'
 import { balanceSheet } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
-import { ReportHeader, SectionTable, CashToggle, ResetFilters } from '../report-chrome'
-import { HeadCombobox } from '@/components/head-combobox'
+import { ReportHeader, SectionTable, CashToggle, ResetFilters, HeadLensFilters } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Balance Sheet (spec §10) as at a date. The books are never closed into
 // reserves, so cumulative profit appears as its own equity line — which is
 // what makes Assets = Liabilities + Equity hold exactly.
+//
+// The same two lenses as the P&L (Himal, 21 Aug: "balance sheet made pan
+// add kar Expense Head / Accounting Head filter"). Both read the same
+// sheet; the Accounting Head one leads each side with the money filed
+// under a different head — e.g. Loan given carrying −62,000 from Poker.
 
 export default async function BalanceSheetPage(props: {
-  searchParams: Promise<{ to?: string; head?: string; cash?: string }>
+  searchParams: Promise<{ to?: string; head?: string; ah?: string; by?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -23,33 +27,38 @@ export default async function BalanceSheetPage(props: {
   const asOf = params.to ? new Date(params.to) : undefined
   const showCash = readCashToggle(params)
   const excludeCashAccounts = showCash ? [] : await cashAccountIds(entity.id)
-  const headAccountId = params.head || undefined
-  const [bs, sheetHeads] = await Promise.all([
-    balanceSheet(entity.id, asOf, { headAccountId, excludeCashAccounts }),
-    // ONLY the accounts a balance sheet can hold. Offering expense heads
-    // here (Himal, 20 Aug: "balance sheet madech chalt nahi") just blanked
-    // the whole sheet, since none of them ever appears on it.
+  const lens = params.by === 'ah' ? 'ah' : 'head'
+  const headAccountId = lens === 'head' ? params.head || undefined : undefined
+  const accountingHeadId = lens === 'ah' ? params.ah || undefined : undefined
+  const [bs, allHeads] = await Promise.all([
+    balanceSheet(entity.id, asOf, { lens, headAccountId, accountingHeadId, excludeCashAccounts }),
     prisma.ledgerAccount.findMany({
-      where: {
-        entityId: entity.id,
-        isGroup: false,
-        archivedAt: null,
-        kind: { in: ['ASSET', 'LIABILITY', 'EQUITY'] },
-      },
+      where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
       select: { id: true, code: true, name: true, kind: true },
     }),
   ])
-  const emptied = Boolean(headAccountId) && bs.assets.lines.length + bs.liabilities.lines.length + bs.equity.lines.length === 0
+  // The posting-head picker offers ONLY the accounts a balance sheet can
+  // hold — an expense head here just blanked the sheet (Himal, 20 Aug:
+  // "balance sheet madech chalt nahi"). The Accounting Head picker lists
+  // every head, since money on the sheet can be filed under any of them.
+  const sheetHeads = allHeads.filter((h) => h.kind === 'ASSET' || h.kind === 'LIABILITY' || h.kind === 'EQUITY')
+  // a narrowed sheet with no rows AND nothing in the re-pointed bands
+  const sides = [bs.assets, bs.liabilities, bs.equity]
+  const emptied =
+    Boolean(headAccountId || accountingHeadId) &&
+    sides.reduce((n, x) => n + x.lines.length + (x.rePointed?.length ?? 0), 0) === 0
   // both are already on their own normal side, so they simply add
   const openingLiabEquity =
     bs.liabilities.openingTotal !== undefined && bs.equity.openingTotal !== undefined
       ? (Number(bs.liabilities.openingTotal) + Number(bs.equity.openingTotal)).toFixed(2)
       : undefined
-  const nameOf = (id?: string) => sheetHeads.find((h) => h.id === id)?.name
+  const nameOf = (id?: string) => allHeads.find((h) => h.id === id)?.name
   const query = new URLSearchParams({
     ...(params.to ? { to: params.to } : {}),
     ...(headAccountId ? { head: headAccountId } : {}),
+    ...(accountingHeadId ? { ah: accountingHeadId } : {}),
+    ...(lens === 'ah' ? { by: 'ah' } : {}),
     ...(showCash ? {} : { cash: '0' }),
   })
   const rangeSuffix = query.toString() ? `&${query}` : ''
@@ -60,35 +69,48 @@ export default async function BalanceSheetPage(props: {
         title="Balance Sheet"
         entityLabel={`${entity.name} (${entity.code})`}
         subtitle={[
+          lens === 'ah'
+            ? 'By Accounting Head — the same sheet, with the money filed under a different head shown first'
+            : 'By Expense Head',
           `as at ${params.to ?? 'today'}`,
           showCash ? '' : 'cash hidden',
           headAccountId ? `only ${nameOf(headAccountId) ?? '—'}` : '',
+          accountingHeadId ? `only ${nameOf(accountingHeadId) ?? '—'}` : '',
         ]
           .filter(Boolean)
           .join(' · ')}
         filters={
           <>
-            {/* read left to right: as at when, which account, what to leave
-                out, and the way back */}
+            {/* read left to right: the lens and its picker, as at when,
+                what to leave out, and the way back */}
+            <HeadLensFilters
+              base="/reports/balance-sheet"
+              lens={lens}
+              keep={{ to: params.to, cash: params.cash }}
+              headOptions={sheetHeads}
+              ahOptions={allHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+              headPlaceholder="All accounts — type to search"
+            />
             <span className="text-xs text-ink-3">as at</span>
             <input type="date" name="to" defaultValue={params.to} className={controlClass} />
-            {/* only balance-sheet accounts — an expense head would empty
-                the sheet, which is what made this look broken */}
-            <HeadCombobox
-              heads={sheetHeads}
-              name="head"
-              defaultHeadId={params.head}
-              placeholder="All accounts — type to search"
-              className={`${controlClass} w-56`}
-            />
+            {!showCash && <input type="hidden" name="cash" value="0" />}
             <button
               type="submit"
               className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2"
             >
               Apply
             </button>
-            <CashToggle base="/reports/balance-sheet" showing={showCash} keep={{ to: params.to, head: params.head }} />
-            <ResetFilters base="/reports/balance-sheet" active={Boolean(params.head || params.to || params.cash)} />
+            <CashToggle
+              base="/reports/balance-sheet"
+              showing={showCash}
+              keep={{ to: params.to, by: params.by, head: params.head, ah: params.ah }}
+            />
+            <ResetFilters
+              base="/reports/balance-sheet"
+              active={Boolean(params.head || params.ah || params.by || params.to || params.cash)}
+            />
           </>
         }
         exportHref={`/reports/export?report=balance-sheet&${query}`}
@@ -167,7 +189,7 @@ export default async function BalanceSheetPage(props: {
 
       {/* A narrowed sheet is a deliberate slice and is not meant to balance
           — this warning is for a genuine integrity problem only. */}
-      {!bs.balances && !headAccountId && (
+      {!bs.balances && !headAccountId && !accountingHeadId && (
         <p className="rounded-xl border border-danger/30 bg-danger-soft p-4 text-sm text-danger">
           The sheet does not balance. This should be impossible — the journal
           enforces Dr = Cr at the database level. Check the Trial Balance and

@@ -248,6 +248,9 @@ export function HeadLensFilters(props: {
   ahOptions: HeadOption[]
   pickedHead?: string
   pickedAh?: string
+  /** What the posting-head picker offers — "All accounts" on a sheet
+   *  that holds more than expense heads. */
+  headPlaceholder?: string
 }) {
   const lensHref = (key: 'head' | 'ah') => {
     const s = new URLSearchParams()
@@ -275,7 +278,7 @@ export function HeadLensFilters(props: {
           heads={props.headOptions}
           name="head"
           defaultHeadId={props.pickedHead}
-          placeholder="All Expense Heads — type to search"
+          placeholder={props.headPlaceholder ?? 'All Expense Heads — type to search'}
           className={`${controlClass} w-56`}
         />
       ) : (

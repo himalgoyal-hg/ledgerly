@@ -81,7 +81,10 @@ interface RawRePointed {
   fromAccountId: string
   fromCode: string
   fromName: string
+  /** Kind of the head it posted to. */
   kind: string
+  /** Kind of the Accounting Head it was filed under. */
+  ahKind: string
   debit: string
   credit: string
 }
@@ -145,7 +148,7 @@ async function rePointedMovements(entityId: string, range: DateRange): Promise<R
   const rows = await prisma.$queryRaw<
     (Omit<RawRePointed, 'debit' | 'credit'> & { debit: string | null; credit: string | null })[]
   >`
-    SELECT ah.id as "accountId", ah.code, ah.name,
+    SELECT ah.id as "accountId", ah.code, ah.name, ah.kind::text as "ahKind",
            a.id as "fromAccountId", a.code as "fromCode", a.name as "fromName", a.kind::text as kind,
            SUM(l.debit)::text as debit, SUM(l.credit)::text as credit
     FROM "LedgerAccount" a
@@ -169,7 +172,7 @@ async function rePointedMovements(entityId: string, range: DateRange): Promise<R
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
       AND (${range.accountingHeadId ?? null}::text IS NULL OR ah.id = ${range.accountingHeadId ?? null})
-    GROUP BY ah.id, ah.code, ah.name, a.id, a.code, a.name, a.kind
+    GROUP BY ah.id, ah.code, ah.name, ah.kind, a.id, a.code, a.name, a.kind
     ORDER BY ah.code, a.code
   `
   return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0' }))
@@ -273,6 +276,17 @@ function section(
   }
 }
 
+/**
+ * Which section a re-pointed line is shown in: the one its posting head
+ * belongs to (the row still carrying it sits there), and — when the
+ * Accounting Head lives on the other statement — that section too, since a
+ * reader of the Balance Sheet wants to know that Loan given has −62,000
+ * filed under it from Poker just as much as a reader of the P&L does.
+ */
+function bandOf(moved: RawRePointed[] | undefined, kind: string) {
+  return moved?.filter((r) => r.kind === kind || r.ahKind === kind)
+}
+
 export interface ProfitAndLoss {
   income: StatementSection
   expenses: StatementSection
@@ -286,11 +300,8 @@ export async function profitAndLoss(entityId: string, range: DateRange): Promise
     groupNames(entityId),
     range.lens === 'ah' ? rePointedMovements(entityId, range) : Promise.resolve(undefined),
   ])
-  // the band sits with the section the money POSTED to — an expense filed
-  // under an asset head is still an expense here
-  const movedOf = (kind: string) => moved?.filter((r) => r.kind === kind)
-  const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit', undefined, movedOf('INCOME'))
-  const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit', undefined, movedOf('EXPENSE'))
+  const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit', undefined, bandOf(moved, 'INCOME'))
+  const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit', undefined, bandOf(moved, 'EXPENSE'))
   return {
     income,
     expenses,
@@ -320,14 +331,15 @@ export async function balanceSheet(
   view: Pick<DateRange, 'lens' | 'headAccountId' | 'accountingHeadId' | 'excludeCashAccounts'> = {},
 ): Promise<BalanceSheet> {
   const range: DateRange = { to: asOf, ...view }
-  const [rows, groups, openingBy] = await Promise.all([
+  const [rows, groups, openingBy, moved] = await Promise.all([
     accountMovements(entityId, range),
     groupNames(entityId),
     openingBalancesByAccount(entityId),
+    range.lens === 'ah' ? rePointedMovements(entityId, range) : Promise.resolve(undefined),
   ])
-  const assets = section('Assets', rows.filter((r) => r.kind === 'ASSET'), groups, 'debit', openingBy)
-  const liabilities = section('Liabilities', rows.filter((r) => r.kind === 'LIABILITY'), groups, 'credit', openingBy)
-  const equity = section('Equity', rows.filter((r) => r.kind === 'EQUITY'), groups, 'credit', openingBy)
+  const assets = section('Assets', rows.filter((r) => r.kind === 'ASSET'), groups, 'debit', openingBy, bandOf(moved, 'ASSET'))
+  const liabilities = section('Liabilities', rows.filter((r) => r.kind === 'LIABILITY'), groups, 'credit', openingBy, bandOf(moved, 'LIABILITY'))
+  const equity = section('Equity', rows.filter((r) => r.kind === 'EQUITY'), groups, 'credit', openingBy, bandOf(moved, 'EQUITY'))
 
   const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit')
   const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit')
