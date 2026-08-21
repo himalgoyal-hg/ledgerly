@@ -218,6 +218,8 @@ export async function expenseMatrixFy(
     .sort(
       (a, b) =>
         a.sectionOrder - b.sectionOrder ||
+        // re-pointed rows lead their section under the Accounting Head lens
+        Number(!!b.changed) - Number(!!a.changed) ||
         Math.abs(b.total) - Math.abs(a.total) ||
         b.yearBudget - a.yearBudget,
     )

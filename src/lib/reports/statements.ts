@@ -178,6 +178,13 @@ function section(
       ...(opening !== null ? { opening: opening.toFixed(2) } : {}),
     })
   }
+  // Under the Accounting Head lens the re-pointed rows lead (Himal,
+  // 20 Aug: "highlight made disnar starting la") — the report is still
+  // whole, the thing worth seeing is just at the top of it. The table
+  // groups by CoA parent in line order, so their groups rise with them.
+  if (lines.some((l) => l.changed)) {
+    lines.sort((a, b) => Number(!!b.changed) - Number(!!a.changed))
+  }
   return {
     title,
     lines,

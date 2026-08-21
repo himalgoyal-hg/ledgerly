@@ -38,14 +38,16 @@ export default async function OpeningBalancesPage() {
 
   const [accounts, docs, banks, cash] = await Promise.all([
     prisma.ledgerAccount.findMany({
+      // archived heads are here too (Himal, 20 Aug: "sagl disl pahije") —
+      // one can still be carrying a balance worth opening. They sort after
+      // the live ones and wear a tag, so nothing is opened by mistake.
       where: {
         entityId: entity.id,
         isGroup: false,
-        archivedAt: null,
         kind: { in: ['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] },
       },
       orderBy: [{ kind: 'asc' }, { code: 'asc' }],
-      select: { id: true, code: true, name: true, kind: true, system: true },
+      select: { id: true, code: true, name: true, kind: true, system: true, archivedAt: true },
     }),
     prisma.journalDoc.findMany({
       where: { entityId: entity.id, sourceType: 'opening_balance', deletedAt: null },
@@ -105,7 +107,9 @@ export default async function OpeningBalancesPage() {
           </thead>
           <tbody className="divide-y divide-line-2">
             {(['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] as const).map((kind) => {
-              const mine = rows.filter((a) => a.kind === kind)
+              const mine = rows
+                .filter((a) => a.kind === kind)
+                .sort((a, b) => Number(!!a.archivedAt) - Number(!!b.archivedAt) || a.code.localeCompare(b.code))
               if (mine.length === 0) return null
               return (
                 <Fragment key={kind}>
@@ -121,6 +125,11 @@ export default async function OpeningBalancesPage() {
                       <tr key={a.id} className="even:bg-surface-2/40 hover:bg-primary-soft/40">
                         <td className="px-4 py-1 text-xs font-medium text-ink">
                           {a.name}
+                          {a.archivedAt && (
+                            <span className="ml-1.5 rounded bg-warning-soft px-1 text-[9px] font-medium text-warning">
+                              archived
+                            </span>
+                          )}
                           {moneyIds.has(a.id) && (
                             <span className="ml-1.5 rounded bg-surface-2 px-1 text-[9px] font-medium text-ink-2">
                               bank / cash

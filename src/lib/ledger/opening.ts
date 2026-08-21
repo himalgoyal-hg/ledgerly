@@ -29,17 +29,31 @@ export function openingDateFor(now = new Date()): Date {
 
 export async function setHeadOpeningBalance(
   tx: Prisma.TransactionClient,
-  args: { entityId: string; category: string; amount: string; actorId: string; now?: Date },
+  args: {
+    entityId: string
+    /** The head by name — used when no accountId is given. */
+    category?: string
+    /** The head itself. Preferred: it also reaches archived heads, which
+     *  can still be carrying a balance worth opening (Himal, 20 Aug). */
+    accountId?: string
+    amount: string
+    actorId: string
+    now?: Date
+  },
 ): Promise<OpeningResult> {
-  const head = await tx.ledgerAccount.findFirst({
-    where: {
-      entityId: args.entityId,
-      isGroup: false,
-      archivedAt: null,
-      name: { equals: args.category, mode: 'insensitive' },
-    },
-  })
-  if (!head) throw new Error(`"${args.category}" has no head in these books yet`)
+  const head = args.accountId
+    ? await tx.ledgerAccount.findFirst({
+        where: { id: args.accountId, entityId: args.entityId, isGroup: false },
+      })
+    : await tx.ledgerAccount.findFirst({
+        where: {
+          entityId: args.entityId,
+          isGroup: false,
+          archivedAt: null,
+          name: { equals: args.category ?? '', mode: 'insensitive' },
+        },
+      })
+  if (!head) throw new Error(`"${args.category ?? args.accountId}" has no head in these books`)
 
   // The opening document for this account, however it was created: this
   // helper keys on the ledger account, while a bank's opening (posted when

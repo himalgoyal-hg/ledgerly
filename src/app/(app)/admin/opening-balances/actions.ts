@@ -18,6 +18,7 @@ export async function saveOpeningBalanceAction(formData: FormData) {
     const { setHeadOpeningBalance, openingDateFor } = await import('@/lib/ledger/opening')
     const res = await setHeadOpeningBalance(tx, {
       entityId,
+      accountId: account.id,
       category: account.name,
       amount,
       actorId: admin.id,
