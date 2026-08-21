@@ -4,7 +4,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { prisma } from '@/lib/db'
 import { balanceSheet } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
-import { ReportHeader, SectionTable, CashToggle } from '../report-chrome'
+import { ReportHeader, SectionTable, CashToggle, ResetFilters } from '../report-chrome'
 import { HeadCombobox } from '@/components/head-combobox'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
@@ -79,6 +79,7 @@ export default async function BalanceSheetPage(props: {
               className={`${controlClass} w-56`}
             />
             <CashToggle base="/reports/balance-sheet" showing={showCash} keep={{ to: params.to, head: params.head }} />
+            <ResetFilters base="/reports/balance-sheet" active={Boolean(params.head || params.to || params.cash)} />
             <span className="text-xs text-ink-3">as at</span>
             <input
               type="date"

@@ -7,7 +7,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
-import { ReportHeader, DateRangeFilters, CashToggle } from '../report-chrome'
+import { ReportHeader, DateRangeFilters, CashToggle, ResetFilters } from '../report-chrome'
 import { HeadCombobox } from '@/components/head-combobox'
 import { controlClass } from '@/components/ui'
 import { SmartCombobox } from '@/components/smart-combobox'
@@ -209,6 +209,7 @@ export default async function CashFlowPage(props: {
               showing={showCash}
               keep={{ from: params.from, to: params.to, view: params.view }}
             />
+            <ResetFilters base="/reports/cash-flow" active={Boolean(params.head || params.from || params.to || params.cash)} />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }

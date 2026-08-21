@@ -4,7 +4,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { costCentreReport } from '@/lib/reports/analysis'
 import { tableWrapClass, theadClass } from '@/components/ui'
 import { prisma } from '@/lib/db'
-import { ReportHeader, DateRangeFilters, HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { ReportHeader, DateRangeFilters, HeadLensFilters, readHeadLens, CashToggle, ResetFilters } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Expense by cost centre (spec §10). Untagged spend is shown, not hidden —
@@ -68,6 +68,7 @@ export default async function CostCentreReportPage(props: {
               pickedAh={params.ah}
             />
             <CashToggle base="/reports/cost-centres" showing={readCashToggle(params)} keep={{ from: params.from, to: params.to, by: params.by, head: params.head, ah: params.ah }} />
+            <ResetFilters base="/reports/cost-centres" active={Boolean(params.head || params.ah || params.by || params.from || params.to || params.cash)} />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }

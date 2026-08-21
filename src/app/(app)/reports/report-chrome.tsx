@@ -272,3 +272,21 @@ export function CashToggle(props: { base: string; showing: boolean; keep?: Recor
     </Link>
   )
 }
+
+/**
+ * Reset (Himal, 20 Aug: "reset karaych option pan de"). Shown only when
+ * something is actually applied — a head, a lens, hidden cash, a date
+ * range — and one click puts the report back to showing everything.
+ */
+export function ResetFilters(props: { base: string; active: boolean }) {
+  if (!props.active) return null
+  return (
+    <Link
+      href={props.base}
+      title="Back to the full report — clears heads, lens, dates and brings cash back"
+      className="rounded-lg border border-danger/30 bg-danger-soft px-3 py-1.5 text-sm font-medium text-danger hover:bg-danger/15"
+    >
+      ↺ Reset
+    </Link>
+  )
+}

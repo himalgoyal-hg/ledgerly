@@ -6,7 +6,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { profitAndLoss } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
 import { HeadCombobox } from '@/components/head-combobox'
-import { ReportHeader, DateRangeFilters, SectionTable, CashToggle } from './report-chrome'
+import { ReportHeader, DateRangeFilters, SectionTable, CashToggle, ResetFilters } from './report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Profit & Loss (spec §10) — live over the journal, drillable to source.
@@ -121,6 +121,7 @@ export default async function ProfitAndLossPage(props: {
               </>
             )}
             <CashToggle base="/reports" showing={showCash} keep={{ from: params.from, to: params.to, by: params.by, head: params.head, ah: params.ah }} />
+            <ResetFilters base="/reports" active={Boolean(params.head || params.ah || params.by || params.from || params.to || params.cash)} />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }

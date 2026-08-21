@@ -5,7 +5,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { budgetVsActual } from '@/lib/reports/analysis'
 import { HeadCombobox } from '@/components/head-combobox'
 import { buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
-import { ReportHeader, CashToggle } from '../report-chrome'
+import { ReportHeader, CashToggle, ResetFilters } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 import { setBudget } from './actions'
 
@@ -83,6 +83,7 @@ export default async function BudgetPage(props: {
             {/* budgets belong to the head that was posted to, so this one
                 narrows rather than regroups — no Accounting Head lens */}
             <CashToggle base="/reports/budget" showing={readCashToggle(params)} keep={{ year: params.year, month: params.month, head: params.head }} />
+            <ResetFilters base="/reports/budget" active={Boolean(params.head || params.cash || params.month)} />
             <HeadCombobox
               heads={accounts}
               name="head"

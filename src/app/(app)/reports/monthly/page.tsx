@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { Fragment } from 'react'
 import { requireUser, isAdmin } from '@/lib/auth'
 import { prisma } from '@/lib/db'
@@ -7,7 +8,7 @@ import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
 import { BudgetCells } from './budget-cells'
 import { LiveFilter } from '@/components/live-filter'
-import { HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { HeadLensFilters, readHeadLens, CashToggle, ResetFilters } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
@@ -58,6 +59,15 @@ export default async function MonthlyMatrixPage({
       })
     : []
   const cellR = 'px-2 py-1.5 text-right tabular-nums whitespace-nowrap'
+  // clicking a row narrows to that head, keeping the FY, lens and cash state
+  const rowHref = (accountId: string) => {
+    const q = new URLSearchParams()
+    if (params.fy) q.set('fy', params.fy)
+    if (view.lens === 'ah') q.set('by', 'ah')
+    if (!showCash) q.set('cash', '0')
+    q.set(view.lens === 'ah' ? 'ah' : 'head', accountId)
+    return `/reports/monthly?${q}`
+  }
 
   return (
     <div className="space-y-4">
@@ -77,6 +87,7 @@ export default async function MonthlyMatrixPage({
               pickedAh={params.ah}
             />
             <CashToggle base="/reports/monthly" showing={showCash} keep={{ fy: params.fy, by: params.by, head: params.head, ah: params.ah }} />
+            <ResetFilters base="/reports/monthly" active={Boolean(params.head || params.ah || params.by || params.cash)} />
             <label className="text-xs text-ink-3">FY</label>
             <select
               name="fy"
@@ -189,7 +200,15 @@ export default async function MonthlyMatrixPage({
               <tr className={`hover:bg-surface-2/60 ${r.changed ? 'bg-primary-soft/50' : ''}`}>
                 <td className={`${cellR} font-semibold ${r.changed ? 'text-primary' : ''}`}>{signed(r.total)}</td>
                 <td className={`px-2 py-1.5 ${r.changed ? 'font-medium text-primary' : 'text-ink'}`}>
-                  {r.name}
+                  {/* click a row to see just that head; Reset brings the
+                      whole report back (Himal, 20 Aug) */}
+                  {r.accountId ? (
+                    <Link href={rowHref(r.accountId)} className="hover:underline" title={`Show only ${r.name}`}>
+                      {r.name}
+                    </Link>
+                  ) : (
+                    r.name
+                  )}
                   {/* money filed against another head — worth spotting */}
                   {r.changed && (
                     <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">

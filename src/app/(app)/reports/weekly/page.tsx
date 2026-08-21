@@ -3,7 +3,7 @@ import { requireUser } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { weeklyExpenses } from '@/lib/reports/prototype'
 import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
-import { HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { HeadLensFilters, readHeadLens, CashToggle, ResetFilters } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
@@ -42,6 +42,7 @@ export default async function WeeklyPage(props: {
               pickedAh={params.ah}
             />
             <CashToggle base="/reports/weekly" showing={showCash} keep={{ by: params.by, head: params.head, ah: params.ah }} />
+            <ResetFilters base="/reports/weekly" active={Boolean(params.head || params.ah || params.by || params.cash)} />
             <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               Apply
             </button>
