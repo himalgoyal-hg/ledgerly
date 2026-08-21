@@ -28,7 +28,7 @@ export default async function LoansPage({
   })
   const givenGroup = groups.find((g) => g.code === '1400')
   const takenGroup = groups.find((g) => g.code === '2300')
-  const parties = await prisma.ledgerAccount.findMany({
+  const allParties = await prisma.ledgerAccount.findMany({
     where: {
       entityId: entity.id,
       parentId: { in: groups.map((g) => g.id) },
@@ -36,6 +36,23 @@ export default async function LoansPage({
     },
     orderBy: { name: 'asc' },
   })
+  // Only the heads whose Nature on the master register is Liability or
+  // Personal belong here (Himal, 21 Aug: "sirf nature mai ka Liability and
+  // Personal dikhana chahiye"). A head filed under the loans groups but
+  // marked Expense or Asset — or with no master row at all — stays out;
+  // the footnote names it so nothing looks lost.
+  const natureRows = await prisma.headMode.findMany({
+    where: { category: { in: allParties.map((p) => p.name), mode: 'insensitive' } },
+    select: { category: true, nature: true },
+  })
+  const natureOf = new Map(natureRows.map((m) => [m.category.toLowerCase(), m.nature]))
+  const SHOWN_NATURES = ['liability', 'personal']
+  const parties = allParties.filter((p) =>
+    SHOWN_NATURES.includes((natureOf.get(p.name.toLowerCase()) ?? '').toLowerCase()),
+  )
+  const hidden = allParties
+    .filter((p) => !parties.includes(p))
+    .map((p) => ({ name: p.name, nature: natureOf.get(p.name.toLowerCase()) ?? null }))
   const balances = await accountBalances(parties.map((p) => p.id))
   const rows = parties.map((p) => {
     const bal = Number(balances.get(p.id) ?? '0') // Dr-positive
@@ -105,6 +122,23 @@ export default async function LoansPage({
           ))}
           {rows.length === 0 && <p className="py-2 text-sm text-ink-3">No parties yet — add one below.</p>}
         </div>
+        {hidden.length > 0 && (
+          <p className="mt-3 border-t border-line-2 pt-2 text-[11px] text-ink-3">
+            Only heads whose Nature on the master register is Liability or Personal are listed. Not shown:{' '}
+            {hidden.map((h, i) => (
+              <span key={h.name}>
+                {i > 0 && ', '}
+                {h.name}
+                <span className="text-ink-3/70"> ({h.nature ?? 'no master row'})</span>
+              </span>
+            ))}
+            . Change the Nature on{' '}
+            <Link href="/admin/coa" className="underline hover:text-ink">
+              Accounts — master register
+            </Link>{' '}
+            to bring one in.
+          </p>
+        )}
       </div>
 
       {admin && (
