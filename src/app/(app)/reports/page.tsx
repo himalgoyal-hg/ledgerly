@@ -5,6 +5,7 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { profitAndLoss } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
+import { HeadCombobox } from '@/components/head-combobox'
 import { ReportHeader, DateRangeFilters, SectionTable } from './report-chrome'
 
 // Profit & Loss (spec §10) — live over the journal, drillable to source.
@@ -34,7 +35,7 @@ export default async function ProfitAndLossPage(props: {
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, kind: true },
+      select: { id: true, code: true, name: true, kind: true },
     }),
   ])
   // Expense Head picker lists what a P&L can hold; the Accounting Head one
@@ -91,22 +92,26 @@ export default async function ProfitAndLossPage(props: {
               Accounting Head
             </Link>
             {/* and one narrowing picker, the one that fits the lens */}
+            {/* type-ahead rather than a long list: first letters filter, and
+                text matching nothing simply means "all" */}
             {lens === 'head' ? (
-              <select name="head" defaultValue={params.head ?? ''} title="Narrow to one Expense Head" className={controlClass}>
-                <option value="">All Expense Heads</option>
-                {pnlHeads.map((h) => (
-                  <option key={h.id} value={h.id}>{h.name}</option>
-                ))}
-              </select>
+              <HeadCombobox
+                heads={pnlHeads}
+                name="head"
+                defaultHeadId={params.head}
+                placeholder="All Expense Heads — type to search"
+                className={`${controlClass} w-56`}
+              />
             ) : (
               <>
                 <input type="hidden" name="by" value="ah" />
-                <select name="ah" defaultValue={params.ah ?? ''} title="Narrow to one Accounting Head" className={controlClass}>
-                  <option value="">All Accounting Heads</option>
-                  {allHeads.map((h) => (
-                    <option key={h.id} value={h.id}>{h.name}</option>
-                  ))}
-                </select>
+                <HeadCombobox
+                  heads={allHeads}
+                  name="ah"
+                  defaultHeadId={params.ah}
+                  placeholder="All Accounting Heads — type to search"
+                  className={`${controlClass} w-56`}
+                />
               </>
             )}
             <DateRangeFilters from={params.from} to={params.to} />
