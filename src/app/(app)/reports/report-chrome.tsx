@@ -232,30 +232,30 @@ export function readHeadLens(params: { by?: string; head?: string; ah?: string }
 }
 
 /**
- * Show cash / Hide cash (Himal, 20 Aug: "cash releted jevd aahe te sagl
- * Show Cash Hide cash button pahije, tyavar click kel trch"). Cash stays
- * out of a report until this is clicked — the reports read as bank-only by
- * default, which is how he wants to look at them.
+ * Hide cash / Show cash (Himal, 20 Aug: "fkt hide karaych aahe aaplyala").
+ * Cash is THERE by default — the button is for taking it out when he wants
+ * the bank-only picture, and putting it back.
  *
- * Statements that must tie (P&L, Balance Sheet) keep their cash: dropping
- * rows out of a balance sheet would simply make it wrong.
+ * Statements that must tie (P&L, Balance Sheet) keep their cash regardless:
+ * dropping rows out of a balance sheet would simply make it wrong.
  */
 export function CashToggle(props: { base: string; showing: boolean; keep?: Record<string, string | undefined> }) {
   const href = (() => {
     const s = new URLSearchParams()
     for (const [k, v] of Object.entries(props.keep ?? {})) if (v) s.set(k, v)
-    if (!props.showing) s.set('cash', '1')
+    // showing → the link hides it; hidden → the link drops the param
+    if (props.showing) s.set('cash', '0')
     const str = s.toString()
     return str ? `${props.base}?${str}` : props.base
   })()
   return (
     <Link
       href={href}
-      title={props.showing ? 'Leave cash out of this report' : 'Bring cash into this report'}
+      title={props.showing ? 'Leave cash out of this report' : 'Bring cash back in'}
       className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
         props.showing
-          ? 'border-primary/40 bg-primary-soft text-primary'
-          : 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink'
+          ? 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink'
+          : 'border-primary/40 bg-primary-soft text-primary'
       }`}
     >
       {props.showing ? 'Hide cash' : 'Show cash'}

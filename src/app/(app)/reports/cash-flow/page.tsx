@@ -48,7 +48,7 @@ export default async function CashFlowPage(props: {
   // bank and cash ARE different pockets — each gets its own block, the
   // total ties them back together
   const bankMonths = agg(pools.filter((p) => p.pool !== 'CASH'))
-  const showCash = params.cash === '1'
+  const showCash = params.cash !== '0'
   const cashMonths = agg(pools.filter((p) => p.pool === 'CASH'))
   const cashProjection =
     pools.length > 0

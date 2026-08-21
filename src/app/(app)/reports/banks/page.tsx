@@ -13,7 +13,8 @@ export default async function BankBalancesPage(props: {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
-  const showCash = (await props.searchParams).cash === '1'
+  // cash is in unless it is switched off
+  const showCash = (await props.searchParams).cash !== '0'
   const [allRows, pl] = await Promise.all([bankBalancesReport(entity.id), profitAndLoss(entity.id, {})])
   // cash locations sit here as type "Cash" — out unless asked for
   const rows = showCash ? allRows : allRows.filter((r) => r.type !== 'Cash')
@@ -26,7 +27,7 @@ export default async function BankBalancesPage(props: {
       <PageHeader
         kicker="Report"
         title={<>Bank &amp; profit balances — {entity.code}</>}
-        subtitle={showCash ? 'Banks and cash' : `Banks only${cashCount ? ` — ${cashCount} cash location(s) hidden` : ''}`}
+        subtitle={showCash ? 'Banks and cash' : `Banks only — ${cashCount} cash location(s) hidden`}
         actions={<CashToggle base="/reports/banks" showing={showCash} />}
       />
       <div className={tableWrapClass}>

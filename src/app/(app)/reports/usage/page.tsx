@@ -12,7 +12,7 @@ export default async function UsagePage(props: {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
-  const showCash = (await props.searchParams).cash === '1'
+  const showCash = (await props.searchParams).cash !== '0'
   const rows = await usageByMonth(entity.id, 12)
   const tb = rows.reduce((s, r) => s + r.bank, 0)
   const tc = rows.reduce((s, r) => s + r.cash, 0)
@@ -21,7 +21,7 @@ export default async function UsagePage(props: {
     <div className="space-y-4">
       <PageHeader
         title={`Usage — cash versus bank — ${entity.code}`}
-        subtitle={showCash ? 'Bank and cash side by side' : 'Bank only — click Show cash for the comparison'}
+        subtitle={showCash ? 'Bank and cash side by side' : 'Bank only — cash hidden'}
         actions={<CashToggle base="/reports/usage" showing={showCash} />}
       />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
