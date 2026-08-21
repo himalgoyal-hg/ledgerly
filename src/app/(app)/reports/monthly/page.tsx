@@ -64,7 +64,7 @@ export default async function MonthlyMatrixPage({
       <PageHeader
         kicker="Report"
         title={`Month by month — ${entity.code}`}
-        subtitle={`${view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'} — every head that carries a purpose, grouped by nature. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — only the entries whose head was changed' : 'By Expense Head — every head that carries a purpose, grouped by nature'}. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
         actions={
           <form className="flex flex-wrap items-center gap-1 text-sm">
             <HeadLensFilters

@@ -113,6 +113,9 @@ export async function expenseMatrixFy(
       WHERE e."entityId" = ${entityId}
         AND a.system = false
         AND NOT (l."accountId" = ANY(${moneyIds}))
+        -- the Accounting Head lens shows only what was re-pointed
+        AND (${view.lens ?? 'head'} <> 'ah'
+             OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
         AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
           SELECT 1 FROM "JournalLine" cl
           WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
@@ -161,9 +164,11 @@ export async function expenseMatrixFy(
   const recentIdx = Math.max(0, keys.findIndex((k) => k.key === nowKey))
   const recentIdxFinal = keys.some((k) => k.key === nowKey) ? recentIdx : keys.length - 1
 
-  // Under an Accounting Head narrowing the budgets belong to the heads that
-  // POSTED, so only keep the ones whose money actually survived the filter.
-  if (view.accountingHeadId) {
+  // Budgets belong to the head that POSTED, so whenever the view narrows or
+  // regroups by Accounting Head, only keep the ones whose money survived —
+  // otherwise every budgeted head still draws a row and the lens looks like
+  // it did nothing (Himal, 20 Aug).
+  if (view.accountingHeadId || view.lens === 'ah') {
     for (const name of [...budgetBy.keys()]) if (!actualBy.has(name)) budgetBy.delete(name)
   }
   const names = new Set<string>([...actualBy.keys(), ...budgetBy.keys()])
@@ -263,6 +268,8 @@ export async function weeklyExpenses(
       WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE' AND e.date >= ${from}::date
+      AND (${view.lens ?? 'head'} <> 'ah'
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
       AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
         WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})

@@ -79,6 +79,12 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
       WHEN ${range.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
+      -- Under the Accounting Head lens, only the entries whose head was
+      -- actually CHANGED (Himal, 20 Aug: "fkt change zalelech pahijet") —
+      -- a mirror, where the two heads are the same, is not news. Reports →
+      -- By has always read this way; the rest now match it.
+      AND (${range.lens ?? 'head'} <> 'ah'
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
       AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
         WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${range.excludeCashAccounts ?? []})

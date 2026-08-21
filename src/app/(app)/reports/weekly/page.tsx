@@ -30,7 +30,7 @@ export default async function WeeklyPage(props: {
     <div className="space-y-4">
       <PageHeader
         title={`Expenses by week — ${entity.code}`}
-        subtitle={`${view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'}${showCash ? '' : ' · cash hidden'}`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — only the entries whose head was changed' : 'By Expense Head'}${showCash ? '' : ' · cash hidden'}`}
         actions={
           <form className="flex flex-wrap items-center gap-1">
             <HeadLensFilters
