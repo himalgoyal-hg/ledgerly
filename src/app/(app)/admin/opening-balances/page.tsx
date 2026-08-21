@@ -8,15 +8,18 @@ import { openingDateFor } from '@/lib/ledger/opening'
 import { saveOpeningBalanceAction } from './actions'
 
 // Opening balances, all of them on one screen (Himal, 20 Aug: "add opening
-// balance for all account"). The master register carries the same figure
-// per category, but entering three dozen of them there means hunting
-// through 130 expense rows; here every account a balance sheet can hold
-// sits in one list, with what it already has filled in.
+// balance for all account", then "jevade expenses head aahet tevade add
+// kar"). Every postable head is here — assets and liabilities first, then
+// the expense and income heads, since these books are never closed into
+// reserves and a head can genuinely be carrying spend from before this
+// year.
 //
 // Nothing new is stored: each figure IS a journal document dated 31 Mar,
 // posted against Opening Balances — so this screen and the ledger can
-// never disagree. Expense and income heads are not listed: they start
-// each year from what the ledger already holds, not from a typed figure.
+// never disagree. Because that date falls before 1 April, an expense
+// opening reads as brought-forward: it shows in the all-time P&L and in
+// the Balance Sheet's profit-to-date, and stays out of this FY's Month by
+// month and Budget vs Actual.
 
 const inr = (n: number) => (n < 0 ? '−' : '') + '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
 
@@ -24,6 +27,8 @@ const KIND_LABEL: Record<string, string> = {
   ASSET: 'Assets — what you own or are owed',
   LIABILITY: 'Liabilities — what you owe',
   EQUITY: 'Capital',
+  EXPENSE: 'Expense heads — spend brought forward from before this year',
+  INCOME: 'Income heads — receipts brought forward from before this year',
 }
 
 export default async function OpeningBalancesPage() {
@@ -37,7 +42,7 @@ export default async function OpeningBalancesPage() {
         entityId: entity.id,
         isGroup: false,
         archivedAt: null,
-        kind: { in: ['ASSET', 'LIABILITY', 'EQUITY'] },
+        kind: { in: ['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] },
       },
       orderBy: [{ kind: 'asc' }, { code: 'asc' }],
       select: { id: true, code: true, name: true, kind: true, system: true },
@@ -77,7 +82,7 @@ export default async function OpeningBalancesPage() {
       <PageHeader
         kicker="Setup & masters"
         title={`Opening balances — ${entity.code}`}
-        subtitle={`As at ${asAt}, the day before this financial year. Positive = you own it or are owed it; negative = you owe it. Each figure posts against Opening Balances, so the books stay balanced.`}
+        subtitle={`As at ${asAt}, the day before this financial year. Positive = you own it, are owed it, or spent it; negative = you owe it or received it. Each figure posts against Opening Balances, so the books stay balanced.`}
         actions={
           <>
             <Badge tone={done === rows.length ? 'success' : 'warning'}>
@@ -99,7 +104,7 @@ export default async function OpeningBalancesPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-line-2">
-            {(['ASSET', 'LIABILITY', 'EQUITY'] as const).map((kind) => {
+            {(['ASSET', 'LIABILITY', 'EQUITY', 'EXPENSE', 'INCOME'] as const).map((kind) => {
               const mine = rows.filter((a) => a.kind === kind)
               if (mine.length === 0) return null
               return (
@@ -157,7 +162,9 @@ export default async function OpeningBalancesPage() {
         <p className="border-t border-line-2 px-4 py-2 text-[11px] text-ink-3">
           Type a figure and press Enter — blank clears it. A correction reposts as a reversal plus a new version, so a
           figure never double-counts. Bank and cash accounts already carry the opening you gave them when the account
-          was added; changing it here corrects that same entry.
+          was added; changing it here corrects that same entry. An expense or income opening is dated before 1 April,
+          so it reads as brought forward — it counts in the all-time P&amp;L, not in this year&apos;s Month by month or
+          Budget vs Actual.
         </p>
       </div>
     </div>
