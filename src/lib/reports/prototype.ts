@@ -63,16 +63,35 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
   })
   const from = new Date(Date.UTC(fyStart, 3, 1))
   const to = new Date(Date.UTC(fyStart + 1, 3, 1))
+
+  // The register covers every head that has a PURPOSE, not just the ones
+  // filed under Expenses (Himal, 20 Aug: "Synergy EMI dist nahi"). That EMI
+  // is a Liability head, so a kind='EXPENSE' filter hid ₹2,07,160 of real
+  // payments and its ₹2.7L/month target. Two things stay out: the money
+  // accounts themselves (bank + cash — they are the SOURCE of every entry,
+  // never its purpose) and the system control accounts (GST/TDS, Opening
+  // Balances), which would only double-count the tax already split out.
+  const [bankAccts, cashLocs] = await Promise.all([
+    prisma.bankAccount.findMany({ where: { entityId }, select: { ledgerAccountId: true } }),
+    prisma.cashLocation.findMany({ where: { entityId }, select: { ledgerAccountId: true } }),
+  ])
+  const moneyIds = [...bankAccts, ...cashLocs]
+    .map((x) => x.ledgerAccountId)
+    .filter((x): x is string => !!x)
+
   const [actuals, budgets] = await Promise.all([
-    prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
-      SELECT a.name, to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
+    prisma.$queryRaw<{ name: string; kind: string; month: string; amt: string }[]>`
+      SELECT a.name, a.kind::text AS kind,
+             to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
              SUM(l.debit - l.credit)::text AS amt
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
-      WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE'
+      WHERE e."entityId" = ${entityId}
+        AND a.system = false
+        AND NOT (l."accountId" = ANY(${moneyIds}))
         AND e.date >= ${from}::date AND e.date < ${to}::date
-      GROUP BY a.name, 2
+      GROUP BY a.name, a.kind, 3
     `,
     prisma.budget.findMany({
       where: {
@@ -86,16 +105,19 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
   ])
 
   const actualBy = new Map<string, Map<string, number>>()
+  const kindByName = new Map<string, string>()
   for (const r of actuals) {
     const m = actualBy.get(r.name) ?? new Map<string, number>()
     m.set(r.month, Number(r.amt))
     actualBy.set(r.name, m)
+    kindByName.set(r.name, r.kind)
   }
   const accounts = await prisma.ledgerAccount.findMany({
     where: { id: { in: [...new Set(budgets.map((b) => b.accountId))] } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, kind: true },
   })
   const accountName = new Map(accounts.map((a) => [a.id, a.name]))
+  for (const a of accounts) if (!kindByName.has(a.name)) kindByName.set(a.name, a.kind)
   const budgetBy = new Map<string, number>()
   for (const b of budgets) {
     const name = accountName.get(b.accountId) ?? b.accountId
@@ -114,6 +136,16 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
     select: { id: true, name: true },
   })
   const idByName = new Map(headAccounts.map((a) => [a.name, a.id]))
+  // Sections keep the register readable now that four natures share it —
+  // each block totals on its own, so "what did I spend" stays answerable
+  // even while EMIs, investments and income sit in the same view.
+  const SECTION: Record<string, { label: string; order: number }> = {
+    EXPENSE: { label: 'Expenses', order: 0 },
+    LIABILITY: { label: 'EMIs & liabilities', order: 1 },
+    ASSET: { label: 'Assets, investments & transfers', order: 2 },
+    INCOME: { label: 'Income', order: 3 },
+    EQUITY: { label: 'Capital', order: 4 },
+  }
   const rows = [...names]
     .map((name) => {
       const m = actualBy.get(name)
@@ -121,8 +153,12 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
       const total = cells.reduce((s, v) => s + v, 0)
       const yearBudget = budgetBy.get(name) ?? 0
       const monthlyBudget = yearBudget / 12
+      const kind = kindByName.get(name) ?? 'EXPENSE'
       return {
         name,
+        kind,
+        section: (SECTION[kind] ?? SECTION.EXPENSE).label,
+        sectionOrder: (SECTION[kind] ?? SECTION.EXPENSE).order,
         accountId: idByName.get(name) ?? null,
         cells,
         total,
@@ -133,12 +169,32 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
       }
     })
     .filter((r) => r.total !== 0 || r.yearBudget !== 0)
-    .sort((a, b) => b.total - a.total || b.yearBudget - a.yearBudget)
+    .sort(
+      (a, b) =>
+        a.sectionOrder - b.sectionOrder ||
+        Math.abs(b.total) - Math.abs(a.total) ||
+        b.yearBudget - a.yearBudget,
+    )
+
+  // per-section subtotals, in the order the rows already carry
+  const sections = [...new Set(rows.map((r) => r.section))].map((label) => {
+    const mine = rows.filter((r) => r.section === label)
+    return {
+      label,
+      cells: keys.map((_, i) => mine.reduce((s, r) => s + r.cells[i], 0)),
+      total: mine.reduce((s, r) => s + r.total, 0),
+      yearBudget: mine.reduce((s, r) => s + r.yearBudget, 0),
+      count: mine.length,
+    }
+  })
 
   const colTotals = keys.map((_, i) => rows.reduce((s, r) => s + r.cells[i], 0))
   const grand = colTotals.reduce((s, v) => s + v, 0)
   const budgetGrand = rows.reduce((s, r) => s + r.yearBudget, 0)
-  return { months: keys, rows, colTotals, grand, budgetGrand, recentIdx: recentIdxFinal }
+  // "Spent" = the Expenses block alone, so the headline number still means
+  // what it always did even though the register now shows everything.
+  const spent = rows.filter((r) => r.kind === 'EXPENSE').reduce((s, r) => s + r.total, 0)
+  return { months: keys, rows, sections, colTotals, grand, spent, budgetGrand, recentIdx: recentIdxFinal }
 }
 
 /** Weekly expense totals with the top accounts of each week. */
