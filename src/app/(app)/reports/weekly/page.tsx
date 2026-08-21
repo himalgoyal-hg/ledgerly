@@ -3,20 +3,22 @@ import { requireUser } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { weeklyExpenses } from '@/lib/reports/prototype'
 import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
-import { HeadLensFilters, readHeadLens } from '../report-chrome'
+import { HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
 
 export default async function WeeklyPage(props: {
-  searchParams: Promise<{ by?: string; head?: string; ah?: string }>
+  searchParams: Promise<{ by?: string; head?: string; ah?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
   const params = await props.searchParams
   const view = readHeadLens(params)
+  const showCash = readCashToggle(params)
   const [weeks, lensHeads] = await Promise.all([
-    weeklyExpenses(entity.id, 16, view),
+    weeklyExpenses(entity.id, 16, { ...view, excludeCashAccounts: showCash ? [] : await cashAccountIds(entity.id) }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
@@ -28,7 +30,7 @@ export default async function WeeklyPage(props: {
     <div className="space-y-4">
       <PageHeader
         title={`Expenses by week — ${entity.code}`}
-        subtitle={view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'}${showCash ? '' : ' · cash hidden'}`}
         actions={
           <form className="flex flex-wrap items-center gap-1">
             <HeadLensFilters
@@ -39,6 +41,7 @@ export default async function WeeklyPage(props: {
               pickedHead={params.head}
               pickedAh={params.ah}
             />
+            <CashToggle base="/reports/weekly" showing={showCash} keep={{ by: params.by, head: params.head, ah: params.ah }} />
             <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               Apply
             </button>

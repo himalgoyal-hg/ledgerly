@@ -26,6 +26,9 @@ export interface DateRange {
    * income, expenses and net profit never move — only the row labels do.
    */
   lens?: 'head' | 'ah'
+  /** Ledger accounts that count as cash. Entries touching one of these are
+   *  dropped whole — both legs — so the statement still balances. */
+  excludeCashAccounts?: string[]
 }
 
 export interface StatementLine {
@@ -76,6 +79,10 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
       WHEN ${range.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
+      AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+        SELECT 1 FROM "JournalLine" cl
+        WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${range.excludeCashAccounts ?? []})
+      ))
       AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
@@ -157,7 +164,7 @@ export interface BalanceSheet {
 export async function balanceSheet(
   entityId: string,
   asOf?: Date,
-  view: Pick<DateRange, 'lens' | 'headAccountId' | 'accountingHeadId'> = {},
+  view: Pick<DateRange, 'lens' | 'headAccountId' | 'accountingHeadId' | 'excludeCashAccounts'> = {},
 ): Promise<BalanceSheet> {
   const range: DateRange = { to: asOf, ...view }
   const [rows, groups] = await Promise.all([accountMovements(entityId, range), groupNames(entityId)])

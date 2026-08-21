@@ -7,7 +7,8 @@ import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
 import { BudgetCells } from './budget-cells'
 import { LiveFilter } from '@/components/live-filter'
-import { HeadLensFilters, readHeadLens } from '../report-chrome'
+import { HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Expenses M/M — the sheet's tab, computed instead of typed: heads × FY
@@ -25,7 +26,7 @@ const signed = (n: number) => {
 export default async function MonthlyMatrixPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fy?: string; by?: string; head?: string; ah?: string }>
+  searchParams: Promise<{ fy?: string; by?: string; head?: string; ah?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -38,7 +39,11 @@ export default async function MonthlyMatrixPage({
   const fy = Number(params.fy) || currentFy
 
   const view = readHeadLens(params)
-  const m = await expenseMatrixFy(entity.id, fy, view)
+  const showCash = readCashToggle(params)
+  const m = await expenseMatrixFy(entity.id, fy, {
+    ...view,
+    excludeCashAccounts: showCash ? [] : await cashAccountIds(entity.id),
+  })
   const admin = isAdmin(user)
   const lensHeads = await prisma.ledgerAccount.findMany({
     where: { entityId: entity.id, isGroup: false, archivedAt: null },
@@ -71,6 +76,7 @@ export default async function MonthlyMatrixPage({
               pickedHead={params.head}
               pickedAh={params.ah}
             />
+            <CashToggle base="/reports/monthly" showing={showCash} keep={{ fy: params.fy, by: params.by, head: params.head, ah: params.ah }} />
             <label className="text-xs text-ink-3">FY</label>
             <select
               name="fy"

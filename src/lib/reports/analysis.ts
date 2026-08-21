@@ -35,6 +35,10 @@ export async function costCentreReport(entityId: string, range: DateRange) {
     ) mah ON true
     WHERE e."entityId" = ${entityId}
       AND a.kind IN ('EXPENSE', 'INCOME')
+      AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+        SELECT 1 FROM "JournalLine" cl
+        WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${range.excludeCashAccounts ?? []})
+      ))
       AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
@@ -139,7 +143,7 @@ export async function budgetVsActual(
   periods: { year: number; month: number }[],
   /** Narrow to one head (Himal, 20 Aug). Budgets belong to the head that
    *  was posted to, so this report narrows rather than regroups. */
-  view: { headAccountId?: string } = {},
+  view: { headAccountId?: string; excludeCashAccounts?: string[] } = {},
 ) {
   const budgets = await prisma.budget.findMany({
     where: {
@@ -164,6 +168,10 @@ export async function budgetVsActual(
         FROM "JournalLine" l
         JOIN "JournalEntry" e ON e.id = l."entryId"
         WHERE l."accountId" IN (${Prisma.join(accountIds)})
+          AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+            SELECT 1 FROM "JournalLine" cl
+            WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
+          ))
           AND e.date >= ${from}::date AND e.date <= ${to}::date
         GROUP BY l."accountId"
       `

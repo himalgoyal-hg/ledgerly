@@ -6,7 +6,8 @@ import { displayINR } from '@/lib/ledger/money'
 import { profitAndLoss } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
 import { HeadCombobox } from '@/components/head-combobox'
-import { ReportHeader, DateRangeFilters, SectionTable } from './report-chrome'
+import { ReportHeader, DateRangeFilters, SectionTable, CashToggle } from './report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Profit & Loss (spec §10) — live over the journal, drillable to source.
 // Two narrowing pickers sit beside the dates (Himal, 20 Aug): one Expense
@@ -16,7 +17,7 @@ import { ReportHeader, DateRangeFilters, SectionTable } from './report-chrome'
 // answers the same way in both places.
 
 export default async function ProfitAndLossPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; head?: string; ah?: string; by?: string }>
+  searchParams: Promise<{ from?: string; to?: string; head?: string; ah?: string; by?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -30,8 +31,10 @@ export default async function ProfitAndLossPage(props: {
   const lens = params.by === 'ah' ? 'ah' : 'head'
   const headAccountId = lens === 'head' ? params.head || undefined : undefined
   const accountingHeadId = lens === 'ah' ? params.ah || undefined : undefined
+  const showCash = readCashToggle(params)
+  const excludeCashAccounts = showCash ? [] : await cashAccountIds(entity.id)
   const [pnl, allHeads] = await Promise.all([
-    profitAndLoss(entity.id, { from, to, headAccountId, accountingHeadId, lens }),
+    profitAndLoss(entity.id, { from, to, headAccountId, accountingHeadId, lens, excludeCashAccounts }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
@@ -75,6 +78,7 @@ export default async function ProfitAndLossPage(props: {
         entityLabel={`${entity.name} (${entity.code})`}
         subtitle={[
           lens === 'ah' ? 'By Accounting Head — the same money under the heads it was filed against' : 'By Expense Head',
+          showCash ? '' : 'cash hidden',
           params.from || params.to ? `${params.from ?? 'start'} to ${params.to ?? 'today'}` : 'All time',
           headAccountId ? `only ${nameOf(headAccountId) ?? '—'}` : '',
           accountingHeadId ? `only ${nameOf(accountingHeadId) ?? '—'}` : '',
@@ -114,6 +118,7 @@ export default async function ProfitAndLossPage(props: {
                 />
               </>
             )}
+            <CashToggle base="/reports" showing={showCash} keep={{ from: params.from, to: params.to, by: params.by, head: params.head, ah: params.ah }} />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }

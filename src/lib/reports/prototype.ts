@@ -57,7 +57,13 @@ export async function expenseMatrix(entityId: string, months = 12) {
 export async function expenseMatrixFy(
   entityId: string,
   fyStart: number,
-  view: { lens?: 'head' | 'ah'; headAccountId?: string; accountingHeadId?: string } = {},
+  view: {
+    lens?: 'head' | 'ah'
+    headAccountId?: string
+    accountingHeadId?: string
+    /** Entries touching one of these accounts are dropped whole. */
+    excludeCashAccounts?: string[]
+  } = {},
 ) {
   const L = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const keys = Array.from({ length: 12 }, (_, i) => {
@@ -107,6 +113,10 @@ export async function expenseMatrixFy(
       WHERE e."entityId" = ${entityId}
         AND a.system = false
         AND NOT (l."accountId" = ANY(${moneyIds}))
+        AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+          SELECT 1 FROM "JournalLine" cl
+          WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
+        ))
         AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
         AND (${view.accountingHeadId ?? null}::text IS NULL
              OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
@@ -228,7 +238,12 @@ export async function expenseMatrixFy(
 export async function weeklyExpenses(
   entityId: string,
   weeks = 16,
-  view: { lens?: 'head' | 'ah'; headAccountId?: string; accountingHeadId?: string } = {},
+  view: {
+    lens?: 'head' | 'ah'
+    headAccountId?: string
+    accountingHeadId?: string
+    excludeCashAccounts?: string[]
+  } = {},
 ) {
   const from = new Date(Date.now() - weeks * 7 * 86_400_000)
   const rows = await prisma.$queryRaw<{ wk: string; name: string; amt: string }[]>`
@@ -248,6 +263,10 @@ export async function weeklyExpenses(
       WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE' AND e.date >= ${from}::date
+      AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+        SELECT 1 FROM "JournalLine" cl
+        WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
+      ))
       AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
       AND (${view.accountingHeadId ?? null}::text IS NULL
            OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})

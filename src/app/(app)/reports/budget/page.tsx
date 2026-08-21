@@ -5,7 +5,8 @@ import { displayINR } from '@/lib/ledger/money'
 import { budgetVsActual } from '@/lib/reports/analysis'
 import { HeadCombobox } from '@/components/head-combobox'
 import { buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
-import { ReportHeader, HeadLensFilters, readHeadLens } from '../report-chrome'
+import { ReportHeader, CashToggle } from '../report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 import { setBudget } from './actions'
 
 // Budget vs Actual (spec §10). Budgets are per account-month; actuals come
@@ -18,7 +19,7 @@ const MONTHS = [
 ]
 
 export default async function BudgetPage(props: {
-  searchParams: Promise<{ year?: string; month?: string; head?: string }>
+  searchParams: Promise<{ year?: string; month?: string; head?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const admin = isAdmin(user)
@@ -42,7 +43,10 @@ export default async function BudgetPage(props: {
 
   const headAccountId = params.head || undefined
   const [report, accounts] = await Promise.all([
-    budgetVsActual(entity.id, periods, { headAccountId }),
+    budgetVsActual(entity.id, periods, {
+      headAccountId,
+      excludeCashAccounts: readCashToggle(params) ? [] : await cashAccountIds(entity.id),
+    }),
     prisma.ledgerAccount.findMany({
       where: {
         entityId: entity.id,
@@ -78,6 +82,7 @@ export default async function BudgetPage(props: {
           <>
             {/* budgets belong to the head that was posted to, so this one
                 narrows rather than regroups — no Accounting Head lens */}
+            <CashToggle base="/reports/budget" showing={readCashToggle(params)} keep={{ year: params.year, month: params.month, head: params.head }} />
             <HeadCombobox
               heads={accounts}
               name="head"

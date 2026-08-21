@@ -4,14 +4,15 @@ import { displayINR } from '@/lib/ledger/money'
 import { prisma } from '@/lib/db'
 import { balanceSheet } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
-import { ReportHeader, SectionTable, HeadLensFilters, readHeadLens } from '../report-chrome'
+import { ReportHeader, SectionTable, HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Balance Sheet (spec §10) as at a date. The books are never closed into
 // reserves, so cumulative profit appears as its own equity line — which is
 // what makes Assets = Liabilities + Equity hold exactly.
 
 export default async function BalanceSheetPage(props: {
-  searchParams: Promise<{ to?: string; by?: string; head?: string; ah?: string }>
+  searchParams: Promise<{ to?: string; by?: string; head?: string; ah?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -20,8 +21,10 @@ export default async function BalanceSheetPage(props: {
   const params = await props.searchParams
   const asOf = params.to ? new Date(params.to) : undefined
   const view = readHeadLens(params)
+  const showCash = readCashToggle(params)
+  const excludeCashAccounts = showCash ? [] : await cashAccountIds(entity.id)
   const [bs, allHeads] = await Promise.all([
-    balanceSheet(entity.id, asOf, view),
+    balanceSheet(entity.id, asOf, { ...view, excludeCashAccounts }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
@@ -45,6 +48,7 @@ export default async function BalanceSheetPage(props: {
         subtitle={[
           view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head',
           `as at ${params.to ?? 'today'}`,
+          showCash ? '' : 'cash hidden',
           view.headAccountId ? `only ${nameOf(view.headAccountId) ?? '—'}` : '',
           view.accountingHeadId ? `only ${nameOf(view.accountingHeadId) ?? '—'}` : '',
           // a narrowed sheet is a slice, so it is not meant to balance
@@ -67,6 +71,7 @@ export default async function BalanceSheetPage(props: {
               pickedHead={params.head}
               pickedAh={params.ah}
             />
+            <CashToggle base="/reports/balance-sheet" showing={showCash} keep={{ to: params.to, by: params.by, head: params.head, ah: params.ah }} />
             <span className="text-xs text-ink-3">as at</span>
             <input
               type="date"

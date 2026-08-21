@@ -4,13 +4,14 @@ import { displayINR } from '@/lib/ledger/money'
 import { costCentreReport } from '@/lib/reports/analysis'
 import { tableWrapClass, theadClass } from '@/components/ui'
 import { prisma } from '@/lib/db'
-import { ReportHeader, DateRangeFilters, HeadLensFilters, readHeadLens } from '../report-chrome'
+import { ReportHeader, DateRangeFilters, HeadLensFilters, readHeadLens, CashToggle } from '../report-chrome'
+import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 
 // Expense by cost centre (spec §10). Untagged spend is shown, not hidden —
 // it is the queue of work for whoever tags.
 
 export default async function CostCentreReportPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; by?: string; head?: string; ah?: string }>
+  searchParams: Promise<{ from?: string; to?: string; by?: string; head?: string; ah?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -23,6 +24,7 @@ export default async function CostCentreReportPage(props: {
       from: params.from ? new Date(params.from) : undefined,
       to: params.to ? new Date(params.to) : undefined,
       ...view,
+      excludeCashAccounts: readCashToggle(params) ? [] : await cashAccountIds(entity.id),
     }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
@@ -65,6 +67,7 @@ export default async function CostCentreReportPage(props: {
               pickedHead={params.head}
               pickedAh={params.ah}
             />
+            <CashToggle base="/reports/cost-centres" showing={readCashToggle(params)} keep={{ from: params.from, to: params.to, by: params.by, head: params.head, ah: params.ah }} />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }
