@@ -17,6 +17,15 @@ export interface DateRange {
    * posting head itself — the same ladder Reports → By walks.
    */
   accountingHeadId?: string
+  /**
+   * Which head each row IS (Himal, 20 Aug: "accounting head var click kel
+   * ki fkt accounting head disl pahije"). 'head' — the account that was
+   * posted to, the ordinary statement. 'ah' — the effective Accounting
+   * Head, so the same money reads under the names it was filed against.
+   * Either way a line stays on the side its POSTING account puts it on, so
+   * income, expenses and net profit never move — only the row labels do.
+   */
+  lens?: 'head' | 'ah'
 }
 
 export interface StatementLine {
@@ -48,7 +57,7 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
   const rows = await prisma.$queryRaw<
     { accountId: string; code: string; name: string; kind: string; parentId: string | null; debit: string | null; credit: string | null }[]
   >`
-    SELECT a.id as "accountId", a.code, a.name, a.kind::text as kind, a."parentId",
+    SELECT eff.id as "accountId", eff.code, eff.name, a.kind::text as kind, eff."parentId",
            SUM(l.debit)::text as debit, SUM(l.credit)::text as credit
     FROM "LedgerAccount" a
     JOIN "JournalLine" l ON l."accountId" = a.id
@@ -60,14 +69,20 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
         AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
       ORDER BY x.code LIMIT 1
     ) mah ON true
+    -- the head this row IS: the posted account, or the effective Accounting
+    -- Head under the 'ah' lens. The KIND always comes from the posted
+    -- account, so the statement's sides and totals never shift.
+    JOIN "LedgerAccount" eff ON eff.id = CASE
+      WHEN ${range.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
+      ELSE a.id END
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
       AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
       AND (${range.accountingHeadId ?? null}::text IS NULL
            OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${range.accountingHeadId ?? null})
-    GROUP BY a.id, a.code, a.name, a.kind, a."parentId"
-    ORDER BY a.code
+    GROUP BY eff.id, eff.code, eff.name, a.kind, eff."parentId"
+    ORDER BY eff.code
   `
   return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0' }))
 }

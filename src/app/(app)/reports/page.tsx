@@ -15,7 +15,7 @@ import { ReportHeader, DateRangeFilters, SectionTable } from './report-chrome'
 // answers the same way in both places.
 
 export default async function ProfitAndLossPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; head?: string; ah?: string }>
+  searchParams: Promise<{ from?: string; to?: string; head?: string; ah?: string; by?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -24,10 +24,13 @@ export default async function ProfitAndLossPage(props: {
   const params = await props.searchParams
   const from = params.from ? new Date(params.from) : undefined
   const to = params.to ? new Date(params.to) : undefined
-  const headAccountId = params.head || undefined
-  const accountingHeadId = params.ah || undefined
+  // Which head each row IS — the lens, not a filter. Default: the account
+  // that was posted to, the ordinary statement.
+  const lens = params.by === 'ah' ? 'ah' : 'head'
+  const headAccountId = lens === 'head' ? params.head || undefined : undefined
+  const accountingHeadId = lens === 'ah' ? params.ah || undefined : undefined
   const [pnl, allHeads] = await Promise.all([
-    profitAndLoss(entity.id, { from, to, headAccountId, accountingHeadId }),
+    profitAndLoss(entity.id, { from, to, headAccountId, accountingHeadId, lens }),
     prisma.ledgerAccount.findMany({
       where: { entityId: entity.id, isGroup: false, archivedAt: null },
       orderBy: { name: 'asc' },
@@ -42,9 +45,25 @@ export default async function ProfitAndLossPage(props: {
   const query = new URLSearchParams({
     ...(params.from ? { from: params.from } : {}),
     ...(params.to ? { to: params.to } : {}),
-    ...(params.head ? { head: params.head } : {}),
-    ...(params.ah ? { ah: params.ah } : {}),
+    ...(headAccountId ? { head: headAccountId } : {}),
+    ...(accountingHeadId ? { ah: accountingHeadId } : {}),
+    ...(lens === 'ah' ? { by: 'ah' } : {}),
   })
+  // switching lens keeps the dates and drops the other lens's narrowing
+  const lensHref = (key: 'head' | 'ah') => {
+    const s = new URLSearchParams()
+    if (params.from) s.set('from', params.from)
+    if (params.to) s.set('to', params.to)
+    if (key === 'ah') s.set('by', 'ah')
+    const str = s.toString()
+    return str ? `/reports?${str}` : '/reports'
+  }
+  const chip = (active: boolean) =>
+    `rounded-lg border px-3 py-1.5 text-sm font-medium ${
+      active
+        ? 'border-primary/40 bg-primary-soft text-primary'
+        : 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink'
+    }`
   const rangeSuffix = query.toString() ? `&${query}` : ''
   const profit = Number(pnl.netProfit)
 
@@ -54,37 +73,41 @@ export default async function ProfitAndLossPage(props: {
         title="Profit & Loss"
         entityLabel={`${entity.name} (${entity.code})`}
         subtitle={[
-          params.from || params.to
-            ? `${params.from ?? 'start'} to ${params.to ?? 'today'}`
-            : 'All time',
-          headAccountId ? `Expense Head: ${nameOf(headAccountId) ?? '—'}` : '',
-          accountingHeadId ? `Accounting Head: ${nameOf(accountingHeadId) ?? '—'}` : '',
+          lens === 'ah' ? 'By Accounting Head — the same money under the heads it was filed against' : 'By Expense Head',
+          params.from || params.to ? `${params.from ?? 'start'} to ${params.to ?? 'today'}` : 'All time',
+          headAccountId ? `only ${nameOf(headAccountId) ?? '—'}` : '',
+          accountingHeadId ? `only ${nameOf(accountingHeadId) ?? '—'}` : '',
         ]
           .filter(Boolean)
           .join(' · ')}
         filters={
           <>
-            {/* the two head pickers sit first, right after the title */}
-            <select name="head" defaultValue={params.head ?? ''} title="Show only this Expense Head" className={controlClass}>
-              <option value="">All Expense Heads</option>
-              {pnlHeads.map((h) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
-            <select name="ah" defaultValue={params.ah ?? ''} title="Show only entries filed under this Accounting Head" className={controlClass}>
-              <option value="">All Accounting Heads</option>
-              {allHeads.map((h) => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
-            {(params.head || params.ah) && (
-              <Link
-                href={`/reports${params.from || params.to ? `?${new URLSearchParams({ ...(params.from ? { from: params.from } : {}), ...(params.to ? { to: params.to } : {}) })}` : ''}`}
-                title="Show every head again"
-                className="rounded-lg border border-primary/30 bg-primary-soft px-2 py-1.5 text-xs font-medium text-primary hover:bg-primary/15"
-              >
-                ✕ Clear heads
-              </Link>
+            {/* the lens — what each row IS. Clicking one shows that view
+                alone, the way Reports → By's chips do. */}
+            <Link href={lensHref('head')} className={chip(lens === 'head')}>
+              Expense Head
+            </Link>
+            <Link href={lensHref('ah')} className={chip(lens === 'ah')}>
+              Accounting Head
+            </Link>
+            {/* and one narrowing picker, the one that fits the lens */}
+            {lens === 'head' ? (
+              <select name="head" defaultValue={params.head ?? ''} title="Narrow to one Expense Head" className={controlClass}>
+                <option value="">All Expense Heads</option>
+                {pnlHeads.map((h) => (
+                  <option key={h.id} value={h.id}>{h.name}</option>
+                ))}
+              </select>
+            ) : (
+              <>
+                <input type="hidden" name="by" value="ah" />
+                <select name="ah" defaultValue={params.ah ?? ''} title="Narrow to one Accounting Head" className={controlClass}>
+                  <option value="">All Accounting Heads</option>
+                  {allHeads.map((h) => (
+                    <option key={h.id} value={h.id}>{h.name}</option>
+                  ))}
+                </select>
+              </>
             )}
             <DateRangeFilters from={params.from} to={params.to} />
           </>
