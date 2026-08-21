@@ -101,9 +101,9 @@ export default async function BalanceSheetPage(props: {
       )}
 
       {/* The headline first: both sides, what they opened at and what they
-          are now, and whether they meet. The detail follows below. */}
+          are now. The detail follows below. */}
       <div className="rounded-2xl border border-line bg-surface shadow-card">
-        <div className="grid divide-y divide-line-2 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <div className="grid divide-y divide-line-2 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
           {(
             [
               ['Total assets', bs.assets.openingTotal, bs.assetsTotal],
@@ -124,19 +124,6 @@ export default async function BalanceSheetPage(props: {
               )}
             </div>
           ))}
-          <div className="px-4 py-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-3">Check</div>
-            <div
-              className={`mt-0.5 text-xl font-semibold ${
-                headAccountId ? 'text-ink-2' : bs.balances ? 'text-success' : 'text-danger'
-              }`}
-            >
-              {headAccountId ? 'one account' : bs.balances ? '✓ balances' : '✗ does not balance'}
-            </div>
-            <div className="text-[11px] text-ink-3">
-              {headAccountId ? 'a slice, not a statement' : `as at ${params.to ?? 'today'}`}
-            </div>
-          </div>
         </div>
       </div>
 

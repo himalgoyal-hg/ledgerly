@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import Link from 'next/link'
 import { HeadCombobox } from '@/components/head-combobox'
 import { displayINR } from '@/lib/ledger/money'
@@ -81,7 +82,13 @@ export function DateRangeFilters(props: { from?: string; to?: string }) {
   )
 }
 
-/** A statement section, grouped by CoA parent, each line drillable. */
+/**
+ * A statement section — one table, one set of columns (Himal, 20 Aug:
+ * "proper coloume made de, line ne structure"). Groups used to render as a
+ * nested table each, so Opening and Balance drifted out of line from one
+ * group to the next; now the group name is just a spanning row inside the
+ * same grid, and every figure sits under its own ruled column.
+ */
 export function SectionTable(props: { section: StatementSection; range: string }) {
   const byGroup = new Map<string, typeof props.section.lines>()
   for (const line of props.section.lines) {
@@ -90,86 +97,81 @@ export function SectionTable(props: { section: StatementSection; range: string }
   // The opening column only appears where opening balances exist at all —
   // a P&L has none, and an empty column would only take space.
   const showOpening = props.section.openingTotal !== undefined
+  const cols = showOpening ? 3 : 2
+  const num = 'px-4 py-2 text-right tabular-nums'
 
   return (
     <div className={tableWrapClass}>
-      <table className="w-full text-left text-sm">
+      <table className="w-full table-fixed text-left text-sm">
+        <colgroup>
+          <col />
+          {showOpening && <col className="w-32" />}
+          <col className="w-36" />
+        </colgroup>
         <thead className={theadClass}>
           <tr>
             <th className="px-4 py-2">{props.section.title}</th>
             {showOpening && (
-              <th className="px-4 py-2 text-right" title="Brought forward — what this account opened at">
+              <th className={`${num} border-l border-line-2`} title="Brought forward — what this account opened at">
                 Opening
               </th>
             )}
-            <th className="px-4 py-2 text-right">Balance</th>
+            <th className={`${num} border-l border-line-2`}>Balance</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line-2">
           {[...byGroup.entries()].map(([group, lines]) => (
-            <tr key={group}>
-              <td colSpan={showOpening ? 3 : 2} className="p-0">
-                <table className="w-full">
-                  <tbody>
-                    <tr>
-                      <td colSpan={showOpening ? 3 : 2} className="bg-surface-2/60 px-4 py-1 text-xs font-medium uppercase text-ink-2">
-                        {group}
-                      </td>
-                    </tr>
-                    {lines.map((line) => (
-                      <tr
-                        key={line.accountId}
-                        className={`border-t border-line-2 ${line.changed ? 'bg-primary-soft/50' : ''}`}
-                      >
-                        <td className="px-4 py-2">
-                          <Link
-                            href={`/reports/ledger?accountId=${line.accountId}${props.range}`}
-                            className={line.changed ? 'font-medium text-primary hover:underline' : 'text-ink hover:underline'}
-                          >
-                            <span className="font-mono text-xs text-ink-3">{line.code}</span>{' '}
-                            {line.name}
-                          </Link>
-                          {/* money filed against a head other than the one
-                              it posted to — the thing worth spotting */}
-                          {line.changed && (
-                            <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                              changed
-                            </span>
-                          )}
-                        </td>
-                        {showOpening && (
-                          <td
-                            className="w-32 px-4 py-2 text-right text-ink-3"
-                            title={line.opening ? 'Brought forward' : 'No opening balance entered'}
-                          >
-                            {line.opening ? displayINR(line.opening) : '—'}
-                          </td>
-                        )}
-                        <td className="w-40 px-4 py-2 text-right text-ink-2">
-                          {displayINR(line.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </td>
-            </tr>
+            <Fragment key={group}>
+              <tr className="bg-surface-2/60">
+                <td colSpan={cols} className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                  {group}
+                </td>
+              </tr>
+              {lines.map((line) => (
+                <tr key={line.accountId} className={line.changed ? 'bg-primary-soft/50' : 'hover:bg-surface-2/40'}>
+                  <td className="px-4 py-2">
+                    <Link
+                      href={`/reports/ledger?accountId=${line.accountId}${props.range}`}
+                      className={line.changed ? 'font-medium text-primary hover:underline' : 'text-ink hover:underline'}
+                    >
+                      <span className="font-mono text-xs text-ink-3">{line.code}</span> {line.name}
+                    </Link>
+                    {line.changed && (
+                      <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                        changed
+                      </span>
+                    )}
+                  </td>
+                  {showOpening && (
+                    <td
+                      className={`${num} border-l border-line-2 text-ink-3`}
+                      title={line.opening ? 'Brought forward' : 'No opening balance entered'}
+                    >
+                      {line.opening ? displayINR(line.opening) : '—'}
+                    </td>
+                  )}
+                  <td className={`${num} border-l border-line-2 text-ink-2`}>{displayINR(line.amount)}</td>
+                </tr>
+              ))}
+            </Fragment>
           ))}
           {props.section.lines.length === 0 && (
             <tr>
-              <td colSpan={showOpening ? 3 : 2} className="px-4 py-4 text-center text-sm text-ink-3">
+              <td colSpan={cols} className="px-4 py-4 text-center text-sm text-ink-3">
                 Nothing in this range.
               </td>
             </tr>
           )}
         </tbody>
-        <tfoot className="border-t border-line font-medium text-ink">
+        <tfoot className="border-t-2 border-line font-semibold text-ink">
           <tr>
             <td className="px-4 py-2">Total {props.section.title.toLowerCase()}</td>
             {showOpening && (
-              <td className="px-4 py-2 text-right text-ink-3">{displayINR(props.section.openingTotal!)}</td>
+              <td className={`${num} border-l border-line-2 text-ink-3`}>
+                {displayINR(props.section.openingTotal!)}
+              </td>
             )}
-            <td className="px-4 py-2 text-right">{displayINR(props.section.total)}</td>
+            <td className={`${num} border-l border-line-2`}>{displayINR(props.section.total)}</td>
           </tr>
         </tfoot>
       </table>
