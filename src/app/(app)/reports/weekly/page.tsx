@@ -30,7 +30,7 @@ export default async function WeeklyPage(props: {
     <div className="space-y-4">
       <PageHeader
         title={`Expenses by week — ${entity.code}`}
-        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — grouped under the head each entry was filed against' : 'By Expense Head'}${showCash ? '' : ' · cash hidden'}`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — the same weeks, with the spend filed under a different head marked' : 'By Expense Head'}${showCash ? '' : ' · cash hidden'}`}
         actions={
           <form className="flex flex-wrap items-center gap-1">
             <HeadLensFilters
@@ -74,6 +74,16 @@ export default async function WeeklyPage(props: {
               <tr key={w.week} className="hover:bg-surface-2/60">
                 <td className="whitespace-nowrap px-3 py-2 text-ink-2">{w.week}</td>
                 <td className="px-3 py-2 text-xs text-ink-2">
+                  {/* the re-pointed spend first — a memo, already inside the
+                      week's total */}
+                  {w.rePointed.length > 0 && (
+                    <div className="-mx-1 mb-1 rounded bg-primary-soft/50 px-1 py-0.5 text-primary">
+                      <span className="text-[9px] font-bold uppercase tracking-widest">Filed under a different Accounting Head</span>{' '}
+                      {w.rePointed
+                        .map((t) => `${t.name} (from ${t.from}) ${(t.amt < 0 ? '−' : '') + inr(Math.abs(t.amt))}`)
+                        .join(' · ')}
+                    </div>
+                  )}
                   {w.top.map((t) => `${t.name} ${inr(t.amt)}`).join(' · ')}
                 </td>
                 <td className="px-3 py-2 text-right font-medium tabular-nums">{inr(w.total)}</td>

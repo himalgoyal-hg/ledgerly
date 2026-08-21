@@ -4,12 +4,10 @@ import { prisma } from '@/lib/db'
 import { requireUser, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
-import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
+import { cashFlow, type CashFlowBucket } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
-import { ReportHeader, DateRangeFilters, CashToggle, ResetFilters } from '../report-chrome'
-import { HeadCombobox } from '@/components/head-combobox'
-import { controlClass } from '@/components/ui'
+import { ReportHeader, DateRangeFilters, CashToggle, ResetFilters, HeadLensFilters, readHeadLens } from '../report-chrome'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 
@@ -18,7 +16,7 @@ import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 // counter-line, so they self-eliminate.
 
 export default async function CashFlowPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; view?: string; cash?: string; head?: string }>
+  searchParams: Promise<{ from?: string; to?: string; view?: string; cash?: string; head?: string; ah?: string; by?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -28,7 +26,11 @@ export default async function CashFlowPage(props: {
   const view = params.view === 'ahead' ? 'ahead' : 'history'
   const from = params.from ? new Date(params.from) : undefined
   const to = params.to ? new Date(params.to) : undefined
-  const cf = await cashFlow(entity.id, { from, to, headAccountId: params.head || undefined })
+  // the two lenses every head report carries (Himal, 21 Aug): the same
+  // statement either way, the Accounting Head one leading each bucket with
+  // the cash filed under a different head
+  const lens = readHeadLens(params)
+  const cf = await cashFlow(entity.id, { from, to, ...lens })
   // the counter-heads this report can show — money accounts are its source
   const cfHeads = await prisma.ledgerAccount.findMany({
     where: { entityId: entity.id, isGroup: false, archivedAt: null, system: false },
@@ -131,10 +133,14 @@ export default async function CashFlowPage(props: {
   const query = new URLSearchParams({
     ...(params.from ? { from: params.from } : {}),
     ...(params.to ? { to: params.to } : {}),
+    ...(lens.headAccountId ? { head: lens.headAccountId } : {}),
+    ...(lens.accountingHeadId ? { ah: lens.accountingHeadId } : {}),
+    ...(lens.lens === 'ah' ? { by: 'ah' } : {}),
   })
   const rangeSuffix = query.toString() ? `&${query}` : ''
+  const nameOf = (id?: string) => cfHeads.find((h) => h.id === id)?.name
 
-  const bucket = (title: string, data: { lines: CashFlowLine[]; total: string }) => (
+  const bucket = (title: string, data: CashFlowBucket) => (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
       <table className="w-full text-left text-sm">
         <thead className={theadClass}>
@@ -144,6 +150,41 @@ export default async function CashFlowPage(props: {
           </tr>
         </thead>
         <tbody className="divide-y divide-line-2">
+          {/* the re-pointed band first — a memo, already inside the lines */}
+          {data.rePointed && data.rePointed.length > 0 && (
+            <>
+              <tr className="bg-primary-soft/60">
+                <td colSpan={2} className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                  Filed under a different Accounting Head
+                  <span className="ml-2 font-normal normal-case tracking-normal text-primary/80">
+                    already inside the lines below — shown, not added
+                  </span>
+                </td>
+              </tr>
+              {data.rePointed.map((m) => (
+                <tr key={`${m.accountId}-${m.fromAccountId}`} className="bg-primary-soft/40">
+                  <td className="px-4 py-2">
+                    <Link
+                      href={`/reports/ledger?accountId=${m.fromAccountId}${rangeSuffix}`}
+                      className="font-medium text-primary hover:underline"
+                      title={`Moved on ${m.fromName} — open that ledger`}
+                    >
+                      <span className="font-mono text-xs text-primary/70">{m.code}</span> {m.name}
+                    </Link>
+                    <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">changed</span>
+                    <span className="ml-2 text-xs text-ink-3">
+                      from <span className="font-mono">{m.fromCode}</span> {m.fromName}
+                    </span>
+                  </td>
+                  <td className="w-40 px-4 py-2 text-right font-medium text-primary">
+                    {Number(m.amount) >= 0
+                      ? displayINR(m.amount)
+                      : `(${displayINR(String(-Number(m.amount)))})`}
+                  </td>
+                </tr>
+              ))}
+            </>
+          )}
           {data.lines.map((line) => (
             <tr key={line.accountId}>
               <td className="px-4 py-2">
@@ -188,28 +229,39 @@ export default async function CashFlowPage(props: {
       <ReportHeader
         title="Cash Flow"
         entityLabel={`${entity.name} (${entity.code})`}
-        subtitle={
+        subtitle={[
+          lens.lens === 'ah'
+            ? 'By Accounting Head — the same statement, with the cash filed under a different head shown first'
+            : 'By Expense Head',
           params.from || params.to
             ? `${params.from ?? 'start'} to ${params.to ?? 'today'}`
-            : 'All time — set a range to narrow it down'
-        }
+            : 'All time — set a range to narrow it down',
+          lens.headAccountId ? `only ${nameOf(lens.headAccountId) ?? '—'}` : '',
+          lens.accountingHeadId ? `only ${nameOf(lens.accountingHeadId) ?? '—'}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         filters={
           <>
-            {/* narrowing only: this report's rows are the heads cash moved
-                against, so there is nothing to regroup by Accounting Head */}
-            <HeadCombobox
-              heads={cfHeads}
-              name="head"
-              defaultHeadId={params.head}
-              placeholder="All heads — type to search"
-              className={`${controlClass} w-52`}
+            <HeadLensFilters
+              base="/reports/cash-flow"
+              lens={lens.lens}
+              keep={{ from: params.from, to: params.to, cash: params.cash, view: params.view }}
+              headOptions={cfHeads}
+              ahOptions={cfHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+              headPlaceholder="All heads — type to search"
             />
             <CashToggle
               base="/reports/cash-flow"
               showing={showCash}
-              keep={{ from: params.from, to: params.to, view: params.view }}
+              keep={{ from: params.from, to: params.to, view: params.view, by: params.by, head: params.head, ah: params.ah }}
             />
-            <ResetFilters base="/reports/cash-flow" active={Boolean(params.head || params.from || params.to || params.cash)} />
+            <ResetFilters
+              base="/reports/cash-flow"
+              active={Boolean(params.head || params.ah || params.by || params.from || params.to || params.cash)}
+            />
             <DateRangeFilters from={params.from} to={params.to} />
           </>
         }

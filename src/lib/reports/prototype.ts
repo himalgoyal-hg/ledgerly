@@ -304,22 +304,18 @@ export async function weeklyExpenses(
   } = {},
 ) {
   const from = new Date(Date.now() - weeks * 7 * 86_400_000)
-  const rows = await prisma.$queryRaw<{ wk: string; name: string; amt: string }[]>`
-    SELECT to_char(date_trunc('week', e.date), 'YYYY-MM-DD') AS wk, eff.name,
-           SUM(l.debit - l.credit)::text AS amt
-    FROM "JournalLine" l
-    JOIN "JournalEntry" e ON e.id = l."entryId"
-    JOIN "LedgerAccount" a ON a.id = l."accountId"
+  // the same week totals under either lens (Himal, 21 Aug: the same report,
+  // with the changes shown first); the Accounting Head one adds, per week,
+  // what is filed under a different head
+  const ladder = Prisma.sql`
     LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
     LEFT JOIN LATERAL (
       SELECT x.id FROM "LedgerAccount" x
       WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
         AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
       ORDER BY x.code LIMIT 1
-    ) mah ON true
-    JOIN "LedgerAccount" eff ON eff.id = CASE
-      WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
-      ELSE a.id END
+    ) mah ON true`
+  const common = Prisma.sql`
     WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE' AND e.date >= ${from}::date
       AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
@@ -327,15 +323,50 @@ export async function weeklyExpenses(
       ))
       AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
       AND (${view.accountingHeadId ?? null}::text IS NULL
-           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
-    GROUP BY 1, eff.name HAVING SUM(l.debit - l.credit) > 0
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})`
+  const [rows, moved] = await Promise.all([
+    prisma.$queryRaw<{ wk: string; name: string; amt: string }[]>`
+    SELECT to_char(date_trunc('week', e.date), 'YYYY-MM-DD') AS wk, a.name,
+           SUM(l.debit - l.credit)::text AS amt
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
+    ${common}
+    GROUP BY 1, a.name HAVING SUM(l.debit - l.credit) > 0
+  `,
+    view.lens === 'ah'
+      ? prisma.$queryRaw<{ wk: string; name: string; from: string; amt: string }[]>`
+    SELECT to_char(date_trunc('week', e.date), 'YYYY-MM-DD') AS wk, ah.name, a.name AS "from",
+           SUM(l.debit - l.credit)::text AS amt
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+    ${common}
+      AND ah.id <> a.id
+    GROUP BY 1, ah.name, a.name HAVING SUM(l.debit - l.credit) <> 0
   `
-  const byWeek = new Map<string, { total: number; accts: { name: string; amt: number }[] }>()
+      : Promise.resolve([] as { wk: string; name: string; from: string; amt: string }[]),
+  ])
+  const byWeek = new Map<
+    string,
+    { total: number; accts: { name: string; amt: number }[]; rePointed: { name: string; from: string; amt: number }[] }
+  >()
+  const weekOf = (wk: string) => {
+    const w = byWeek.get(wk) ?? { total: 0, accts: [], rePointed: [] }
+    byWeek.set(wk, w)
+    return w
+  }
   rows.forEach((r) => {
-    const w = byWeek.get(r.wk) ?? { total: 0, accts: [] }
+    const w = weekOf(r.wk)
     w.total += Number(r.amt)
     w.accts.push({ name: r.name, amt: Number(r.amt) })
-    byWeek.set(r.wk, w)
+  })
+  moved.forEach((r) => {
+    // only weeks that have spend — a band needs rows to sit above
+    if (byWeek.has(r.wk)) weekOf(r.wk).rePointed.push({ name: r.name, from: r.from, amt: Number(r.amt) })
   })
   return [...byWeek.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -343,6 +374,7 @@ export async function weeklyExpenses(
       week: wk,
       total: w.total,
       top: w.accts.sort((a, b) => b.amt - a.amt).slice(0, 3),
+      rePointed: w.rePointed.sort((a, b) => Math.abs(b.amt) - Math.abs(a.amt)),
     }))
 }
 
@@ -416,48 +448,105 @@ export async function taxesPaid(entityId: string) {
 export async function investmentReport(
   entityId: string,
   months = 12,
-  view: { headAccountId?: string } = {},
+  view: { lens?: 'head' | 'ah'; headAccountId?: string; accountingHeadId?: string } = {},
 ) {
   const keys = monthKeys(months)
   const from = new Date(`${keys[0].key}-01T00:00:00Z`)
-  const income = await prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
+  const ladder = Prisma.sql`
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true`
+  const narrow = Prisma.sql`
+      AND e.date >= ${from}::date
+      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+      AND (${view.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})`
+  type Cell = { name: string; month: string; amt: string }
+  type Moved = Cell & { from: string }
+  // the same rows under either lens; the Accounting Head one adds, first,
+  // what is filed under a different head (Himal, 21 Aug)
+  const band = view.lens === 'ah'
+  const [income, invested, incomeMoved, investedMoved] = await Promise.all([
+    prisma.$queryRaw<Cell[]>`
     SELECT a.name, to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
            SUM(l.credit - l.debit)::text AS amt
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e.id = l."entryId"
     JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
     WHERE e."entityId" = ${entityId} AND a.kind = 'INCOME'
       AND a.name ~* 'interest|dividend|capital gain|investment'
-      AND e.date >= ${from}::date
-      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+      ${narrow}
     GROUP BY a.name, 2
-  `
-  const invested = await prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
+  `,
+    prisma.$queryRaw<Cell[]>`
     SELECT a.name, to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
            SUM(l.debit - l.credit)::text AS amt
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e.id = l."entryId"
     JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
     WHERE e."entityId" = ${entityId} AND a.kind = 'ASSET'
       AND a.name ~* 'invest|shares|mutual|sip|fixed deposit'
-      AND e.date >= ${from}::date
-      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+      ${narrow}
     GROUP BY a.name, 2
+  `,
+    band
+      ? prisma.$queryRaw<Moved[]>`
+    SELECT ah.name, a.name AS "from", to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
+           SUM(l.credit - l.debit)::text AS amt
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+    WHERE e."entityId" = ${entityId} AND a.kind = 'INCOME' AND ah.id <> a.id
+      AND a.name ~* 'interest|dividend|capital gain|investment'
+      ${narrow}
+    GROUP BY ah.name, a.name, 3
   `
-  const fold = (rows: { name: string; month: string; amt: string }[]) => {
-    const byName = new Map<string, Map<string, number>>()
+      : Promise.resolve([] as Moved[]),
+    band
+      ? prisma.$queryRaw<Moved[]>`
+    SELECT ah.name, a.name AS "from", to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
+           SUM(l.debit - l.credit)::text AS amt
+    FROM "JournalLine" l
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+    WHERE e."entityId" = ${entityId} AND a.kind = 'ASSET' AND ah.id <> a.id
+      AND a.name ~* 'invest|shares|mutual|sip|fixed deposit'
+      ${narrow}
+    GROUP BY ah.name, a.name, 3
+  `
+      : Promise.resolve([] as Moved[]),
+  ])
+  const fold = <T extends Cell>(rows: T[], keyOf: (r: T) => string) => {
+    const byKey = new Map<string, { row: T; m: Map<string, number> }>()
     rows.forEach((r) => {
-      const m = byName.get(r.name) ?? new Map()
-      m.set(r.month, Number(r.amt))
-      byName.set(r.name, m)
+      const k = keyOf(r)
+      const e = byKey.get(k) ?? { row: r, m: new Map<string, number>() }
+      e.m.set(r.month, (e.m.get(r.month) ?? 0) + Number(r.amt))
+      byKey.set(k, e)
     })
-    return [...byName.entries()]
-      .map(([name, m]) => {
+    return [...byKey.values()]
+      .map(({ row, m }) => {
         const cells = keys.map((k) => m.get(k.key) ?? 0)
-        return { name, cells, total: cells.reduce((s, v) => s + v, 0) }
+        return { name: row.name, from: (row as Partial<Moved>).from, cells, total: cells.reduce((s, v) => s + v, 0) }
       })
       .filter((r) => r.total !== 0)
-      .sort((a, b) => b.total - a.total)
+      .sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
   }
-  return { months: keys, income: fold(income), invested: fold(invested) }
+  return {
+    months: keys,
+    income: fold(income, (r) => r.name),
+    invested: fold(invested, (r) => r.name),
+    incomeRePointed: fold(incomeMoved, (r) => `${r.name}\u0000${r.from}`),
+    investedRePointed: fold(investedMoved, (r) => `${r.name}\u0000${r.from}`),
+  }
 }

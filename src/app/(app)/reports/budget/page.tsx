@@ -3,9 +3,8 @@ import { requireUser, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { budgetVsActual } from '@/lib/reports/analysis'
-import { HeadCombobox } from '@/components/head-combobox'
 import { buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
-import { ReportHeader, CashToggle, ResetFilters } from '../report-chrome'
+import { ReportHeader, CashToggle, ResetFilters, HeadLensFilters, readHeadLens } from '../report-chrome'
 import { cashAccountIds, readCashToggle } from '@/lib/reports/cash-filter'
 import { setBudget } from './actions'
 
@@ -19,7 +18,7 @@ const MONTHS = [
 ]
 
 export default async function BudgetPage(props: {
-  searchParams: Promise<{ year?: string; month?: string; head?: string; cash?: string }>
+  searchParams: Promise<{ year?: string; month?: string; head?: string; ah?: string; by?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const admin = isAdmin(user)
@@ -41,10 +40,13 @@ export default async function BudgetPage(props: {
     ? [monthFilter >= 4 ? { year, month: monthFilter } : { year: year + 1, month: monthFilter }]
     : fyPeriods
 
-  const headAccountId = params.head || undefined
-  const [report, accounts] = await Promise.all([
+  // the two lenses every head report carries (Himal, 21 Aug): the same
+  // rows either way — budgets belong to the head that posted — with the
+  // Accounting Head one leading with the actuals filed under another head
+  const lens = readHeadLens(params)
+  const [report, accounts, allHeads] = await Promise.all([
     budgetVsActual(entity.id, periods, {
-      headAccountId,
+      ...lens,
       excludeCashAccounts: readCashToggle(params) ? [] : await cashAccountIds(entity.id),
     }),
     prisma.ledgerAccount.findMany({
@@ -56,6 +58,11 @@ export default async function BudgetPage(props: {
       },
       orderBy: { code: 'asc' },
     }),
+    prisma.ledgerAccount.findMany({
+      where: { entityId: entity.id, isGroup: false, archivedAt: null },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, kind: true },
+    }),
     prisma.budget.findMany({
       where: { entityId: entity.id, year },
       select: { accountId: true, frequency: true },
@@ -66,30 +73,49 @@ export default async function BudgetPage(props: {
   const query = new URLSearchParams({
     year: String(year),
     ...(monthFilter ? { month: String(monthFilter) } : {}),
+    ...(lens.headAccountId ? { head: lens.headAccountId } : {}),
+    ...(lens.accountingHeadId ? { ah: lens.accountingHeadId } : {}),
+    ...(lens.lens === 'ah' ? { by: 'ah' } : {}),
   })
+  const nameOf = (id?: string) => allHeads.find((h) => h.id === id)?.name
 
   return (
     <div className="space-y-6">
       <ReportHeader
         title="Budget vs Actual"
         entityLabel={`${entity.name} (${entity.code})`}
-        subtitle={
+        subtitle={[
+          lens.lens === 'ah'
+            ? 'By Accounting Head — the same rows, with the actuals filed under a different head shown first'
+            : 'By Expense Head',
           monthFilter
             ? `${MONTHS[monthFilter - 1]} ${monthFilter >= 4 ? year : year + 1}`
-            : `FY ${year}-${String(year + 1).slice(2)} (Apr–Mar)`
-        }
+            : `FY ${year}-${String(year + 1).slice(2)} (Apr–Mar)`,
+          lens.headAccountId ? `only ${nameOf(lens.headAccountId) ?? '—'}` : '',
+          lens.accountingHeadId ? `only ${nameOf(lens.accountingHeadId) ?? '—'}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         filters={
           <>
-            {/* budgets belong to the head that was posted to, so this one
-                narrows rather than regroups — no Accounting Head lens */}
-            <CashToggle base="/reports/budget" showing={readCashToggle(params)} keep={{ year: params.year, month: params.month, head: params.head }} />
-            <ResetFilters base="/reports/budget" active={Boolean(params.head || params.cash || params.month)} />
-            <HeadCombobox
-              heads={accounts}
-              name="head"
-              defaultHeadId={params.head}
-              placeholder="All heads — type to search"
-              className={`${controlClass} w-52`}
+            <HeadLensFilters
+              base="/reports/budget"
+              lens={lens.lens}
+              keep={{ year: params.year, month: params.month, cash: params.cash }}
+              headOptions={accounts}
+              ahOptions={allHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+              headPlaceholder="All heads — type to search"
+            />
+            <CashToggle
+              base="/reports/budget"
+              showing={readCashToggle(params)}
+              keep={{ year: params.year, month: params.month, by: params.by, head: params.head, ah: params.ah }}
+            />
+            <ResetFilters
+              base="/reports/budget"
+              active={Boolean(params.head || params.ah || params.by || params.cash || params.month)}
             />
             <input
               type="number"
@@ -190,6 +216,36 @@ export default async function BudgetPage(props: {
             </tr>
           </thead>
           <tbody className="divide-y divide-line-2">
+            {/* the re-pointed band first — a memo, already inside the rows */}
+            {report.rePointed && report.rePointed.length > 0 && (
+              <>
+                <tr className="bg-primary-soft/60">
+                  <td colSpan={5} className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                    Filed under a different Accounting Head
+                    <span className="ml-2 font-normal normal-case tracking-normal text-primary/80">
+                      already inside the actuals below — shown, not added
+                    </span>
+                  </td>
+                </tr>
+                {report.rePointed.map((m) => (
+                  <tr key={`${m.accountId}-${m.fromAccountId}`} className="bg-primary-soft/40">
+                    <td className="px-4 py-2">
+                      <span className="font-medium text-primary">
+                        <span className="font-mono text-xs text-primary/70">{m.code}</span> {m.name}
+                      </span>
+                      <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">changed</span>
+                      <span className="ml-2 text-xs text-ink-3">
+                        from <span className="font-mono">{m.fromCode}</span> {m.fromName}
+                      </span>
+                    </td>
+                    <td className="px-4 py-2 text-right text-ink-3">—</td>
+                    <td className="px-4 py-2 text-right font-medium tabular-nums text-primary">{displayINR(m.actual)}</td>
+                    <td className="px-4 py-2 text-right text-ink-3">—</td>
+                    <td className="px-4 py-2" />
+                  </tr>
+                ))}
+              </>
+            )}
             {report.rows.map((row) => {
               const over = Number(row.variance) < 0
               const pct = row.usedPct ?? 0

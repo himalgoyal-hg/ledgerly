@@ -74,7 +74,7 @@ export interface StatementSection {
   rePointed?: RePointedLine[]
 }
 
-interface RawRePointed {
+export interface RawRePointed {
   accountId: string
   code: string
   name: string
@@ -144,7 +144,7 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
  * cash and narrowing rules as accountMovements, so the band and the rows
  * describe the same money.
  */
-async function rePointedMovements(entityId: string, range: DateRange): Promise<RawRePointed[]> {
+export async function rePointedMovements(entityId: string, range: DateRange): Promise<RawRePointed[]> {
   const rows = await prisma.$queryRaw<
     (Omit<RawRePointed, 'debit' | 'credit'> & { debit: string | null; credit: string | null })[]
   >`
@@ -365,13 +365,21 @@ export interface CashFlowLine {
   amount: string // positive = cash in
 }
 
+export interface CashFlowBucket {
+  lines: CashFlowLine[]
+  total: string
+  /** Under the Accounting Head lens: cash that moved on a head but is filed
+   *  under a different Accounting Head — shown first, already in `lines`. */
+  rePointed?: RePointedLine[]
+}
+
 export interface CashFlow {
   opening: string
   closing: string
   netMovement: string
-  operating: { lines: CashFlowLine[]; total: string }
-  investing: { lines: CashFlowLine[]; total: string }
-  financing: { lines: CashFlowLine[]; total: string }
+  operating: CashFlowBucket
+  investing: CashFlowBucket
+  financing: CashFlowBucket
   reconciles: boolean
 }
 
@@ -419,9 +427,7 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
     }
   }
 
-  const rows = await prisma.$queryRaw<
-    { accountId: string; code: string; name: string; kind: string; inflow: string | null }[]
-  >`
+  const cashEntries = Prisma.sql`
     WITH cash_entries AS (
       SELECT DISTINCT e.id
       FROM "JournalEntry" e
@@ -430,18 +436,60 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
         AND l."accountId" IN (${Prisma.join(cashIds)})
         AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
         AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
-    )
+    )`
+  // the same Accounting Head ladder every report walks: the line's own
+  // pick, else the master row's mapping for the head, else the head itself
+  const ladder = Prisma.sql`
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true`
+  const [rows, moved] = await Promise.all([
+    prisma.$queryRaw<
+      { accountId: string; code: string; name: string; kind: string; inflow: string | null }[]
+    >`
+    ${cashEntries}
     SELECT a.id as "accountId", a.code, a.name, a.kind::text as kind,
            (COALESCE(SUM(l.credit), 0) - COALESCE(SUM(l.debit), 0))::text as inflow
     FROM "JournalLine" l
     JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
     WHERE l."entryId" IN (SELECT id FROM cash_entries)
       AND l."accountId" NOT IN (${Prisma.join(cashIds)})
       -- narrow to one head (Himal, 20 Aug), same picker as the other reports
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
+      AND (${range.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${range.accountingHeadId ?? null})
     GROUP BY a.id, a.code, a.name, a.kind
     ORDER BY a.code
+  `,
+    // Under the Accounting Head lens (Himal, 21 Aug): the cash that moved
+    // on one head but is filed under another, per (Accounting Head ← head)
+    range.lens === 'ah'
+      ? prisma.$queryRaw<
+          { accountId: string; code: string; name: string; ahKind: string; fromAccountId: string; fromCode: string; fromName: string; kind: string; inflow: string | null }[]
+        >`
+    ${cashEntries}
+    SELECT ah.id as "accountId", ah.code, ah.name, ah.kind::text as "ahKind",
+           a.id as "fromAccountId", a.code as "fromCode", a.name as "fromName", a.kind::text as kind,
+           (COALESCE(SUM(l.credit), 0) - COALESCE(SUM(l.debit), 0))::text as inflow
+    FROM "JournalLine" l
+    JOIN "LedgerAccount" a ON a.id = l."accountId"
+    ${ladder}
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+    WHERE l."entryId" IN (SELECT id FROM cash_entries)
+      AND l."accountId" NOT IN (${Prisma.join(cashIds)})
+      AND ah.id <> a.id
+      AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
+      AND (${range.accountingHeadId ?? null}::text IS NULL OR ah.id = ${range.accountingHeadId ?? null})
+    GROUP BY ah.id, ah.code, ah.name, ah.kind, a.id, a.code, a.name, a.kind
+    ORDER BY ah.code, a.code
   `
+      : Promise.resolve([]),
+  ])
 
   const buckets = {
     operating: [] as CashFlowLine[],
@@ -453,14 +501,16 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
     investing: new Prisma.Decimal(0),
     financing: new Prisma.Decimal(0),
   }
+  const bucketOf = (code: string, kind: string): keyof typeof buckets =>
+    code.startsWith('19')
+      ? 'investing'
+      : kind === 'EQUITY' || code.startsWith('23') || code.startsWith('14')
+        ? 'financing'
+        : 'operating'
   for (const row of rows) {
     const amount = new Prisma.Decimal(row.inflow ?? 0)
     if (amount.isZero()) continue
-    const bucket: keyof typeof buckets = row.code.startsWith('19')
-      ? 'investing'
-      : row.kind === 'EQUITY' || row.code.startsWith('23') || row.code.startsWith('14')
-        ? 'financing'
-        : 'operating'
+    const bucket = bucketOf(row.code, row.kind)
     buckets[bucket].push({
       accountId: row.accountId,
       code: row.code,
@@ -469,6 +519,31 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
     })
     totals[bucket] = totals[bucket].plus(amount)
   }
+
+  // the band goes with the bucket the head is in and, when the Accounting
+  // Head falls in a different bucket, that one too — the same memo read
+  // from either end (cf. bandOf)
+  const bands: Record<keyof typeof buckets, RePointedLine[]> = { operating: [], investing: [], financing: [] }
+  for (const m of moved) {
+    const amount = new Prisma.Decimal(m.inflow ?? 0)
+    if (amount.isZero()) continue
+    const line: RePointedLine = {
+      accountId: m.accountId,
+      code: m.code,
+      name: m.name,
+      fromAccountId: m.fromAccountId,
+      fromCode: m.fromCode,
+      fromName: m.fromName,
+      amount: amount.toFixed(2),
+    }
+    const where = new Set([bucketOf(m.fromCode, m.kind), bucketOf(m.code, m.ahKind)])
+    for (const b of where) bands[b].push(line)
+  }
+  const withBand = (b: keyof typeof buckets): CashFlowBucket => ({
+    lines: buckets[b],
+    total: totals[b].toFixed(2),
+    ...(range.lens === 'ah' ? { rePointed: bands[b] } : {}),
+  })
 
   const openingBefore = range.from
     ? new Date(range.from.getTime() - 86_400_000)
@@ -481,9 +556,9 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
     opening: opening.toFixed(2),
     closing: closing.toFixed(2),
     netMovement: net.toFixed(2),
-    operating: { lines: buckets.operating, total: totals.operating.toFixed(2) },
-    investing: { lines: buckets.investing, total: totals.investing.toFixed(2) },
-    financing: { lines: buckets.financing, total: totals.financing.toFixed(2) },
+    operating: withBand('operating'),
+    investing: withBand('investing'),
+    financing: withBand('financing'),
     // The statement proves itself: opening + movements = closing.
     reconciles: opening.plus(net).equals(closing),
   }

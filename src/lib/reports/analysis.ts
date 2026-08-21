@@ -1,5 +1,6 @@
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
+import { rePointedMovements } from '@/lib/reports/statements'
 import { COA } from '@/lib/ledger/coa'
 import type { DateRange } from './statements'
 
@@ -138,12 +139,31 @@ export interface BudgetRow {
  * match only Apr–Dec, so a ₹30,000/month head reported ₹270,000 for the
  * year instead of ₹360,000 — the Jan–Mar quarter sits under year 2027.
  */
+export interface BudgetRePointed {
+  accountId: string
+  code: string
+  name: string
+  fromAccountId: string
+  fromCode: string
+  fromName: string
+  actual: string
+}
+
 export async function budgetVsActual(
   entityId: string,
   periods: { year: number; month: number }[],
-  /** Narrow to one head (Himal, 20 Aug). Budgets belong to the head that
-   *  was posted to, so this report narrows rather than regroups. */
-  view: { headAccountId?: string; excludeCashAccounts?: string[] } = {},
+  /**
+   * Budgets belong to the head that was posted to, so the rows are always
+   * those heads. The Accounting Head lens (Himal, 21 Aug) keeps them as
+   * they are and adds, first, the actual money that is filed under a
+   * different head; its picker counts only the lines filed under that one.
+   */
+  view: {
+    lens?: 'head' | 'ah'
+    headAccountId?: string
+    accountingHeadId?: string
+    excludeCashAccounts?: string[]
+  } = {},
 ) {
   const budgets = await prisma.budget.findMany({
     where: {
@@ -167,7 +187,17 @@ export async function budgetVsActual(
         SELECT l."accountId", SUM(l.debit)::text as debit, SUM(l.credit)::text as credit
         FROM "JournalLine" l
         JOIN "JournalEntry" e ON e.id = l."entryId"
+        JOIN "LedgerAccount" a ON a.id = l."accountId"
+        LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+        LEFT JOIN LATERAL (
+          SELECT x.id FROM "LedgerAccount" x
+          WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+            AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+          ORDER BY x.code LIMIT 1
+        ) mah ON true
         WHERE l."accountId" IN (${Prisma.join(accountIds)})
+          AND (${view.accountingHeadId ?? null}::text IS NULL
+               OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
           AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
             SELECT 1 FROM "JournalLine" cl
             WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
@@ -203,8 +233,41 @@ export async function budgetVsActual(
     })
   }
   rows.sort((a, b) => a.code.localeCompare(b.code))
+
+  // the band: actual money on a budgeted head that is filed under a
+  // different Accounting Head (or filed under a budgeted head from
+  // elsewhere), on the same side as the row it belongs to
+  const rePointed: BudgetRePointed[] = []
+  if (view.lens === 'ah' && accountIds.length) {
+    const moved = await rePointedMovements(entityId, {
+      from,
+      to,
+      lens: 'ah',
+      headAccountId: view.headAccountId,
+      accountingHeadId: view.accountingHeadId,
+      excludeCashAccounts: view.excludeCashAccounts,
+    })
+    for (const m of moved) {
+      if (!accountIds.includes(m.fromAccountId) && !accountIds.includes(m.accountId)) continue
+      const actual =
+        m.kind === 'INCOME'
+          ? new Prisma.Decimal(m.credit).minus(m.debit)
+          : new Prisma.Decimal(m.debit).minus(m.credit)
+      if (actual.isZero()) continue
+      rePointed.push({
+        accountId: m.accountId,
+        code: m.code,
+        name: m.name,
+        fromAccountId: m.fromAccountId,
+        fromCode: m.fromCode,
+        fromName: m.fromName,
+        actual: actual.toFixed(2),
+      })
+    }
+  }
   return {
     rows,
+    ...(view.lens === 'ah' ? { rePointed } : {}),
     budgetTotal: budgetTotal.toFixed(2),
     actualTotal: actualTotal.toFixed(2),
     varianceTotal: budgetTotal.minus(actualTotal).toFixed(2),

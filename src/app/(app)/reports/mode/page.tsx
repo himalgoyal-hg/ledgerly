@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import Link from 'next/link'
-import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
-import { HeadCombobox } from '@/components/head-combobox'
+import { PageHeader, chipClass, tableWrapClass, theadClass } from '@/components/ui'
+import { HeadLensFilters, readHeadLens, ResetFilters } from '../report-chrome'
 
 // Actual vs Plan Mode — the Finance-setup sheet's promise, checked against
 // the books: each category says which bank account (and credit card) its
@@ -29,10 +29,14 @@ function modeMatches(planned: string, actual: string, isCash: boolean): boolean 
 export default async function ActualVsPlanModePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; head?: string }>
+  searchParams: Promise<{ month?: string; head?: string; ah?: string; by?: string }>
 }) {
   await requireAdmin()
   const params = await searchParams
+  // the two lenses every head report carries (Himal, 21 Aug): the same
+  // rows either way; the Accounting Head one leads with the payments filed
+  // under a different head, and its picker keeps only those filed under it
+  const lens = readHeadLens(params)
   const nowKey = new Date().toISOString().slice(0, 7)
   const month = /^\d{4}-\d{2}$/.test(params.month ?? '') ? (params.month as string) : nowKey
   const from = new Date(`${month}-01T00:00:00Z`)
@@ -56,6 +60,13 @@ export default async function ActualVsPlanModePage({
     FROM "JournalLine" hl
     JOIN "JournalEntry" e ON e.id = hl."entryId"
     JOIN "LedgerAccount" ha ON ha.id = hl."accountId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(ha.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = ha."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
     JOIN "JournalLine" ml ON ml."entryId" = e.id AND ml.id <> hl.id
     JOIN "LedgerAccount" ma ON ma.id = ml."accountId"
     LEFT JOIN "BankAccount" b ON b."ledgerAccountId" = ma.id
@@ -63,12 +74,46 @@ export default async function ActualVsPlanModePage({
     WHERE ha.kind IN ('EXPENSE', 'INCOME')
       AND (b.id IS NOT NULL OR cl.id IS NOT NULL)
       -- narrow to one head (Himal, 20 Aug), same picker as the rest
-      AND (${params.head ?? null}::text IS NULL OR ha.id = ${params.head ?? null})
+      AND (${lens.headAccountId ?? null}::text IS NULL OR ha.id = ${lens.headAccountId ?? null})
+      AND (${lens.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(hl."accountingHeadId", mah.id, ha.id) = ${lens.accountingHeadId ?? null})
       AND e.date >= ${from} AND e.date < ${to}
     GROUP BY 1, 2, 3, 4, 5
     HAVING SUM(hl.debit - hl.credit) <> 0
     ORDER BY 1
   `
+  // the band: payments this month filed under a different Accounting Head,
+  // per (Accounting Head ← head) — a memo, already inside the rows
+  const moved =
+    lens.lens === 'ah'
+      ? await prisma.$queryRaw<{ ah: string; head: string; amt: string }[]>`
+    SELECT ah.name AS ah, ha.name AS head, SUM(hl.debit - hl.credit)::text AS amt
+    FROM "JournalLine" hl
+    JOIN "JournalEntry" e ON e.id = hl."entryId"
+    JOIN "LedgerAccount" ha ON ha.id = hl."accountId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(ha.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = ha."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(hl."accountingHeadId", mah.id, ha.id)
+    JOIN "JournalLine" ml ON ml."entryId" = e.id AND ml.id <> hl.id
+    JOIN "LedgerAccount" ma ON ma.id = ml."accountId"
+    LEFT JOIN "BankAccount" b ON b."ledgerAccountId" = ma.id
+    LEFT JOIN "CashLocation" cl ON cl."ledgerAccountId" = ma.id
+    WHERE ha.kind IN ('EXPENSE', 'INCOME')
+      AND (b.id IS NOT NULL OR cl.id IS NOT NULL)
+      AND ah.id <> ha.id
+      AND (${lens.headAccountId ?? null}::text IS NULL OR ha.id = ${lens.headAccountId ?? null})
+      AND (${lens.accountingHeadId ?? null}::text IS NULL OR ah.id = ${lens.accountingHeadId ?? null})
+      AND e.date >= ${from} AND e.date < ${to}
+    GROUP BY 1, 2
+    HAVING SUM(hl.debit - hl.credit) <> 0
+    ORDER BY 1
+  `
+      : []
 
   // rows here are expense/income heads, so only those are worth offering
   const modeHeads = await prisma.ledgerAccount.findMany({
@@ -76,6 +121,12 @@ export default async function ActualVsPlanModePage({
     orderBy: { name: 'asc' },
     select: { id: true, code: true, name: true, kind: true },
   })
+  const allHeads = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, archivedAt: null },
+    orderBy: { name: 'asc' },
+    select: { id: true, code: true, name: true, kind: true },
+  })
+  const nameOf = (id?: string) => allHeads.find((h) => h.id === id)?.name
   const modes = await prisma.headMode.findMany()
   const modeByCat = new Map(modes.map((m) => [m.category.toLowerCase(), m]))
 
@@ -121,17 +172,30 @@ export default async function ActualVsPlanModePage({
       <PageHeader
         kicker="Report"
         title="Actual vs Plan Mode"
-        subtitle="The Finance-setup sheet says which account each category should move on; the tagged entries say where the money actually moved. ⚠ means a payment came from a different account than planned."
+        subtitle={[
+          'The Finance-setup sheet says which account each category should move on; the tagged entries say where the money actually moved. ⚠ means a payment came from a different account than planned.',
+          lens.lens === 'ah'
+            ? 'By Accounting Head — the same rows, with the payments filed under a different head shown first'
+            : 'By Expense Head',
+          lens.headAccountId ? `only ${nameOf(lens.headAccountId) ?? '—'}` : '',
+          lens.accountingHeadId ? `only ${nameOf(lens.accountingHeadId) ?? '—'}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         actions={
           <form className="flex flex-wrap items-center gap-1">
             {params.month && <input type="hidden" name="month" value={params.month} />}
-            <HeadCombobox
-              heads={modeHeads}
-              name="head"
-              defaultHeadId={params.head}
-              placeholder="All heads — type to search"
-              className={`${controlClass} w-52`}
+            <HeadLensFilters
+              base="/reports/mode"
+              lens={lens.lens}
+              keep={{ month: params.month }}
+              headOptions={modeHeads}
+              ahOptions={allHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+              headPlaceholder="All heads — type to search"
             />
+            <ResetFilters base="/reports/mode" active={Boolean(params.head || params.ah || params.by || params.month)} />
             <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
               Apply
             </button>
@@ -168,6 +232,34 @@ export default async function ActualVsPlanModePage({
             </tr>
           </thead>
           <tbody className="divide-y divide-line-2">
+            {/* the re-pointed band first — a memo, already inside the rows */}
+            {moved.length > 0 && (
+              <>
+                <tr className="bg-primary-soft/60">
+                  <td colSpan={6} className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                    Filed under a different Accounting Head
+                    <span className="ml-2 font-normal normal-case tracking-normal text-primary/80">already inside the rows below — shown, not added</span>
+                  </td>
+                </tr>
+                {moved.map((m) => (
+                  <tr key={`${m.ah}<${m.head}`} className="bg-primary-soft/40">
+                    <td className="px-2 py-1.5 font-medium text-primary">
+                      {m.ah}
+                      <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">changed</span>
+                      <span className="ml-2 text-xs font-normal text-ink-3">from {m.head}</span>
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-ink-3">—</td>
+                    <td className="px-2 py-1.5 text-xs text-ink-3">—</td>
+                    <td className="px-2 py-1.5 text-xs text-ink-3">—</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums text-primary">
+                      {(Number(m.amt) < 0 ? '−' : '') + inr(Number(m.amt))}
+                      {Number(m.amt) < 0 ? ' in' : ''}
+                    </td>
+                    <td className="px-2 py-1.5 text-xs text-ink-3">filed elsewhere</td>
+                  </tr>
+                ))}
+              </>
+            )}
             {rows.map((r) => (
               <tr key={r.head} className={r.status === 'off' ? 'bg-warning-soft/50' : 'hover:bg-surface-2/60'}>
                 <td className="px-2 py-1.5 font-medium text-ink">{r.head}</td>
