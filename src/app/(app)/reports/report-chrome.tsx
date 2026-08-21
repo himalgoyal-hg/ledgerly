@@ -109,15 +109,25 @@ export function SectionTable(props: { section: StatementSection; range: string }
                       </td>
                     </tr>
                     {lines.map((line) => (
-                      <tr key={line.accountId} className="border-t border-line-2">
+                      <tr
+                        key={line.accountId}
+                        className={`border-t border-line-2 ${line.changed ? 'bg-primary-soft/50' : ''}`}
+                      >
                         <td className="px-4 py-2">
                           <Link
                             href={`/reports/ledger?accountId=${line.accountId}${props.range}`}
-                            className="text-ink hover:underline"
+                            className={line.changed ? 'font-medium text-primary hover:underline' : 'text-ink hover:underline'}
                           >
                             <span className="font-mono text-xs text-ink-3">{line.code}</span>{' '}
                             {line.name}
                           </Link>
+                          {/* money filed against a head other than the one
+                              it posted to — the thing worth spotting */}
+                          {line.changed && (
+                            <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                              changed
+                            </span>
+                          )}
                         </td>
                         <td className="w-40 px-4 py-2 text-right text-ink-2">
                           {displayINR(line.amount)}

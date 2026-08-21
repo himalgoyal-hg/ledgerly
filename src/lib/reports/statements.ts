@@ -37,6 +37,10 @@ export interface StatementLine {
   name: string
   group: string // immediate parent group, for sectioning
   amount: string // signed on the account's normal side (always ≥ 0 in practice)
+  /** Under the Accounting Head lens: some of this row's money was filed
+   *  against a head other than the one it posted to (Himal, 20 Aug —
+   *  "je change aahet te highlight karun disle pahije"). */
+  changed?: boolean
 }
 
 export interface StatementSection {
@@ -53,15 +57,22 @@ interface RawBalance {
   parentId: string | null
   debit: string
   credit: string
+  changed?: boolean
 }
 
 /** Per-account movement in a range, with tree metadata. Leaf accounts only. */
 async function accountMovements(entityId: string, range: DateRange): Promise<RawBalance[]> {
   const rows = await prisma.$queryRaw<
-    { accountId: string; code: string; name: string; kind: string; parentId: string | null; debit: string | null; credit: string | null }[]
+    { accountId: string; code: string; name: string; kind: string; parentId: string | null; debit: string | null; credit: string | null; changed: boolean | null }[]
   >`
     SELECT eff.id as "accountId", eff.code, eff.name, a.kind::text as kind, eff."parentId",
-           SUM(l.debit)::text as debit, SUM(l.credit)::text as credit
+           SUM(l.debit)::text as debit, SUM(l.credit)::text as credit,
+           -- Only under the Accounting Head lens: did any of this row's
+           -- money come from a head that was changed? On the ordinary
+           -- statement the row IS the posting head, so the mark would only
+           -- confuse.
+           (${range.lens ?? 'head'} = 'ah'
+            AND bool_or(COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)) as changed
     FROM "LedgerAccount" a
     JOIN "JournalLine" l ON l."accountId" = a.id
     JOIN "JournalEntry" e ON e.id = l."entryId"
@@ -79,12 +90,6 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
       WHEN ${range.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
-      -- Under the Accounting Head lens, only the entries whose head was
-      -- actually CHANGED (Himal, 20 Aug: "fkt change zalelech pahijet") —
-      -- a mirror, where the two heads are the same, is not news. Reports →
-      -- By has always read this way; the rest now match it.
-      AND (${range.lens ?? 'head'} <> 'ah'
-           OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
       AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
         WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${range.excludeCashAccounts ?? []})
@@ -97,7 +102,7 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
     GROUP BY eff.id, eff.code, eff.name, a.kind, eff."parentId"
     ORDER BY eff.code
   `
-  return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0' }))
+  return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0', changed: r.changed ?? false }))
 }
 
 async function groupNames(entityId: string): Promise<Map<string, string>> {
@@ -128,6 +133,7 @@ function section(
       name: row.name,
       group: (row.parentId && groups.get(row.parentId)) || title,
       amount: amount.toFixed(2),
+      changed: row.changed ?? false,
     })
   }
   return { title, lines, total: total.toFixed(2) }

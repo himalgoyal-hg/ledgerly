@@ -90,10 +90,14 @@ export async function expenseMatrixFy(
     .filter((x): x is string => !!x)
 
   const [actuals, budgets] = await Promise.all([
-    prisma.$queryRaw<{ name: string; kind: string; month: string; amt: string }[]>`
+    prisma.$queryRaw<{ name: string; kind: string; month: string; amt: string; changed: boolean | null }[]>`
       SELECT eff.name, a.kind::text AS kind,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
-             SUM(l.debit - l.credit)::text AS amt
+             SUM(l.debit - l.credit)::text AS amt,
+             -- flagged only under the Accounting Head lens, where the row
+             -- is the head the money was FILED against
+             (${view.lens ?? 'head'} = 'ah'
+              AND bool_or(COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)) AS changed
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
@@ -113,9 +117,6 @@ export async function expenseMatrixFy(
       WHERE e."entityId" = ${entityId}
         AND a.system = false
         AND NOT (l."accountId" = ANY(${moneyIds}))
-        -- the Accounting Head lens shows only what was re-pointed
-        AND (${view.lens ?? 'head'} <> 'ah'
-             OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
         AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
           SELECT 1 FROM "JournalLine" cl
           WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
@@ -141,11 +142,13 @@ export async function expenseMatrixFy(
 
   const actualBy = new Map<string, Map<string, number>>()
   const kindByName = new Map<string, string>()
+  const changedByName = new Map<string, boolean>()
   for (const r of actuals) {
     const m = actualBy.get(r.name) ?? new Map<string, number>()
     m.set(r.month, Number(r.amt))
     actualBy.set(r.name, m)
     kindByName.set(r.name, r.kind)
+    if (r.changed) changedByName.set(r.name, true)
   }
   const accounts = await prisma.ledgerAccount.findMany({
     where: { id: { in: [...new Set(budgets.map((b) => b.accountId))] } },
@@ -168,7 +171,7 @@ export async function expenseMatrixFy(
   // regroups by Accounting Head, only keep the ones whose money survived —
   // otherwise every budgeted head still draws a row and the lens looks like
   // it did nothing (Himal, 20 Aug).
-  if (view.accountingHeadId || view.lens === 'ah') {
+  if (view.accountingHeadId) {
     for (const name of [...budgetBy.keys()]) if (!actualBy.has(name)) budgetBy.delete(name)
   }
   const names = new Set<string>([...actualBy.keys(), ...budgetBy.keys()])
@@ -199,6 +202,7 @@ export async function expenseMatrixFy(
       return {
         name,
         kind,
+        changed: changedByName.get(name) ?? false,
         section: (SECTION[kind] ?? SECTION.EXPENSE).label,
         sectionOrder: (SECTION[kind] ?? SECTION.EXPENSE).order,
         accountId: idByName.get(name) ?? null,
@@ -268,8 +272,6 @@ export async function weeklyExpenses(
       WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
       ELSE a.id END
     WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE' AND e.date >= ${from}::date
-      AND (${view.lens ?? 'head'} <> 'ah'
-           OR COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)
       AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
         WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})

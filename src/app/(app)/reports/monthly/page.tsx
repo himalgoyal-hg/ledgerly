@@ -64,7 +64,7 @@ export default async function MonthlyMatrixPage({
       <PageHeader
         kicker="Report"
         title={`Month by month — ${entity.code}`}
-        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — only the entries whose head was changed' : 'By Expense Head — every head that carries a purpose, grouped by nature'}. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — everything, with the re-pointed rows highlighted' : 'By Expense Head — every head that carries a purpose, grouped by nature'}. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
         actions={
           <form className="flex flex-wrap items-center gap-1 text-sm">
             <HeadLensFilters
@@ -186,9 +186,17 @@ export default async function MonthlyMatrixPage({
                       </tr>
                     )
                   })()}
-              <tr className="hover:bg-surface-2/60">
-                <td className={`${cellR} font-semibold`}>{signed(r.total)}</td>
-                <td className="px-2 py-1.5 text-ink">{r.name}</td>
+              <tr className={`hover:bg-surface-2/60 ${r.changed ? 'bg-primary-soft/50' : ''}`}>
+                <td className={`${cellR} font-semibold ${r.changed ? 'text-primary' : ''}`}>{signed(r.total)}</td>
+                <td className={`px-2 py-1.5 ${r.changed ? 'font-medium text-primary' : 'text-ink'}`}>
+                  {r.name}
+                  {/* money filed against another head — worth spotting */}
+                  {r.changed && (
+                    <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                      changed
+                    </span>
+                  )}
+                </td>
                 {r.cells.map((c, i) => (
                   <td key={i} className={`${cellR} ${i === m.recentIdx ? 'bg-warning-soft/60 text-ink-2' : 'text-ink-2'}`}>
                     {signed(c)}
