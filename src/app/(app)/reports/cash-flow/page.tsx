@@ -8,6 +8,8 @@ import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
 import { ReportHeader, DateRangeFilters, CashToggle } from '../report-chrome'
+import { HeadCombobox } from '@/components/head-combobox'
+import { controlClass } from '@/components/ui'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 
@@ -16,7 +18,7 @@ import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 // counter-line, so they self-eliminate.
 
 export default async function CashFlowPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; view?: string; cash?: string }>
+  searchParams: Promise<{ from?: string; to?: string; view?: string; cash?: string; head?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -26,7 +28,13 @@ export default async function CashFlowPage(props: {
   const view = params.view === 'ahead' ? 'ahead' : 'history'
   const from = params.from ? new Date(params.from) : undefined
   const to = params.to ? new Date(params.to) : undefined
-  const cf = await cashFlow(entity.id, { from, to })
+  const cf = await cashFlow(entity.id, { from, to, headAccountId: params.head || undefined })
+  // the counter-heads this report can show — money accounts are its source
+  const cfHeads = await prisma.ledgerAccount.findMany({
+    where: { entityId: entity.id, isGroup: false, archivedAt: null, system: false },
+    orderBy: { name: 'asc' },
+    select: { id: true, code: true, name: true, kind: true },
+  })
 
   // Looking AHEAD: the CASH pool projected from the live balance, with the
   // planned future payments editable right here (admin only). Lines live in
@@ -187,6 +195,15 @@ export default async function CashFlowPage(props: {
         }
         filters={
           <>
+            {/* narrowing only: this report's rows are the heads cash moved
+                against, so there is nothing to regroup by Accounting Head */}
+            <HeadCombobox
+              heads={cfHeads}
+              name="head"
+              defaultHeadId={params.head}
+              placeholder="All heads — type to search"
+              className={`${controlClass} w-52`}
+            />
             <CashToggle
               base="/reports/cash-flow"
               showing={showCash}

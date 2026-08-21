@@ -1,7 +1,8 @@
 import { prisma } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 import Link from 'next/link'
-import { PageHeader, chipClass, tableWrapClass, theadClass } from '@/components/ui'
+import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
+import { HeadCombobox } from '@/components/head-combobox'
 
 // Actual vs Plan Mode — the Finance-setup sheet's promise, checked against
 // the books: each category says which bank account (and credit card) its
@@ -28,7 +29,7 @@ function modeMatches(planned: string, actual: string, isCash: boolean): boolean 
 export default async function ActualVsPlanModePage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>
+  searchParams: Promise<{ month?: string; head?: string }>
 }) {
   await requireAdmin()
   const params = await searchParams
@@ -61,12 +62,20 @@ export default async function ActualVsPlanModePage({
     LEFT JOIN "CashLocation" cl ON cl."ledgerAccountId" = ma.id
     WHERE ha.kind IN ('EXPENSE', 'INCOME')
       AND (b.id IS NOT NULL OR cl.id IS NOT NULL)
+      -- narrow to one head (Himal, 20 Aug), same picker as the rest
+      AND (${params.head ?? null}::text IS NULL OR ha.id = ${params.head ?? null})
       AND e.date >= ${from} AND e.date < ${to}
     GROUP BY 1, 2, 3, 4, 5
     HAVING SUM(hl.debit - hl.credit) <> 0
     ORDER BY 1
   `
 
+  // rows here are expense/income heads, so only those are worth offering
+  const modeHeads = await prisma.ledgerAccount.findMany({
+    where: { isGroup: false, archivedAt: null, kind: { in: ['EXPENSE', 'INCOME'] } },
+    orderBy: { name: 'asc' },
+    select: { id: true, code: true, name: true, kind: true },
+  })
   const modes = await prisma.headMode.findMany()
   const modeByCat = new Map(modes.map((m) => [m.category.toLowerCase(), m]))
 
@@ -113,6 +122,21 @@ export default async function ActualVsPlanModePage({
         kicker="Report"
         title="Actual vs Plan Mode"
         subtitle="The Finance-setup sheet says which account each category should move on; the tagged entries say where the money actually moved. ⚠ means a payment came from a different account than planned."
+        actions={
+          <form className="flex flex-wrap items-center gap-1">
+            {params.month && <input type="hidden" name="month" value={params.month} />}
+            <HeadCombobox
+              heads={modeHeads}
+              name="head"
+              defaultHeadId={params.head}
+              placeholder="All heads — type to search"
+              className={`${controlClass} w-52`}
+            />
+            <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
+              Apply
+            </button>
+          </form>
+        }
       />
 
       <div className="flex flex-wrap items-center gap-1.5">

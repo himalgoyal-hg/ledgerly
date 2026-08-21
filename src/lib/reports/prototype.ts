@@ -362,7 +362,11 @@ export async function taxesPaid(entityId: string) {
 }
 
 /** Investment & other income by month + amounts moved into investments. */
-export async function investmentReport(entityId: string, months = 12) {
+export async function investmentReport(
+  entityId: string,
+  months = 12,
+  view: { headAccountId?: string } = {},
+) {
   const keys = monthKeys(months)
   const from = new Date(`${keys[0].key}-01T00:00:00Z`)
   const income = await prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
@@ -374,6 +378,7 @@ export async function investmentReport(entityId: string, months = 12) {
     WHERE e."entityId" = ${entityId} AND a.kind = 'INCOME'
       AND a.name ~* 'interest|dividend|capital gain|investment'
       AND e.date >= ${from}::date
+      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
     GROUP BY a.name, 2
   `
   const invested = await prisma.$queryRaw<{ name: string; month: string; amt: string }[]>`
@@ -385,6 +390,7 @@ export async function investmentReport(entityId: string, months = 12) {
     WHERE e."entityId" = ${entityId} AND a.kind = 'ASSET'
       AND a.name ~* 'invest|shares|mutual|sip|fixed deposit'
       AND e.date >= ${from}::date
+      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
     GROUP BY a.name, 2
   `
   const fold = (rows: { name: string; month: string; amt: string }[]) => {

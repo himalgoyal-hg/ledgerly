@@ -274,6 +274,8 @@ export async function cashFlow(entityId: string, range: DateRange): Promise<Cash
     JOIN "LedgerAccount" a ON a.id = l."accountId"
     WHERE l."entryId" IN (SELECT id FROM cash_entries)
       AND l."accountId" NOT IN (${Prisma.join(cashIds)})
+      -- narrow to one head (Himal, 20 Aug), same picker as the other reports
+      AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
     GROUP BY a.id, a.code, a.name, a.kind
     ORDER BY a.code
   `
