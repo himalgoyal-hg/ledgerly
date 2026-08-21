@@ -26,6 +26,7 @@
   --primary-soft: #eff6ff; /* tinted fills behind primary content */
   --success: #16a34a;
   --success-soft: #f0fdf4;
+  --success-ink: #ffffff;
   --warning: #b45309;
   --warning-soft: #fffbeb;
   --danger: #dc2626;
@@ -61,6 +62,7 @@
   --primary-soft: rgb(59 130 246 / 0.12);
   --success: #4ade80;
   --success-soft: rgb(34 197 94 / 0.12);
+  --success-ink: #052e16;
   --warning: #fbbf24;
   --warning-soft: rgb(245 158 11 / 0.12);
   --danger: #f87171;
@@ -182,4 +184,20 @@ table {
   thead {
     display: table-header-group; /* repeat headers on every page */
   }
+}
+
+/* Unsaved changes: a form's Save turns green the moment anything in it
+   differs from what was loaded, and back when it is saved (Himal, 21 Aug:
+   "kay change kel ki button green zal pahije"). Set by DirtyFormWatcher.
+   Deliberately outside any layer so it beats the button's own utilities. */
+button[data-dirty="true"],
+input[type="submit"][data-dirty="true"] {
+  background-color: var(--success);
+  border-color: var(--success);
+  color: var(--success-ink);
+  box-shadow: 0 0 0 2px var(--success-soft);
+}
+button[data-dirty="true"]:hover,
+input[type="submit"][data-dirty="true"]:hover {
+  filter: brightness(0.94);
 }

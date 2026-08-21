@@ -6,6 +6,7 @@ import { duesTiles } from '@/lib/reports/dashboard'
 import { displayINR } from '@/lib/ledger/money'
 import { buildNav } from '@/components/shell/nav'
 import { Shell, type ShellNotification } from '@/components/shell/shell'
+import { DirtyFormWatcher } from '@/components/dirty-forms'
 import { setBooksOf } from './actions'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       logoutAction={logoutAction}
     >
       {children}
+      {/* every form's Save turns green while it holds unsaved changes */}
+      <DirtyFormWatcher />
     </Shell>
   )
 }
