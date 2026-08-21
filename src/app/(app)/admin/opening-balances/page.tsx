@@ -73,7 +73,8 @@ export default async function OpeningBalancesPage() {
   // the Opening Balances control account is the other side of every one of
   // these — it is not something to type a figure into
   const rows = accounts.filter((a) => !(a.system && a.name.toLowerCase().includes('opening')))
-  const done = rows.filter((a) => openingBy.has(a.id)).length
+  const editable = rows.filter((a) => !a.archivedAt)
+  const done = editable.filter((a) => openingBy.has(a.id)).length
   const asAt = openingDateFor().toISOString().slice(0, 10)
 
   const cellCls =
@@ -88,7 +89,7 @@ export default async function OpeningBalancesPage() {
         actions={
           <>
             <Badge tone={done === rows.length ? 'success' : 'warning'}>
-              {done} of {rows.length} set
+              {done} of {editable.length} set
             </Badge>
             <LiveFilter selector="[data-live-filter='ob']" placeholder="Type to search accounts…" />
           </>
@@ -137,28 +138,44 @@ export default async function OpeningBalancesPage() {
                           )}
                         </td>
                         <td className="px-2 py-1 text-[11px] text-ink-3">{a.code}</td>
+                        {/* An archived account cannot take a posting — the
+                            ledger refuses one — so it is shown, not edited.
+                            Restore it first if it needs an opening. */}
                         <td className="px-1 py-0.5">
-                          <input
-                            name="openingBalance"
-                            form={fid}
-                            inputMode="decimal"
-                            defaultValue={ob ? String(Math.round(ob)) : ''}
-                            title={`Enter to save · blank clears · currently ${ob ? inr(ob) : 'not set'}`}
-                            className={`${cellCls} ${ob < 0 ? 'font-medium text-success' : ''}`}
-                          />
+                          {a.archivedAt ? (
+                            <span
+                              className={`block px-1.5 py-1 text-right text-xs tabular-nums ${ob ? 'text-ink-3' : 'text-ink-3/60'}`}
+                              title="Archived — restore the account to set an opening balance"
+                            >
+                              {ob ? inr(ob) : '—'}
+                            </span>
+                          ) : (
+                            <input
+                              name="openingBalance"
+                              form={fid}
+                              inputMode="decimal"
+                              defaultValue={ob ? String(Math.round(ob)) : ''}
+                              title={`Enter to save · blank clears · currently ${ob ? inr(ob) : 'not set'}`}
+                              className={`${cellCls} ${ob < 0 ? 'font-medium text-success' : ''}`}
+                            />
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-2 py-0.5 text-right">
-                          <form id={fid} action={saveOpeningBalanceAction} className="inline">
-                            <input type="hidden" name="entityId" value={entity.id} />
-                            <input type="hidden" name="accountId" value={a.id} />
-                            <button
-                              type="submit"
-                              title="Save this opening balance"
-                              className="rounded border border-line px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2"
-                            >
-                              Save
-                            </button>
-                          </form>
+                          {a.archivedAt ? (
+                            <span className="text-[10px] text-ink-3">restore to edit</span>
+                          ) : (
+                            <form id={fid} action={saveOpeningBalanceAction} className="inline">
+                              <input type="hidden" name="entityId" value={entity.id} />
+                              <input type="hidden" name="accountId" value={a.id} />
+                              <button
+                                type="submit"
+                                title="Save this opening balance"
+                                className="rounded border border-line px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2"
+                              >
+                                Save
+                              </button>
+                            </form>
+                          )}
                         </td>
                       </tr>
                     )
@@ -171,7 +188,9 @@ export default async function OpeningBalancesPage() {
         <p className="border-t border-line-2 px-4 py-2 text-[11px] text-ink-3">
           Type a figure and press Enter — blank clears it. A correction reposts as a reversal plus a new version, so a
           figure never double-counts. Bank and cash accounts already carry the opening you gave them when the account
-          was added; changing it here corrects that same entry. An expense or income opening is dated before 1 April,
+          was added; changing it here corrects that same entry. Archived accounts are listed for completeness but
+          cannot take one — the ledger refuses a posting to an archived account; restore it first. An expense or
+          income opening is dated before 1 April,
           so it reads as brought forward — it counts in the all-time P&amp;L, not in this year&apos;s Month by month or
           Budget vs Actual.
         </p>
