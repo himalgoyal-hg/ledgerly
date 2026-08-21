@@ -239,7 +239,7 @@ export default async function FinanceTasksPage() {
                         title="Save this bill's name / bank mode / due day"
                         className="rounded border border-line px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2"
                       >
-                        ✓
+                        Save
                       </button>
                     </form>
                     <form action={archiveFinanceTaskAction} className="ml-1 inline">
@@ -248,7 +248,7 @@ export default async function FinanceTasksPage() {
                         message={`Remove "${t.name}" from the register? History stays in the database.`}
                         className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger/70 hover:bg-danger-soft hover:text-danger"
                       >
-                        ✕
+                        Remove
                       </ConfirmButton>
                     </form>
                   </td>

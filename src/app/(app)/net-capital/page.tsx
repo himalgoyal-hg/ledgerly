@@ -131,8 +131,8 @@ export default async function NetCapitalPage() {
                         </td>
                       ))}
                       <td className="whitespace-nowrap px-1 py-0.5 text-right">
-                        <button type="submit" form={fid} title="Save row" className="rounded border border-line px-1.5 text-[10px] text-ink-3 hover:bg-surface-2 hover:text-ink-2">
-                          ✓
+                        <button type="submit" form={fid} title="Save row" className="rounded border border-line px-1.5 py-0.5 text-[10px] font-medium text-ink-2 hover:bg-surface-2 hover:text-ink">
+                          Save
                         </button>
                         <form action={deleteNetCapitalLineAction} className="ml-1 inline">
                           <input type="hidden" name="lineId" value={l.id} />

@@ -147,7 +147,7 @@ export default async function OpeningBalancesPage() {
                               title="Save this opening balance"
                               className="rounded border border-line px-2 py-0.5 text-[11px] font-medium text-ink-2 hover:bg-surface-2"
                             >
-                              ✓
+                              Save
                             </button>
                           </form>
                         </td>
