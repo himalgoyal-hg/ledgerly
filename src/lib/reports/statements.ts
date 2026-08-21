@@ -41,9 +41,15 @@ export interface StatementLine {
    *  against a head other than the one it posted to (Himal, 20 Aug —
    *  "je change aahet te highlight karun disle pahije"). */
   changed?: boolean
+  /** What this account was brought forward at, on the same side as
+   *  `amount` (Himal, 20 Aug: "balance sheet var disla pahije sglyacha
+   *  opening balance"). Absent where nothing was entered. */
+  opening?: string
 }
 
 export interface StatementSection {
+  /** Sum of the section's opening balances, when any were entered. */
+  openingTotal?: string
   title: string
   lines: StatementLine[]
   total: string
@@ -105,6 +111,31 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
   return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0', changed: r.changed ?? false }))
 }
 
+/**
+ * What each account was brought forward at: the opening_balance documents,
+ * read as Dr − Cr per account. The control account is skipped — it is the
+ * other side of every one of them, not a balance anyone opened with.
+ */
+async function openingBalancesByAccount(entityId: string): Promise<Map<string, number>> {
+  const docs = await prisma.journalDoc.findMany({
+    where: { entityId, sourceType: 'opening_balance', deletedAt: null },
+    select: {
+      currentEntry: {
+        select: { lines: { select: { accountId: true, debit: true, credit: true, account: { select: { system: true, name: true } } } } },
+      },
+    },
+  })
+  const by = new Map<string, number>()
+  for (const d of docs) {
+    for (const l of d.currentEntry?.lines ?? []) {
+      if (l.account.system && l.account.name.toLowerCase().includes('opening')) continue
+      const v = Number(l.debit) - Number(l.credit)
+      if (v !== 0) by.set(l.accountId, (by.get(l.accountId) ?? 0) + v)
+    }
+  }
+  return by
+}
+
 async function groupNames(entityId: string): Promise<Map<string, string>> {
   const groups = await prisma.ledgerAccount.findMany({
     where: { entityId, isGroup: true },
@@ -118,15 +149,25 @@ function section(
   rows: RawBalance[],
   groups: Map<string, string>,
   normal: 'debit' | 'credit',
+  /** accountId → opening balance as Dr − Cr; normalised here like `amount`. */
+  openingBy?: Map<string, number>,
 ): StatementSection {
   const lines: StatementLine[] = []
   let total = new Prisma.Decimal(0)
+  let openingTotal = new Prisma.Decimal(0)
   for (const row of rows) {
     const debit = new Prisma.Decimal(row.debit)
     const credit = new Prisma.Decimal(row.credit)
     const amount = normal === 'debit' ? debit.minus(credit) : credit.minus(debit)
     if (amount.isZero()) continue // fully reversed — not a real line
     total = total.plus(amount)
+    // the brought-forward figure, on the same side the row is shown on
+    const raw = openingBy?.get(row.accountId)
+    const opening =
+      raw === undefined
+        ? null
+        : new Prisma.Decimal(normal === 'debit' ? raw : -raw)
+    if (opening) openingTotal = openingTotal.plus(opening)
     lines.push({
       accountId: row.accountId,
       code: row.code,
@@ -134,9 +175,15 @@ function section(
       group: (row.parentId && groups.get(row.parentId)) || title,
       amount: amount.toFixed(2),
       changed: row.changed ?? false,
+      ...(opening !== null ? { opening: opening.toFixed(2) } : {}),
     })
   }
-  return { title, lines, total: total.toFixed(2) }
+  return {
+    title,
+    lines,
+    total: total.toFixed(2),
+    ...(openingBy ? { openingTotal: openingTotal.toFixed(2) } : {}),
+  }
 }
 
 export interface ProfitAndLoss {
@@ -179,10 +226,14 @@ export async function balanceSheet(
   view: Pick<DateRange, 'lens' | 'headAccountId' | 'accountingHeadId' | 'excludeCashAccounts'> = {},
 ): Promise<BalanceSheet> {
   const range: DateRange = { to: asOf, ...view }
-  const [rows, groups] = await Promise.all([accountMovements(entityId, range), groupNames(entityId)])
-  const assets = section('Assets', rows.filter((r) => r.kind === 'ASSET'), groups, 'debit')
-  const liabilities = section('Liabilities', rows.filter((r) => r.kind === 'LIABILITY'), groups, 'credit')
-  const equity = section('Equity', rows.filter((r) => r.kind === 'EQUITY'), groups, 'credit')
+  const [rows, groups, openingBy] = await Promise.all([
+    accountMovements(entityId, range),
+    groupNames(entityId),
+    openingBalancesByAccount(entityId),
+  ])
+  const assets = section('Assets', rows.filter((r) => r.kind === 'ASSET'), groups, 'debit', openingBy)
+  const liabilities = section('Liabilities', rows.filter((r) => r.kind === 'LIABILITY'), groups, 'credit', openingBy)
+  const equity = section('Equity', rows.filter((r) => r.kind === 'EQUITY'), groups, 'credit', openingBy)
 
   const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit')
   const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit')

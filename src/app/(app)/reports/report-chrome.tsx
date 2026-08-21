@@ -87,6 +87,9 @@ export function SectionTable(props: { section: StatementSection; range: string }
   for (const line of props.section.lines) {
     byGroup.set(line.group, [...(byGroup.get(line.group) ?? []), line])
   }
+  // The opening column only appears where opening balances exist at all —
+  // a P&L has none, and an empty column would only take space.
+  const showOpening = props.section.openingTotal !== undefined
 
   return (
     <div className={tableWrapClass}>
@@ -94,17 +97,22 @@ export function SectionTable(props: { section: StatementSection; range: string }
         <thead className={theadClass}>
           <tr>
             <th className="px-4 py-2">{props.section.title}</th>
-            <th className="px-4 py-2 text-right">Amount</th>
+            {showOpening && (
+              <th className="px-4 py-2 text-right" title="Brought forward — what this account opened at">
+                Opening
+              </th>
+            )}
+            <th className="px-4 py-2 text-right">Balance</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-line-2">
           {[...byGroup.entries()].map(([group, lines]) => (
             <tr key={group}>
-              <td colSpan={2} className="p-0">
+              <td colSpan={showOpening ? 3 : 2} className="p-0">
                 <table className="w-full">
                   <tbody>
                     <tr>
-                      <td className="bg-surface-2/60 px-4 py-1 text-xs font-medium uppercase text-ink-2">
+                      <td colSpan={showOpening ? 3 : 2} className="bg-surface-2/60 px-4 py-1 text-xs font-medium uppercase text-ink-2">
                         {group}
                       </td>
                     </tr>
@@ -129,6 +137,14 @@ export function SectionTable(props: { section: StatementSection; range: string }
                             </span>
                           )}
                         </td>
+                        {showOpening && (
+                          <td
+                            className="w-32 px-4 py-2 text-right text-ink-3"
+                            title={line.opening ? 'Brought forward' : 'No opening balance entered'}
+                          >
+                            {line.opening ? displayINR(line.opening) : '—'}
+                          </td>
+                        )}
                         <td className="w-40 px-4 py-2 text-right text-ink-2">
                           {displayINR(line.amount)}
                         </td>
@@ -141,7 +157,7 @@ export function SectionTable(props: { section: StatementSection; range: string }
           ))}
           {props.section.lines.length === 0 && (
             <tr>
-              <td colSpan={2} className="px-4 py-4 text-center text-sm text-ink-3">
+              <td colSpan={showOpening ? 3 : 2} className="px-4 py-4 text-center text-sm text-ink-3">
                 Nothing in this range.
               </td>
             </tr>
@@ -150,6 +166,9 @@ export function SectionTable(props: { section: StatementSection; range: string }
         <tfoot className="border-t border-line font-medium text-ink">
           <tr>
             <td className="px-4 py-2">Total {props.section.title.toLowerCase()}</td>
+            {showOpening && (
+              <td className="px-4 py-2 text-right text-ink-3">{displayINR(props.section.openingTotal!)}</td>
+            )}
             <td className="px-4 py-2 text-right">{displayINR(props.section.total)}</td>
           </tr>
         </tfoot>
