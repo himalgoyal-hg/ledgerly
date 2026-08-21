@@ -89,13 +89,14 @@ export async function expenseMatrixFy(
     .map((x) => x.ledgerAccountId)
     .filter((x): x is string => !!x)
 
-  const [actuals, budgets] = await Promise.all([
+  const [actuals, moved, budgets] = await Promise.all([
     prisma.$queryRaw<{ name: string; kind: string; month: string; amt: string; changed: boolean | null }[]>`
-      SELECT eff.name, a.kind::text AS kind,
+      SELECT a.name, a.kind::text AS kind,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
              SUM(l.debit - l.credit)::text AS amt,
-             -- flagged only under the Accounting Head lens, where the row
-             -- is the head the money was FILED against
+             -- flagged only under the Accounting Head lens: part of this
+             -- row's money is filed under a different head (it is listed
+             -- in the re-pointed band too); the row's figure is whole
              (${view.lens ?? 'head'} = 'ah'
               AND bool_or(COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)) AS changed
       FROM "JournalLine" l
@@ -108,12 +109,6 @@ export async function expenseMatrixFy(
           AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
         ORDER BY x.code LIMIT 1
       ) mah ON true
-      -- the head each row IS: posted account, or its effective Accounting
-      -- Head under the 'ah' lens. Kind stays the posting account's, so the
-      -- sections and the "Spent" headline keep their meaning.
-      JOIN "LedgerAccount" eff ON eff.id = CASE
-        WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
-        ELSE a.id END
       WHERE e."entityId" = ${entityId}
         AND a.system = false
         AND NOT (l."accountId" = ANY(${moneyIds}))
@@ -125,8 +120,42 @@ export async function expenseMatrixFy(
         AND (${view.accountingHeadId ?? null}::text IS NULL
              OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
         AND e.date >= ${from}::date AND e.date < ${to}::date
-      GROUP BY eff.name, a.kind, 3
+      GROUP BY a.name, a.kind, 3
     `,
+    // Under the Accounting Head lens (Himal, 21 Aug: the same report, with
+    // the changes shown first): the money filed under a different head,
+    // per (Accounting Head ← posting head) per month. A memo — it is
+    // already inside the posting head's row.
+    view.lens === 'ah'
+      ? prisma.$queryRaw<{ name: string; from: string; kind: string; month: string; amt: string }[]>`
+      SELECT ah.name, a.name AS "from", a.kind::text AS kind,
+             to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
+             SUM(l.debit - l.credit)::text AS amt
+      FROM "JournalLine" l
+      JOIN "JournalEntry" e ON e.id = l."entryId"
+      JOIN "LedgerAccount" a ON a.id = l."accountId"
+      LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+      LEFT JOIN LATERAL (
+        SELECT x.id FROM "LedgerAccount" x
+        WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+          AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+        ORDER BY x.code LIMIT 1
+      ) mah ON true
+      JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+      WHERE e."entityId" = ${entityId}
+        AND a.system = false
+        AND ah.id <> a.id
+        AND NOT (l."accountId" = ANY(${moneyIds}))
+        AND (${view.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+          SELECT 1 FROM "JournalLine" cl
+          WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${view.excludeCashAccounts ?? []})
+        ))
+        AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+        AND (${view.accountingHeadId ?? null}::text IS NULL OR ah.id = ${view.accountingHeadId ?? null})
+        AND e.date >= ${from}::date AND e.date < ${to}::date
+      GROUP BY ah.name, a.name, a.kind, 4
+    `
+      : Promise.resolve([] as { name: string; from: string; kind: string; month: string; amt: string }[]),
     prisma.budget.findMany({
       where: {
         entityId,
@@ -218,11 +247,29 @@ export async function expenseMatrixFy(
     .sort(
       (a, b) =>
         a.sectionOrder - b.sectionOrder ||
-        // re-pointed rows lead their section under the Accounting Head lens
-        Number(!!b.changed) - Number(!!a.changed) ||
         Math.abs(b.total) - Math.abs(a.total) ||
         b.yearBudget - a.yearBudget,
     )
+
+  // the re-pointed band per section: one row per (Accounting Head ← head),
+  // with the same months. Sits with the section the money POSTED to.
+  const movedBy = new Map<string, { name: string; from: string; kind: string; cells: number[] }>()
+  for (const r of moved) {
+    const k = `${r.name}\u0000${r.from}`
+    const row = movedBy.get(k) ?? { name: r.name, from: r.from, kind: r.kind, cells: keys.map(() => 0) }
+    const i = keys.findIndex((x) => x.key === r.month)
+    if (i >= 0) row.cells[i] += Number(r.amt)
+    movedBy.set(k, row)
+  }
+  const rePointed = [...movedBy.values()]
+    .map((r) => ({
+      ...r,
+      section: (SECTION[r.kind] ?? SECTION.EXPENSE).label,
+      sectionOrder: (SECTION[r.kind] ?? SECTION.EXPENSE).order,
+      total: r.cells.reduce((s, v) => s + v, 0),
+    }))
+    .filter((r) => r.total !== 0)
+    .sort((a, b) => a.sectionOrder - b.sectionOrder || Math.abs(b.total) - Math.abs(a.total))
 
   // per-section subtotals, in the order the rows already carry
   const sections = [...new Set(rows.map((r) => r.section))].map((label) => {
@@ -242,7 +289,7 @@ export async function expenseMatrixFy(
   // "Spent" = the Expenses block alone, so the headline number still means
   // what it always did even though the register now shows everything.
   const spent = rows.filter((r) => r.kind === 'EXPENSE').reduce((s, r) => s + r.total, 0)
-  return { months: keys, rows, sections, colTotals, grand, spent, budgetGrand, recentIdx: recentIdxFinal }
+  return { months: keys, rows, rePointed, sections, colTotals, grand, spent, budgetGrand, recentIdx: recentIdxFinal }
 }
 
 /** Weekly expense totals with the top accounts of each week. */

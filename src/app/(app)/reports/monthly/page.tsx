@@ -74,7 +74,7 @@ export default async function MonthlyMatrixPage({
       <PageHeader
         kicker="Report"
         title={`Month by month — ${entity.code}`}
-        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — everything, with the re-pointed rows highlighted' : 'By Expense Head — every head that carries a purpose, grouped by nature'}. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head — the same report, with the money filed under a different head shown first' : 'By Expense Head — every head that carries a purpose, grouped by nature'}. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
         actions={
           <form className="flex flex-wrap items-center gap-1 text-sm">
             <HeadLensFilters
@@ -181,25 +181,51 @@ export default async function MonthlyMatrixPage({
                 {(idx === 0 || m.rows[idx - 1].section !== r.section) &&
                   (() => {
                     const sec = m.sections.find((x) => x.label === r.section)!
+                    const band = m.rePointed.filter((x) => x.section === r.section)
                     return (
-                      <tr data-filter-keep="1" className="border-t border-line bg-surface-2/70">
-                        <td className={`${cellR} font-semibold text-ink`}>{signed(sec.total)}</td>
-                        <td className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-ink-3">
-                          {sec.label}
-                        </td>
-                        {sec.cells.map((c, i) => (
-                          <td key={i} className={`${cellR} text-ink-3`}>{signed(c)}</td>
+                      <>
+                        <tr data-filter-keep="1" className="border-t border-line bg-surface-2/70">
+                          <td className={`${cellR} font-semibold text-ink`}>{signed(sec.total)}</td>
+                          <td className="px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-ink-3">
+                            {sec.label}
+                          </td>
+                          {sec.cells.map((c, i) => (
+                            <td key={i} className={`${cellR} text-ink-3`}>{signed(c)}</td>
+                          ))}
+                          <td className={cellR} />
+                          <td className={cellR} />
+                          <td className={`${cellR} text-ink-3`}>{inr(sec.yearBudget)}</td>
+                          <td className={cellR} />
+                        </tr>
+                        {/* Under the Accounting Head lens the money filed
+                            under a different head leads the section,
+                            highlighted — a memo, already inside the rows
+                            that follow, so it is shown and not added. */}
+                        {band.map((x) => (
+                          <tr key={`${x.name}<${x.from}`} className="bg-primary-soft/40">
+                            <td className={`${cellR} font-semibold text-primary`}>{signed(x.total)}</td>
+                            <td className="px-2 py-1.5 font-medium text-primary">
+                              {x.name}
+                              <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                                changed
+                              </span>
+                              <span className="ml-2 text-xs font-normal text-ink-3">from {x.from}</span>
+                            </td>
+                            {x.cells.map((c, i) => (
+                              <td key={i} className={`${cellR} text-primary`}>{signed(c)}</td>
+                            ))}
+                            <td className={cellR} />
+                            <td className={cellR} />
+                            <td className={cellR} />
+                            <td className={cellR} />
+                          </tr>
                         ))}
-                        <td className={cellR} />
-                        <td className={cellR} />
-                        <td className={`${cellR} text-ink-3`}>{inr(sec.yearBudget)}</td>
-                        <td className={cellR} />
-                      </tr>
+                      </>
                     )
                   })()}
-              <tr className={`hover:bg-surface-2/60 ${r.changed ? 'bg-primary-soft/50' : ''}`}>
-                <td className={`${cellR} font-semibold ${r.changed ? 'text-primary' : ''}`}>{signed(r.total)}</td>
-                <td className={`px-2 py-1.5 ${r.changed ? 'font-medium text-primary' : 'text-ink'}`}>
+              <tr className="hover:bg-surface-2/60">
+                <td className={`${cellR} font-semibold`}>{signed(r.total)}</td>
+                <td className="px-2 py-1.5 text-ink">
                   {/* click a row to see just that head; Reset brings the
                       whole report back (Himal, 20 Aug) */}
                   {r.accountId ? (
@@ -209,10 +235,14 @@ export default async function MonthlyMatrixPage({
                   ) : (
                     r.name
                   )}
-                  {/* money filed against another head — worth spotting */}
+                  {/* part of this row's money is in the band above; the
+                      figure here is still the whole of it */}
                   {r.changed && (
-                    <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                      changed
+                    <span
+                      className="ml-1.5 rounded bg-surface-2 px-1 text-[9px] font-medium uppercase tracking-wide text-ink-3"
+                      title="Some of this money is filed under a different Accounting Head — see the band at the top of the section"
+                    >
+                      part re-pointed
                     </span>
                   )}
                 </td>

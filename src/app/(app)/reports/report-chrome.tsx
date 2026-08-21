@@ -120,6 +120,43 @@ export function SectionTable(props: { section: StatementSection; range: string }
           </tr>
         </thead>
         <tbody className="divide-y divide-line-2">
+          {/* Under the Accounting Head lens the money filed under another
+              head leads, highlighted (Himal, 21 Aug: the same report, with
+              the changes at the start). A memo band: each figure is still
+              inside the row it came out of, so it is not added again. */}
+          {props.section.rePointed && props.section.rePointed.length > 0 && (
+            <>
+              <tr className="bg-primary-soft/60">
+                <td colSpan={cols} className="px-4 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                  Filed under a different Accounting Head
+                  <span className="ml-2 font-normal normal-case tracking-normal text-primary/80">
+                    already inside the rows below — shown, not added
+                  </span>
+                </td>
+              </tr>
+              {props.section.rePointed.map((m) => (
+                <tr key={`${m.accountId}-${m.fromAccountId}`} className="bg-primary-soft/40">
+                  <td className="px-4 py-2">
+                    <Link
+                      href={`/reports/ledger?accountId=${m.fromAccountId}${props.range}`}
+                      className="font-medium text-primary hover:underline"
+                      title={`Posted to ${m.fromName} — open that ledger`}
+                    >
+                      <span className="font-mono text-xs text-primary/70">{m.code}</span> {m.name}
+                    </Link>
+                    <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                      changed
+                    </span>
+                    <span className="ml-2 text-xs text-ink-3">
+                      from <span className="font-mono">{m.fromCode}</span> {m.fromName}
+                    </span>
+                  </td>
+                  {showOpening && <td className="border-l border-line-2" />}
+                  <td className={`${num} border-l border-line-2 font-medium text-primary`}>{displayINR(m.amount)}</td>
+                </tr>
+              ))}
+            </>
+          )}
           {[...byGroup.entries()].map(([group, lines]) => (
             <Fragment key={group}>
               <tr className="bg-surface-2/60">
@@ -128,17 +165,22 @@ export function SectionTable(props: { section: StatementSection; range: string }
                 </td>
               </tr>
               {lines.map((line) => (
-                <tr key={line.accountId} className={line.changed ? 'bg-primary-soft/50' : 'hover:bg-surface-2/40'}>
+                <tr key={line.accountId} className="hover:bg-surface-2/40">
                   <td className="px-4 py-2">
                     <Link
                       href={`/reports/ledger?accountId=${line.accountId}${props.range}`}
-                      className={line.changed ? 'font-medium text-primary hover:underline' : 'text-ink hover:underline'}
+                      className="text-ink hover:underline"
                     >
                       <span className="font-mono text-xs text-ink-3">{line.code}</span> {line.name}
                     </Link>
+                    {/* part of this row's money is in the band above; the
+                        figure here is still the whole of it */}
                     {line.changed && (
-                      <span className="ml-1.5 rounded bg-primary/15 px-1 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                        changed
+                      <span
+                        className="ml-1.5 rounded bg-surface-2 px-1 text-[9px] font-medium uppercase tracking-wide text-ink-3"
+                        title="Some of this money is filed under a different Accounting Head — see the band at the top"
+                      >
+                        part re-pointed
                       </span>
                     )}
                   </td>

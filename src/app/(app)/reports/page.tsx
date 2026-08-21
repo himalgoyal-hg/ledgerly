@@ -78,7 +78,7 @@ export default async function ProfitAndLossPage(props: {
         entityLabel={`${entity.name} (${entity.code})`}
         subtitle={[
           lens === 'ah'
-            ? 'By Accounting Head — everything, with the re-pointed rows highlighted'
+            ? 'By Accounting Head — the same report, with the money filed under a different head shown first'
             : 'By Expense Head',
           showCash ? '' : 'cash hidden',
           params.from || params.to ? `${params.from ?? 'start'} to ${params.to ?? 'today'}` : 'All time',

@@ -18,12 +18,12 @@ export interface DateRange {
    */
   accountingHeadId?: string
   /**
-   * Which head each row IS (Himal, 20 Aug: "accounting head var click kel
-   * ki fkt accounting head disl pahije"). 'head' — the account that was
-   * posted to, the ordinary statement. 'ah' — the effective Accounting
-   * Head, so the same money reads under the names it was filed against.
-   * Either way a line stays on the side its POSTING account puts it on, so
-   * income, expenses and net profit never move — only the row labels do.
+   * 'head' — the ordinary statement. 'ah' — the SAME statement (Himal,
+   * 21 Aug: "normal report dakv sagla" — same rows, same figures), with
+   * the money that was filed under a different Accounting Head listed
+   * first, highlighted, as a memo band: which head it went to and which
+   * row it came out of. The rows keep their full figures — nothing is
+   * moved out of them — so the two lenses agree line for line.
    */
   lens?: 'head' | 'ah'
   /** Ledger accounts that count as cash. Entries touching one of these are
@@ -37,14 +37,31 @@ export interface StatementLine {
   name: string
   group: string // immediate parent group, for sectioning
   amount: string // signed on the account's normal side (always ≥ 0 in practice)
-  /** Under the Accounting Head lens: some of this row's money was filed
-   *  against a head other than the one it posted to (Himal, 20 Aug —
-   *  "je change aahet te highlight karun disle pahije"). */
+  /** Under the Accounting Head lens: some of this row's money is filed
+   *  under a different Accounting Head — it appears in the section's
+   *  re-pointed band as well. The row's own figure is untouched. */
   changed?: boolean
   /** What this account was brought forward at, on the same side as
    *  `amount` (Himal, 20 Aug: "balance sheet var disla pahije sglyacha
    *  opening balance"). Absent where nothing was entered. */
   opening?: string
+}
+
+/**
+ * Money filed under an Accounting Head other than the one it posted to —
+ * one line per (Accounting Head ← posting head). A memo: it is already
+ * inside the posting head's row, so it is shown, not added.
+ */
+export interface RePointedLine {
+  /** The Accounting Head it was filed under. */
+  accountId: string
+  code: string
+  name: string
+  /** The head it actually posted to — whose row still carries it. */
+  fromAccountId: string
+  fromCode: string
+  fromName: string
+  amount: string
 }
 
 export interface StatementSection {
@@ -53,6 +70,20 @@ export interface StatementSection {
   title: string
   lines: StatementLine[]
   total: string
+  /** Under the Accounting Head lens: what was filed elsewhere, shown first. */
+  rePointed?: RePointedLine[]
+}
+
+interface RawRePointed {
+  accountId: string
+  code: string
+  name: string
+  fromAccountId: string
+  fromCode: string
+  fromName: string
+  kind: string
+  debit: string
+  credit: string
 }
 
 interface RawBalance {
@@ -71,12 +102,11 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
   const rows = await prisma.$queryRaw<
     { accountId: string; code: string; name: string; kind: string; parentId: string | null; debit: string | null; credit: string | null; changed: boolean | null }[]
   >`
-    SELECT eff.id as "accountId", eff.code, eff.name, a.kind::text as kind, eff."parentId",
+    SELECT a.id as "accountId", a.code, a.name, a.kind::text as kind, a."parentId",
            SUM(l.debit)::text as debit, SUM(l.credit)::text as credit,
-           -- Only under the Accounting Head lens: did any of this row's
-           -- money come from a head that was changed? On the ordinary
-           -- statement the row IS the posting head, so the mark would only
-           -- confuse.
+           -- Only under the Accounting Head lens: is any of this row's
+           -- money filed under a different Accounting Head? On the
+           -- ordinary statement the mark would only confuse.
            (${range.lens ?? 'head'} = 'ah'
             AND bool_or(COALESCE(l."accountingHeadId", mah.id, a.id) <> a.id)) as changed
     FROM "LedgerAccount" a
@@ -89,12 +119,6 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
         AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
       ORDER BY x.code LIMIT 1
     ) mah ON true
-    -- the head this row IS: the posted account, or the effective Accounting
-    -- Head under the 'ah' lens. The KIND always comes from the posted
-    -- account, so the statement's sides and totals never shift.
-    JOIN "LedgerAccount" eff ON eff.id = CASE
-      WHEN ${range.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
-      ELSE a.id END
     WHERE a."entityId" = ${entityId} AND a."isGroup" = false
       AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
         SELECT 1 FROM "JournalLine" cl
@@ -105,10 +129,50 @@ async function accountMovements(entityId: string, range: DateRange): Promise<Raw
       AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
       AND (${range.accountingHeadId ?? null}::text IS NULL
            OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${range.accountingHeadId ?? null})
-    GROUP BY eff.id, eff.code, eff.name, a.kind, eff."parentId"
-    ORDER BY eff.code
+    GROUP BY a.id, a.code, a.name, a.kind, a."parentId"
+    ORDER BY a.code
   `
   return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0', changed: r.changed ?? false }))
+}
+
+/**
+ * The lines whose effective Accounting Head differs from the head they
+ * posted to, summed per (Accounting Head ← posting head). Same window, same
+ * cash and narrowing rules as accountMovements, so the band and the rows
+ * describe the same money.
+ */
+async function rePointedMovements(entityId: string, range: DateRange): Promise<RawRePointed[]> {
+  const rows = await prisma.$queryRaw<
+    (Omit<RawRePointed, 'debit' | 'credit'> & { debit: string | null; credit: string | null })[]
+  >`
+    SELECT ah.id as "accountId", ah.code, ah.name,
+           a.id as "fromAccountId", a.code as "fromCode", a.name as "fromName", a.kind::text as kind,
+           SUM(l.debit)::text as debit, SUM(l.credit)::text as credit
+    FROM "LedgerAccount" a
+    JOIN "JournalLine" l ON l."accountId" = a.id
+    JOIN "JournalEntry" e ON e.id = l."entryId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
+    JOIN "LedgerAccount" ah ON ah.id = COALESCE(l."accountingHeadId", mah.id, a.id)
+    WHERE a."entityId" = ${entityId} AND a."isGroup" = false
+      AND ah.id <> a.id
+      AND (${range.excludeCashAccounts ?? []}::text[] = '{}'::text[] OR NOT EXISTS (
+        SELECT 1 FROM "JournalLine" cl
+        WHERE cl."entryId" = e.id AND cl."accountId" = ANY(${range.excludeCashAccounts ?? []})
+      ))
+      AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
+      AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
+      AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
+      AND (${range.accountingHeadId ?? null}::text IS NULL OR ah.id = ${range.accountingHeadId ?? null})
+    GROUP BY ah.id, ah.code, ah.name, a.id, a.code, a.name, a.kind
+    ORDER BY ah.code, a.code
+  `
+  return rows.map((r) => ({ ...r, debit: r.debit ?? '0', credit: r.credit ?? '0' }))
 }
 
 /**
@@ -151,6 +215,8 @@ function section(
   normal: 'debit' | 'credit',
   /** accountId → opening balance as Dr − Cr; normalised here like `amount`. */
   openingBy?: Map<string, number>,
+  /** Under the Accounting Head lens: this section's re-pointed money. */
+  rePointedRows?: RawRePointed[],
 ): StatementSection {
   const lines: StatementLine[] = []
   let total = new Prisma.Decimal(0)
@@ -178,18 +244,32 @@ function section(
       ...(opening !== null ? { opening: opening.toFixed(2) } : {}),
     })
   }
-  // Under the Accounting Head lens the re-pointed rows lead (Himal,
-  // 20 Aug: "highlight made disnar starting la") — the report is still
-  // whole, the thing worth seeing is just at the top of it. The table
-  // groups by CoA parent in line order, so their groups rise with them.
-  if (lines.some((l) => l.changed)) {
-    lines.sort((a, b) => Number(!!b.changed) - Number(!!a.changed))
+  // The re-pointed band: the same money on the same side, named by the
+  // Accounting Head it was filed under. A memo — it is inside `total`
+  // already through the row it came out of.
+  const rePointed: RePointedLine[] = []
+  for (const row of rePointedRows ?? []) {
+    const amount =
+      normal === 'debit'
+        ? new Prisma.Decimal(row.debit).minus(row.credit)
+        : new Prisma.Decimal(row.credit).minus(row.debit)
+    if (amount.isZero()) continue
+    rePointed.push({
+      accountId: row.accountId,
+      code: row.code,
+      name: row.name,
+      fromAccountId: row.fromAccountId,
+      fromCode: row.fromCode,
+      fromName: row.fromName,
+      amount: amount.toFixed(2),
+    })
   }
   return {
     title,
     lines,
     total: total.toFixed(2),
     ...(openingBy ? { openingTotal: openingTotal.toFixed(2) } : {}),
+    ...(rePointedRows ? { rePointed } : {}),
   }
 }
 
@@ -201,9 +281,16 @@ export interface ProfitAndLoss {
 
 /** P&L for a period (spec §10). Income − Expenses. */
 export async function profitAndLoss(entityId: string, range: DateRange): Promise<ProfitAndLoss> {
-  const [rows, groups] = await Promise.all([accountMovements(entityId, range), groupNames(entityId)])
-  const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit')
-  const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit')
+  const [rows, groups, moved] = await Promise.all([
+    accountMovements(entityId, range),
+    groupNames(entityId),
+    range.lens === 'ah' ? rePointedMovements(entityId, range) : Promise.resolve(undefined),
+  ])
+  // the band sits with the section the money POSTED to — an expense filed
+  // under an asset head is still an expense here
+  const movedOf = (kind: string) => moved?.filter((r) => r.kind === kind)
+  const income = section('Income', rows.filter((r) => r.kind === 'INCOME'), groups, 'credit', undefined, movedOf('INCOME'))
+  const expenses = section('Expenses', rows.filter((r) => r.kind === 'EXPENSE'), groups, 'debit', undefined, movedOf('EXPENSE'))
   return {
     income,
     expenses,
