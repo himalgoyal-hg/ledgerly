@@ -3,20 +3,32 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { bankBalancesReport } from '@/lib/reports/prototype'
 import { profitAndLoss } from '@/lib/reports/statements'
 import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
+import { CashToggle } from '../report-chrome'
 
 const inr = (n: number) => (n < 0 ? '−' : '') + '₹' + Math.round(Math.abs(n)).toLocaleString('en-IN')
 
-export default async function BankBalancesPage() {
+export default async function BankBalancesPage(props: {
+  searchParams: Promise<{ cash?: string }>
+}) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
-  const [rows, pl] = await Promise.all([bankBalancesReport(entity.id), profitAndLoss(entity.id, {})])
+  const showCash = (await props.searchParams).cash === '1'
+  const [allRows, pl] = await Promise.all([bankBalancesReport(entity.id), profitAndLoss(entity.id, {})])
+  // cash locations sit here as type "Cash" — out unless asked for
+  const rows = showCash ? allRows : allRows.filter((r) => r.type !== 'Cash')
+  const cashCount = allRows.length - rows.length
   const T = (f: (r: (typeof rows)[number]) => number) => rows.reduce((s, r) => s + f(r), 0)
   const profit = Number(pl.netProfit)
   const cellR = 'px-3 py-2 text-right tabular-nums'
   return (
     <div className="space-y-4">
-      <PageHeader kicker="Report" title={<>Bank &amp; profit balances — {entity.code}</>} />
+      <PageHeader
+        kicker="Report"
+        title={<>Bank &amp; profit balances — {entity.code}</>}
+        subtitle={showCash ? 'Banks and cash' : `Banks only${cashCount ? ` — ${cashCount} cash location(s) hidden` : ''}`}
+        actions={<CashToggle base="/reports/banks" showing={showCash} />}
+      />
       <div className={tableWrapClass}>
         <table className="w-full min-w-[560px] text-sm">
           <thead className={theadClass}>

@@ -7,7 +7,7 @@ import { displayINR } from '@/lib/ledger/money'
 import { cashFlow, type CashFlowLine } from '@/lib/reports/statements'
 import { projectPools, lineMonthly, FREQUENCIES } from '@/lib/budget/plan'
 import { saveCashPlanAction, archiveCashPlanAction, saveCategoryPlanAction, archiveCategoryPlanAction } from '../../cash/actions'
-import { ReportHeader, DateRangeFilters } from '../report-chrome'
+import { ReportHeader, DateRangeFilters, CashToggle } from '../report-chrome'
 import { SmartCombobox } from '@/components/smart-combobox'
 import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 
@@ -16,7 +16,7 @@ import { chipClass, tableWrapClass, theadClass } from '@/components/ui'
 // counter-line, so they self-eliminate.
 
 export default async function CashFlowPage(props: {
-  searchParams: Promise<{ from?: string; to?: string; view?: string }>
+  searchParams: Promise<{ from?: string; to?: string; view?: string; cash?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -48,6 +48,7 @@ export default async function CashFlowPage(props: {
   // bank and cash ARE different pockets — each gets its own block, the
   // total ties them back together
   const bankMonths = agg(pools.filter((p) => p.pool !== 'CASH'))
+  const showCash = params.cash === '1'
   const cashMonths = agg(pools.filter((p) => p.pool === 'CASH'))
   const cashProjection =
     pools.length > 0
@@ -184,7 +185,16 @@ export default async function CashFlowPage(props: {
             ? `${params.from ?? 'start'} to ${params.to ?? 'today'}`
             : 'All time — set a range to narrow it down'
         }
-        filters={<DateRangeFilters from={params.from} to={params.to} />}
+        filters={
+          <>
+            <CashToggle
+              base="/reports/cash-flow"
+              showing={showCash}
+              keep={{ from: params.from, to: params.to, view: params.view }}
+            />
+            <DateRangeFilters from={params.from} to={params.to} />
+          </>
+        }
         exportHref={`/reports/export?report=cash-flow&${query}`}
       />
 
@@ -312,8 +322,9 @@ export default async function CashFlowPage(props: {
             <tbody className="divide-y divide-line-2">
               {([
                 ['Bank', bankMonths],
-                ['Cash', cashMonths],
-                ['Total', cashProjection.months],
+                // cash only when asked for (Himal, 20 Aug)
+                ...(showCash ? ([['Cash', cashMonths]] as const) : []),
+                [showCash ? 'Total' : 'Total (bank + cash)', cashProjection.months],
               ] as const).map(([label, months]) => (
                 <Fragment key={label}>
                   <tr className={label === 'Total' ? 'border-t-2 border-line bg-surface-2/80' : 'bg-surface-2/60'}>

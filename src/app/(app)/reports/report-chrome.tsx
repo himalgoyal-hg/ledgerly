@@ -230,3 +230,35 @@ export function readHeadLens(params: { by?: string; head?: string; ah?: string }
     accountingHeadId: lens === 'ah' ? params.ah || undefined : undefined,
   }
 }
+
+/**
+ * Show cash / Hide cash (Himal, 20 Aug: "cash releted jevd aahe te sagl
+ * Show Cash Hide cash button pahije, tyavar click kel trch"). Cash stays
+ * out of a report until this is clicked — the reports read as bank-only by
+ * default, which is how he wants to look at them.
+ *
+ * Statements that must tie (P&L, Balance Sheet) keep their cash: dropping
+ * rows out of a balance sheet would simply make it wrong.
+ */
+export function CashToggle(props: { base: string; showing: boolean; keep?: Record<string, string | undefined> }) {
+  const href = (() => {
+    const s = new URLSearchParams()
+    for (const [k, v] of Object.entries(props.keep ?? {})) if (v) s.set(k, v)
+    if (!props.showing) s.set('cash', '1')
+    const str = s.toString()
+    return str ? `${props.base}?${str}` : props.base
+  })()
+  return (
+    <Link
+      href={href}
+      title={props.showing ? 'Leave cash out of this report' : 'Bring cash into this report'}
+      className={`rounded-lg border px-3 py-1.5 text-sm font-medium ${
+        props.showing
+          ? 'border-primary/40 bg-primary-soft text-primary'
+          : 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink'
+      }`}
+    >
+      {props.showing ? 'Hide cash' : 'Show cash'}
+    </Link>
+  )
+}
