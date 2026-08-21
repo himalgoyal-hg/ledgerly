@@ -198,33 +198,3 @@ export async function removeMasterRowAction(formData: FormData) {
   })
   for (const p of ['/admin/coa', '/reports/cash-flow', '/reports/budget', '/reports/monthly', '/reports/mode']) revalidatePath(p)
 }
-
-/**
- * A head's opening balance, set from the register. The posting itself lives
- * in `lib/ledger/opening.ts` so it can be tested without Next's
- * server-action plumbing.
- */
-export async function setHeadOpeningBalanceAction(formData: FormData) {
-  const admin = await requireAdmin()
-  const entityId = String(formData.get('entityId') ?? '')
-  const category = String(formData.get('category') ?? '').trim()
-  const amount = String(formData.get('openingBalance') ?? '')
-  if (!category) throw new Error('Which head?')
-
-  await auditedTransaction(async (tx) => {
-    const { setHeadOpeningBalance, openingDateFor } = await import('@/lib/ledger/opening')
-    const res = await setHeadOpeningBalance(tx, { entityId, category, amount, actorId: admin.id })
-    if (res.action === 'unchanged') return
-    await audit(tx, {
-      actorId: admin.id,
-      action: res.action === 'cleared' ? 'opening_balance.clear' : 'opening_balance.set',
-      targetType: 'LedgerAccount',
-      targetId: res.headId!,
-      summary:
-        res.action === 'cleared'
-          ? `Cleared opening balance for ${category}`
-          : `Opening balance for ${category}: \u20b9${res.amount} as at ${openingDateFor().toISOString().slice(0, 10)}`,
-    })
-  })
-  for (const p of ['/admin/coa', '/reports/balance-sheet', '/admin/ledgers']) revalidatePath(p)
-}
