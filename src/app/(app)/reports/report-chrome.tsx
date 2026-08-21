@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { HeadCombobox } from '@/components/head-combobox'
 import { displayINR } from '@/lib/ledger/money'
 import type { StatementSection } from '@/lib/reports/statements'
 import { PageHeader, controlClass, tableWrapClass, theadClass } from '@/components/ui'
@@ -145,4 +146,87 @@ export function SectionTable(props: { section: StatementSection; range: string }
       </table>
     </div>
   )
+}
+
+/**
+ * The head lens, shared by every report whose rows ARE heads (Himal,
+ * 20 Aug: "Report made avde sgl aahe hite pan asach add kar"). Two chips
+ * choose what a row is — the account that was posted to, or the effective
+ * Accounting Head — and a type-ahead narrows to one of them.
+ *
+ * Reports whose rows are money accounts (Bank balances, Cash vs bank) or
+ * tax buckets (ITR summary) don't take it: there is no head to group by.
+ */
+export interface HeadOption {
+  id: string
+  code: string
+  name: string
+  kind: string
+}
+
+export function HeadLensFilters(props: {
+  /** The report's own path, e.g. "/reports/balance-sheet". */
+  base: string
+  lens: 'head' | 'ah'
+  /** Params to carry across a lens switch (dates, FY, and the like). */
+  keep?: Record<string, string | undefined>
+  /** Heads offered under each lens; the 'ah' list is usually every head. */
+  headOptions: HeadOption[]
+  ahOptions: HeadOption[]
+  pickedHead?: string
+  pickedAh?: string
+}) {
+  const lensHref = (key: 'head' | 'ah') => {
+    const s = new URLSearchParams()
+    for (const [k, v] of Object.entries(props.keep ?? {})) if (v) s.set(k, v)
+    if (key === 'ah') s.set('by', 'ah')
+    const str = s.toString()
+    return str ? `${props.base}?${str}` : props.base
+  }
+  const chip = (active: boolean) =>
+    `rounded-lg border px-3 py-1.5 text-sm font-medium ${
+      active
+        ? 'border-primary/40 bg-primary-soft text-primary'
+        : 'border-line bg-surface text-ink-2 hover:bg-surface-2 hover:text-ink'
+    }`
+  return (
+    <>
+      <Link href={lensHref('head')} className={chip(props.lens === 'head')}>
+        Expense Head
+      </Link>
+      <Link href={lensHref('ah')} className={chip(props.lens === 'ah')}>
+        Accounting Head
+      </Link>
+      {props.lens === 'head' ? (
+        <HeadCombobox
+          heads={props.headOptions}
+          name="head"
+          defaultHeadId={props.pickedHead}
+          placeholder="All Expense Heads — type to search"
+          className={`${controlClass} w-56`}
+        />
+      ) : (
+        <>
+          <input type="hidden" name="by" value="ah" />
+          <HeadCombobox
+            heads={props.ahOptions}
+            name="ah"
+            defaultHeadId={props.pickedAh}
+            placeholder="All Accounting Heads — type to search"
+            className={`${controlClass} w-56`}
+          />
+        </>
+      )}
+    </>
+  )
+}
+
+/** Read the lens params a report's URL carries. */
+export function readHeadLens(params: { by?: string; head?: string; ah?: string }) {
+  const lens: 'head' | 'ah' = params.by === 'ah' ? 'ah' : 'head'
+  return {
+    lens,
+    headAccountId: lens === 'head' ? params.head || undefined : undefined,
+    accountingHeadId: lens === 'ah' ? params.ah || undefined : undefined,
+  }
 }

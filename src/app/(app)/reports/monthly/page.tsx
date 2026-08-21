@@ -7,6 +7,7 @@ import { HeadCombobox } from '@/components/head-combobox'
 import { setFyBudgetAction } from './actions'
 import { BudgetCells } from './budget-cells'
 import { LiveFilter } from '@/components/live-filter'
+import { HeadLensFilters, readHeadLens } from '../report-chrome'
 import { PageHeader, buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 
 // Expenses M/M — the sheet's tab, computed instead of typed: heads × FY
@@ -24,7 +25,7 @@ const signed = (n: number) => {
 export default async function MonthlyMatrixPage({
   searchParams,
 }: {
-  searchParams: Promise<{ fy?: string }>
+  searchParams: Promise<{ fy?: string; by?: string; head?: string; ah?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -36,8 +37,14 @@ export default async function MonthlyMatrixPage({
   const params = await searchParams
   const fy = Number(params.fy) || currentFy
 
-  const m = await expenseMatrixFy(entity.id, fy)
+  const view = readHeadLens(params)
+  const m = await expenseMatrixFy(entity.id, fy, view)
   const admin = isAdmin(user)
+  const lensHeads = await prisma.ledgerAccount.findMany({
+    where: { entityId: entity.id, isGroup: false, archivedAt: null },
+    orderBy: { name: 'asc' },
+    select: { id: true, code: true, name: true, kind: true },
+  })
   const expenseHeads = admin
     ? await prisma.ledgerAccount.findMany({
         where: { entityId: entity.id, isGroup: false, kind: 'EXPENSE', archivedAt: null },
@@ -52,9 +59,18 @@ export default async function MonthlyMatrixPage({
       <PageHeader
         kicker="Report"
         title={`Month by month — ${entity.code}`}
-        subtitle={`Straight from tagged entries — every head that carries a purpose, grouped by nature. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
+        subtitle={`${view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'} — every head that carries a purpose, grouped by nature. Spent this FY: ${inr(m.spent)}. Bank and cash accounts stay out; they are the source, not the purpose.`}
         actions={
-          <form className="flex items-center gap-1 text-sm">
+          <form className="flex flex-wrap items-center gap-1 text-sm">
+            <HeadLensFilters
+              base="/reports/monthly"
+              lens={view.lens}
+              keep={{ fy: params.fy }}
+              headOptions={lensHeads}
+              ahOptions={lensHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+            />
             <label className="text-xs text-ink-3">FY</label>
             <select
               name="fy"

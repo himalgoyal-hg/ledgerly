@@ -154,8 +154,12 @@ export interface BalanceSheet {
  * into reserves, cumulative profit shows as its own equity line — which is
  * exactly what makes Assets = Liabilities + Equity hold.
  */
-export async function balanceSheet(entityId: string, asOf?: Date): Promise<BalanceSheet> {
-  const range: DateRange = { to: asOf }
+export async function balanceSheet(
+  entityId: string,
+  asOf?: Date,
+  view: Pick<DateRange, 'lens' | 'headAccountId' | 'accountingHeadId'> = {},
+): Promise<BalanceSheet> {
+  const range: DateRange = { to: asOf, ...view }
   const [rows, groups] = await Promise.all([accountMovements(entityId, range), groupNames(entityId)])
   const assets = section('Assets', rows.filter((r) => r.kind === 'ASSET'), groups, 'debit')
   const liabilities = section('Liabilities', rows.filter((r) => r.kind === 'LIABILITY'), groups, 'credit')

@@ -1,19 +1,50 @@
+import { prisma } from '@/lib/db'
 import { requireUser } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { weeklyExpenses } from '@/lib/reports/prototype'
 import { PageHeader, tableWrapClass, theadClass } from '@/components/ui'
+import { HeadLensFilters, readHeadLens } from '../report-chrome'
 
 const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN')
 
-export default async function WeeklyPage() {
+export default async function WeeklyPage(props: {
+  searchParams: Promise<{ by?: string; head?: string; ah?: string }>
+}) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">Create an entity first.</p>
-  const weeks = await weeklyExpenses(entity.id, 16)
+  const params = await props.searchParams
+  const view = readHeadLens(params)
+  const [weeks, lensHeads] = await Promise.all([
+    weeklyExpenses(entity.id, 16, view),
+    prisma.ledgerAccount.findMany({
+      where: { entityId: entity.id, isGroup: false, archivedAt: null },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, kind: true },
+    }),
+  ])
   const max = Math.max(...weeks.map((w) => w.total), 1)
   return (
     <div className="space-y-4">
-      <PageHeader title={`Expenses by week — ${entity.code}`} />
+      <PageHeader
+        title={`Expenses by week — ${entity.code}`}
+        subtitle={view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head'}
+        actions={
+          <form className="flex flex-wrap items-center gap-1">
+            <HeadLensFilters
+              base="/reports/weekly"
+              lens={view.lens}
+              headOptions={lensHeads}
+              ahOptions={lensHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+            />
+            <button type="submit" className="rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink-2 hover:bg-surface-2 hover:text-ink">
+              Apply
+            </button>
+          </form>
+        }
+      />
       <div className="rounded-2xl border border-line bg-surface p-4 shadow-card">
         <div className="flex h-44 items-end gap-2 overflow-x-auto">
           {weeks.map((w) => (

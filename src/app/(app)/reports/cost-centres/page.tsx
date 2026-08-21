@@ -3,26 +3,40 @@ import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { costCentreReport } from '@/lib/reports/analysis'
 import { tableWrapClass, theadClass } from '@/components/ui'
-import { ReportHeader, DateRangeFilters } from '../report-chrome'
+import { prisma } from '@/lib/db'
+import { ReportHeader, DateRangeFilters, HeadLensFilters, readHeadLens } from '../report-chrome'
 
 // Expense by cost centre (spec §10). Untagged spend is shown, not hidden —
 // it is the queue of work for whoever tags.
 
 export default async function CostCentreReportPage(props: {
-  searchParams: Promise<{ from?: string; to?: string }>
+  searchParams: Promise<{ from?: string; to?: string; by?: string; head?: string; ah?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
   if (!entity) return <p className="text-sm text-ink-2">No books selected.</p>
 
   const params = await props.searchParams
-  const report = await costCentreReport(entity.id, {
-    from: params.from ? new Date(params.from) : undefined,
-    to: params.to ? new Date(params.to) : undefined,
-  })
+  const view = readHeadLens(params)
+  const [report, lensHeads] = await Promise.all([
+    costCentreReport(entity.id, {
+      from: params.from ? new Date(params.from) : undefined,
+      to: params.to ? new Date(params.to) : undefined,
+      ...view,
+    }),
+    prisma.ledgerAccount.findMany({
+      where: { entityId: entity.id, isGroup: false, archivedAt: null },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, kind: true },
+    }),
+  ])
+  const nameOf = (id?: string) => lensHeads.find((h) => h.id === id)?.name
   const query = new URLSearchParams({
     ...(params.from ? { from: params.from } : {}),
     ...(params.to ? { to: params.to } : {}),
+    ...(view.headAccountId ? { head: view.headAccountId } : {}),
+    ...(view.accountingHeadId ? { ah: view.accountingHeadId } : {}),
+    ...(view.lens === 'ah' ? { by: 'ah' } : {}),
   })
   const max = Math.max(1, ...report.rows.map((r) => Math.abs(Number(r.net))))
 
@@ -31,12 +45,29 @@ export default async function CostCentreReportPage(props: {
       <ReportHeader
         title="Expense by cost centre"
         entityLabel={`${entity.name} (${entity.code})`}
-        subtitle={
-          params.from || params.to
-            ? `${params.from ?? 'start'} to ${params.to ?? 'today'}`
-            : 'All time'
+        subtitle={[
+          params.from || params.to ? `${params.from ?? 'start'} to ${params.to ?? 'today'}` : 'All time',
+          view.headAccountId ? `only ${nameOf(view.headAccountId) ?? '—'}` : '',
+          view.accountingHeadId ? `only entries under ${nameOf(view.accountingHeadId) ?? '—'}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+        filters={
+          <>
+            {/* rows here are cost centres, so the lens narrows rather than
+                regroups — pick a head and see its centres alone */}
+            <HeadLensFilters
+              base="/reports/cost-centres"
+              lens={view.lens}
+              keep={{ from: params.from, to: params.to }}
+              headOptions={lensHeads}
+              ahOptions={lensHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+            />
+            <DateRangeFilters from={params.from} to={params.to} />
+          </>
         }
-        filters={<DateRangeFilters from={params.from} to={params.to} />}
         exportHref={`/reports/export?report=cost-centres&${query}`}
       />
 

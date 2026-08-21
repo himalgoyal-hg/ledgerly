@@ -3,8 +3,9 @@ import { requireUser, isAdmin } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
 import { budgetVsActual } from '@/lib/reports/analysis'
+import { HeadCombobox } from '@/components/head-combobox'
 import { buttonClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
-import { ReportHeader } from '../report-chrome'
+import { ReportHeader, HeadLensFilters, readHeadLens } from '../report-chrome'
 import { setBudget } from './actions'
 
 // Budget vs Actual (spec §10). Budgets are per account-month; actuals come
@@ -17,7 +18,7 @@ const MONTHS = [
 ]
 
 export default async function BudgetPage(props: {
-  searchParams: Promise<{ year?: string; month?: string }>
+  searchParams: Promise<{ year?: string; month?: string; head?: string }>
 }) {
   const user = await requireUser()
   const admin = isAdmin(user)
@@ -39,8 +40,9 @@ export default async function BudgetPage(props: {
     ? [monthFilter >= 4 ? { year, month: monthFilter } : { year: year + 1, month: monthFilter }]
     : fyPeriods
 
+  const headAccountId = params.head || undefined
   const [report, accounts] = await Promise.all([
-    budgetVsActual(entity.id, periods),
+    budgetVsActual(entity.id, periods, { headAccountId }),
     prisma.ledgerAccount.findMany({
       where: {
         entityId: entity.id,
@@ -74,6 +76,15 @@ export default async function BudgetPage(props: {
         }
         filters={
           <>
+            {/* budgets belong to the head that was posted to, so this one
+                narrows rather than regroups — no Accounting Head lens */}
+            <HeadCombobox
+              heads={accounts}
+              name="head"
+              defaultHeadId={params.head}
+              placeholder="All heads — type to search"
+              className={`${controlClass} w-52`}
+            />
             <input
               type="number"
               name="year"

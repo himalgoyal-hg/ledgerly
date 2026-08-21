@@ -1,16 +1,17 @@
 import { requireUser } from '@/lib/auth'
 import { getCurrentEntity } from '@/lib/entity-context'
 import { displayINR } from '@/lib/ledger/money'
+import { prisma } from '@/lib/db'
 import { balanceSheet } from '@/lib/reports/statements'
 import { controlClass } from '@/components/ui'
-import { ReportHeader, SectionTable } from '../report-chrome'
+import { ReportHeader, SectionTable, HeadLensFilters, readHeadLens } from '../report-chrome'
 
 // Balance Sheet (spec §10) as at a date. The books are never closed into
 // reserves, so cumulative profit appears as its own equity line — which is
 // what makes Assets = Liabilities + Equity hold exactly.
 
 export default async function BalanceSheetPage(props: {
-  searchParams: Promise<{ to?: string }>
+  searchParams: Promise<{ to?: string; by?: string; head?: string; ah?: string }>
 }) {
   const user = await requireUser()
   const entity = await getCurrentEntity(user)
@@ -18,8 +19,22 @@ export default async function BalanceSheetPage(props: {
 
   const params = await props.searchParams
   const asOf = params.to ? new Date(params.to) : undefined
-  const bs = await balanceSheet(entity.id, asOf)
-  const query = new URLSearchParams(params.to ? { to: params.to } : {})
+  const view = readHeadLens(params)
+  const [bs, allHeads] = await Promise.all([
+    balanceSheet(entity.id, asOf, view),
+    prisma.ledgerAccount.findMany({
+      where: { entityId: entity.id, isGroup: false, archivedAt: null },
+      orderBy: { name: 'asc' },
+      select: { id: true, code: true, name: true, kind: true },
+    }),
+  ])
+  const nameOf = (id?: string) => allHeads.find((h) => h.id === id)?.name
+  const query = new URLSearchParams({
+    ...(params.to ? { to: params.to } : {}),
+    ...(view.headAccountId ? { head: view.headAccountId } : {}),
+    ...(view.accountingHeadId ? { ah: view.accountingHeadId } : {}),
+    ...(view.lens === 'ah' ? { by: 'ah' } : {}),
+  })
   const rangeSuffix = query.toString() ? `&${query}` : ''
 
   return (
@@ -27,11 +42,31 @@ export default async function BalanceSheetPage(props: {
       <ReportHeader
         title="Balance Sheet"
         entityLabel={`${entity.name} (${entity.code})`}
-        subtitle={`As at ${params.to ?? 'today'} · ${
-          bs.balances ? '✓ balances' : '✗ DOES NOT BALANCE'
-        }`}
+        subtitle={[
+          view.lens === 'ah' ? 'By Accounting Head' : 'By Expense Head',
+          `as at ${params.to ?? 'today'}`,
+          view.headAccountId ? `only ${nameOf(view.headAccountId) ?? '—'}` : '',
+          view.accountingHeadId ? `only ${nameOf(view.accountingHeadId) ?? '—'}` : '',
+          // a narrowed sheet is a slice, so it is not meant to balance
+          view.headAccountId || view.accountingHeadId
+            ? 'a slice — totals will not balance'
+            : bs.balances
+              ? '✓ balances'
+              : '✗ DOES NOT BALANCE',
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         filters={
           <>
+            <HeadLensFilters
+              base="/reports/balance-sheet"
+              lens={view.lens}
+              keep={{ to: params.to }}
+              headOptions={allHeads}
+              ahOptions={allHeads}
+              pickedHead={params.head}
+              pickedAh={params.ah}
+            />
             <span className="text-xs text-ink-3">as at</span>
             <input
               type="date"

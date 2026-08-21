@@ -26,10 +26,20 @@ export async function costCentreReport(entityId: string, range: DateRange) {
     JOIN "JournalEntry" e ON e.id = l."entryId"
     JOIN "LedgerAccount" a ON a.id = l."accountId"
     LEFT JOIN "CostCentre" c ON c.id = l."costCentreId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
     WHERE e."entityId" = ${entityId}
       AND a.kind IN ('EXPENSE', 'INCOME')
       AND (${range.from ?? null}::date IS NULL OR e.date >= ${range.from ?? null}::date)
       AND (${range.to ?? null}::date IS NULL OR e.date <= ${range.to ?? null}::date)
+      AND (${range.headAccountId ?? null}::text IS NULL OR a.id = ${range.headAccountId ?? null})
+      AND (${range.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${range.accountingHeadId ?? null})
     GROUP BY l."costCentreId", c.name
     ORDER BY c.name NULLS LAST
   `
@@ -127,9 +137,16 @@ export interface BudgetRow {
 export async function budgetVsActual(
   entityId: string,
   periods: { year: number; month: number }[],
+  /** Narrow to one head (Himal, 20 Aug). Budgets belong to the head that
+   *  was posted to, so this report narrows rather than regroups. */
+  view: { headAccountId?: string } = {},
 ) {
   const budgets = await prisma.budget.findMany({
-    where: { entityId, OR: periods.map((p) => ({ year: p.year, month: p.month })) },
+    where: {
+      entityId,
+      OR: periods.map((p) => ({ year: p.year, month: p.month })),
+      ...(view.headAccountId ? { accountId: view.headAccountId } : {}),
+    },
   })
   const accountIds = [...new Set(budgets.map((b) => b.accountId))]
   const first = periods[0]

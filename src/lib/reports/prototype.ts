@@ -54,7 +54,11 @@ export async function expenseMatrix(entityId: string, months = 12) {
  * budget, and variance vs the FY's actual total. Rows appear if they have
  * either an actual or a budget.
  */
-export async function expenseMatrixFy(entityId: string, fyStart: number) {
+export async function expenseMatrixFy(
+  entityId: string,
+  fyStart: number,
+  view: { lens?: 'head' | 'ah'; headAccountId?: string; accountingHeadId?: string } = {},
+) {
   const L = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const keys = Array.from({ length: 12 }, (_, i) => {
     const year = i < 9 ? fyStart : fyStart + 1
@@ -81,17 +85,33 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
 
   const [actuals, budgets] = await Promise.all([
     prisma.$queryRaw<{ name: string; kind: string; month: string; amt: string }[]>`
-      SELECT a.name, a.kind::text AS kind,
+      SELECT eff.name, a.kind::text AS kind,
              to_char(date_trunc('month', e.date), 'YYYY-MM') AS month,
              SUM(l.debit - l.credit)::text AS amt
       FROM "JournalLine" l
       JOIN "JournalEntry" e ON e.id = l."entryId"
       JOIN "LedgerAccount" a ON a.id = l."accountId"
+      LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+      LEFT JOIN LATERAL (
+        SELECT x.id FROM "LedgerAccount" x
+        WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+          AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+        ORDER BY x.code LIMIT 1
+      ) mah ON true
+      -- the head each row IS: posted account, or its effective Accounting
+      -- Head under the 'ah' lens. Kind stays the posting account's, so the
+      -- sections and the "Spent" headline keep their meaning.
+      JOIN "LedgerAccount" eff ON eff.id = CASE
+        WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
+        ELSE a.id END
       WHERE e."entityId" = ${entityId}
         AND a.system = false
         AND NOT (l."accountId" = ANY(${moneyIds}))
+        AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+        AND (${view.accountingHeadId ?? null}::text IS NULL
+             OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
         AND e.date >= ${from}::date AND e.date < ${to}::date
-      GROUP BY a.name, a.kind, 3
+      GROUP BY eff.name, a.kind, 3
     `,
     prisma.budget.findMany({
       where: {
@@ -100,6 +120,8 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
           { year: fyStart, month: { gte: 4 } },
           { year: fyStart + 1, month: { lte: 3 } },
         ],
+        // a narrowed view shows that head's target, not everyone's
+        ...(view.headAccountId ? { accountId: view.headAccountId } : {}),
       },
     }),
   ])
@@ -129,6 +151,11 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
   const recentIdx = Math.max(0, keys.findIndex((k) => k.key === nowKey))
   const recentIdxFinal = keys.some((k) => k.key === nowKey) ? recentIdx : keys.length - 1
 
+  // Under an Accounting Head narrowing the budgets belong to the heads that
+  // POSTED, so only keep the ones whose money actually survived the filter.
+  if (view.accountingHeadId) {
+    for (const name of [...budgetBy.keys()]) if (!actualBy.has(name)) budgetBy.delete(name)
+  }
   const names = new Set<string>([...actualBy.keys(), ...budgetBy.keys()])
   // accountId per head name, so the budget cells can edit in place
   const headAccounts = await prisma.ledgerAccount.findMany({
@@ -198,16 +225,33 @@ export async function expenseMatrixFy(entityId: string, fyStart: number) {
 }
 
 /** Weekly expense totals with the top accounts of each week. */
-export async function weeklyExpenses(entityId: string, weeks = 16) {
+export async function weeklyExpenses(
+  entityId: string,
+  weeks = 16,
+  view: { lens?: 'head' | 'ah'; headAccountId?: string; accountingHeadId?: string } = {},
+) {
   const from = new Date(Date.now() - weeks * 7 * 86_400_000)
   const rows = await prisma.$queryRaw<{ wk: string; name: string; amt: string }[]>`
-    SELECT to_char(date_trunc('week', e.date), 'YYYY-MM-DD') AS wk, a.name,
+    SELECT to_char(date_trunc('week', e.date), 'YYYY-MM-DD') AS wk, eff.name,
            SUM(l.debit - l.credit)::text AS amt
     FROM "JournalLine" l
     JOIN "JournalEntry" e ON e.id = l."entryId"
     JOIN "LedgerAccount" a ON a.id = l."accountId"
+    LEFT JOIN "HeadMode" hm ON lower(hm.category) = lower(a.name)
+    LEFT JOIN LATERAL (
+      SELECT x.id FROM "LedgerAccount" x
+      WHERE hm."accountingHead" IS NOT NULL AND x."entityId" = a."entityId"
+        AND lower(x.name) = lower(hm."accountingHead") AND x."isGroup" = false
+      ORDER BY x.code LIMIT 1
+    ) mah ON true
+    JOIN "LedgerAccount" eff ON eff.id = CASE
+      WHEN ${view.lens ?? 'head'} = 'ah' THEN COALESCE(l."accountingHeadId", mah.id, a.id)
+      ELSE a.id END
     WHERE e."entityId" = ${entityId} AND a.kind = 'EXPENSE' AND e.date >= ${from}::date
-    GROUP BY 1, a.name HAVING SUM(l.debit - l.credit) > 0
+      AND (${view.headAccountId ?? null}::text IS NULL OR a.id = ${view.headAccountId ?? null})
+      AND (${view.accountingHeadId ?? null}::text IS NULL
+           OR COALESCE(l."accountingHeadId", mah.id, a.id) = ${view.accountingHeadId ?? null})
+    GROUP BY 1, eff.name HAVING SUM(l.debit - l.credit) > 0
   `
   const byWeek = new Map<string, { total: number; accts: { name: string; amt: number }[] }>()
   rows.forEach((r) => {
