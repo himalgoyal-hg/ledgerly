@@ -232,9 +232,31 @@ export async function applyMasterRow(r: MasterRow): Promise<void> {
       }
       const existingHm = await tx.headMode.findUnique({ where: { category: r.category } })
       if (existingHm) {
+        // Moving between sections (Himal, 21 Aug: "new added je aahet
+        // tyanna Section made halvta aal pahije"): the row lands at the
+        // END of the section it moves to — keeping its old sortOrder
+        // would strand it visually where it used to sit.
+        let sortPatch: { sortOrder: number } | Record<string, never> = {}
+        if (r.section !== undefined && (r.section ?? null) !== (existingHm.section ?? null) && r.section) {
+          const inSection = await tx.headMode.aggregate({
+            where: { section: r.section, NOT: { category: r.category } },
+            _max: { sortOrder: true },
+          })
+          if (inSection._max.sortOrder != null) {
+            const sortOrder = inSection._max.sortOrder + 1
+            await tx.headMode.updateMany({
+              where: { sortOrder: { gte: sortOrder }, NOT: { category: r.category } },
+              data: { sortOrder: { increment: 1 } },
+            })
+            sortPatch = { sortOrder }
+          } else {
+            const all = await tx.headMode.aggregate({ _max: { sortOrder: true } })
+            sortPatch = { sortOrder: (all._max.sortOrder ?? 0) + 1 }
+          }
+        }
         await tx.headMode.update({
           where: { category: r.category },
-          data: { ...mirror, ...(r.section !== undefined ? { section: r.section } : {}) },
+          data: { ...mirror, ...(r.section !== undefined ? { section: r.section } : {}), ...sortPatch },
         })
       } else {
         // a new category slots at the END of its section (rows after shift

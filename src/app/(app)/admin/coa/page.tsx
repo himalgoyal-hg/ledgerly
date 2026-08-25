@@ -7,6 +7,7 @@ import { LiveFilter } from '@/components/live-filter'
 import { ConfirmButton } from '@/components/confirm-button'
 import { Fragment } from 'react'
 import { SmartCombobox } from '@/components/smart-combobox'
+import { NEW_HEAD_SECTION } from '@/lib/ops/heads'
 import { PageHeader } from '@/components/ui'
 import { stripCcType, CC_TYPE_ALIAS } from '@/lib/budget/nature'
 
@@ -167,6 +168,22 @@ export default async function CoaPage() {
                           </Link>
                         ) : (
                           <span title="No head in any books yet — appears when a budget/plan needs it">{m.category}</span>
+                        )}
+                        {/* A head born while tagging waits in New Added; pick
+                            its real section here and Save moves it to that
+                            section's end (Himal, 21 Aug: "Section made
+                            halvta aal pahije"). Left alone, it keeps sitting
+                            in New Added — the picker's default. */}
+                        {m.section === NEW_HEAD_SECTION && (
+                          <SmartCombobox
+                            options={sections.map((sec) => ({ id: sec, label: sec }))}
+                            name="section"
+                            createName="sectionNew"
+                            defaultId={NEW_HEAD_SECTION}
+                            formId={fid}
+                            placeholder="Move to section…"
+                            className={`${cellCls} mt-0.5 w-44 border-dashed border-primary/40 bg-surface text-[11px]`}
+                          />
                         )}
                       </>
                     ) : (
