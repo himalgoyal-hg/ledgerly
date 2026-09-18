@@ -16,6 +16,7 @@
     "verify:7": "tsx --conditions=react-server scripts/verify-phase7.ts",
     "verify:8": "tsx --conditions=react-server scripts/verify-phase8.ts",
     "backup": "tsx --conditions=react-server scripts/backup.ts",
+    "restore": "tsx --conditions=react-server scripts/restore.ts",
     "restore-drill": "tsx --conditions=react-server scripts/restore-drill.ts",
     "perf": "tsx --conditions=react-server scripts/perf-bench.ts",
     "demo": "tsx --conditions=react-server scripts/demo-data.ts"
