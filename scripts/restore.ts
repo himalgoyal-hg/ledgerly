@@ -5,12 +5,14 @@
 //   npm run restore -- path/to/backup.ndjson.gz --replace  (wipe whatever is there)
 //
 // The target's schema must already exist (`npx prisma migrate deploy`). The
-// matching "<backup>-uploads" folder, when present, is copied into ./uploads.
+// matching "<backup>-uploads" folder, when present, is copied into ./uploads —
+// or uploaded to Vercel Blob when BLOB_READ_WRITE_TOKEN is set.
 import 'dotenv/config'
 import { cpSync, existsSync } from 'fs'
 import { resolve } from 'path'
 import { Client } from 'pg'
 import { restoreInto, tallyByEntity } from '../src/lib/backup/dump'
+import { blobConfigured, uploadDirToBlob } from './lib/blob-uploads'
 
 async function main() {
   const url = process.env.DATABASE_URL
@@ -49,8 +51,13 @@ async function main() {
 
   const uploads = file.replace(/\.ndjson\.gz$/, '-uploads')
   if (existsSync(uploads)) {
-    cpSync(uploads, resolve('./uploads'), { recursive: true })
-    console.log(`Documents: ${uploads} copied to uploads/`)
+    if (blobConfigured()) {
+      const n = await uploadDirToBlob(uploads, url)
+      console.log(`Documents: ${n} file(s) from ${uploads} uploaded to Vercel Blob`)
+    } else {
+      cpSync(uploads, resolve('./uploads'), { recursive: true })
+      console.log(`Documents: ${uploads} copied to uploads/`)
+    }
   }
 
   const tallies = await tallyByEntity(url)

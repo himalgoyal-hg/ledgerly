@@ -10,6 +10,7 @@ import 'dotenv/config'
 import { cpSync, existsSync, mkdirSync, statSync } from 'fs'
 import { dirname, resolve } from 'path'
 import { backupTo } from '../src/lib/backup/dump'
+import { blobConfigured, downloadBlobUploads } from './lib/blob-uploads'
 
 async function main() {
   const url = process.env.DATABASE_URL
@@ -32,12 +33,15 @@ async function main() {
       `${(bytes / 1024).toFixed(1)} KB compressed`,
   )
 
-  // Uploaded documents live outside the database — snapshot uploads/ next to
-  // the dump so a restore can put the bytes back too.
-  const uploadsDir = resolve('./uploads')
-  if (existsSync(uploadsDir)) {
-    const dest = file.replace(/\.ndjson\.gz$/, '-uploads')
-    cpSync(uploadsDir, dest, { recursive: true })
+  // Uploaded documents live outside the database — snapshot them next to the
+  // dump so a restore can put the bytes back too. They come from Vercel Blob
+  // on the hosted deployment, from uploads/ everywhere else.
+  const dest = file.replace(/\.ndjson\.gz$/, '-uploads')
+  if (blobConfigured()) {
+    const n = await downloadBlobUploads(dest)
+    console.log(`Documents: ${n} file(s) downloaded from Vercel Blob to ${dest}`)
+  } else if (existsSync(resolve('./uploads'))) {
+    cpSync(resolve('./uploads'), dest, { recursive: true })
     console.log(`Documents: uploads/ copied to ${dest}`)
   }
   console.log('Verify it restores:  npm run restore-drill')
