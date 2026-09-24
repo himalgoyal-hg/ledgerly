@@ -89,6 +89,49 @@ export async function submitClaim(
   })
 }
 
+/** A member records money they received from the books; Admin confirms it (approveAdvance). */
+export async function submitAdvanceReceived(
+  tx: Prisma.TransactionClient,
+  args: { entityId: string; memberId: string; date: Date; amount: string; remarks?: string | null },
+) {
+  if (parsePaise(args.amount) <= 0n) throw new OpsError('Amount must be positive')
+  return tx.reimbursement.create({
+    data: {
+      entityId: args.entityId,
+      memberId: args.memberId,
+      kind: 'ADVANCE',
+      date: args.date,
+      category: 'Advance received',
+      amount: args.amount,
+      remarks: args.remarks ?? null,
+    },
+  })
+}
+
+/** Admin confirm of a member-recorded advance: picks the paying account and posts it. */
+export async function approveAdvance(
+  tx: Prisma.TransactionClient,
+  args: { claimId: string; sourceAccountId: string; actorId: string },
+) {
+  const row = await tx.reimbursement.findUniqueOrThrow({ where: { id: args.claimId } })
+  if (row.kind !== 'ADVANCE') throw new OpsError('Not an advance record')
+  if (row.status !== 'PENDING') throw new OpsError('Already reviewed')
+  const doc = await recordMemberMoney(tx, {
+    entityId: row.entityId,
+    memberId: row.memberId,
+    amount: String(row.amount),
+    date: row.date,
+    sourceAccountId: args.sourceAccountId,
+    direction: 'paid',
+    note: row.remarks,
+    actorId: args.actorId,
+  })
+  return tx.reimbursement.update({
+    where: { id: row.id },
+    data: { status: 'APPROVED', reviewedById: args.actorId, reviewedAt: new Date(), docId: doc.id },
+  })
+}
+
 /** Admin approve: picks the expense head (+ cost centre) and posts against the member's advance. */
 export async function approveClaim(
   tx: Prisma.TransactionClient,
@@ -100,6 +143,7 @@ export async function approveClaim(
   },
 ) {
   const claim = await tx.reimbursement.findUniqueOrThrow({ where: { id: args.claimId } })
+  if (claim.kind !== 'CLAIM') throw new OpsError('Advance records are confirmed with the paying account, not an expense head')
   if (claim.status !== 'PENDING') throw new OpsError('Claim is already reviewed')
   const member = await tx.user.findUniqueOrThrow({ where: { id: claim.memberId } })
   const account = await memberAccount(tx, claim.entityId, member.name)

@@ -8,6 +8,7 @@ import { deleteJournalDocument, undoJournalDocument } from '../src/lib/ledger/po
 import { getPartyAccount, ledgerBalance } from '../src/lib/ops/party'
 import {
   submitClaim, approveClaim, rejectClaim, recordMemberMoney, memberAdvanceName,
+  submitAdvanceReceived, approveAdvance,
 } from '../src/lib/ops/reimburse'
 import { createCashEntry, cashBalances } from '../src/lib/ops/cash'
 import { createBill, payBill } from '../src/lib/ops/bills'
@@ -145,6 +146,23 @@ async function main() {
   )
   const returned = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
   check('reimburse: advance returned brings balance back to zero', Number(returned) === 0, returned)
+  const recorded = await prisma.$transaction((tx) =>
+    submitAdvanceReceived(tx, {
+      entityId: entity.id, memberId: member.id, date: new Date('2026-07-13'), amount: '2000.00', remarks: 'cash',
+    }),
+  )
+  check('reimburse: member-recorded advance is PENDING, posts nothing', recorded.kind === 'ADVANCE' && recorded.status === 'PENDING' && recorded.docId === null)
+  await prisma.$transaction((tx) =>
+    approveClaim(tx, { claimId: recorded.id, expenseAccountId: travel.id, actorId: admin.id }),
+  ).then(
+    () => check('reimburse: advance record cannot be approved as a claim', false),
+    (e) => check('reimburse: advance record cannot be approved as a claim', /paying account/.test(String(e))),
+  )
+  const confirmed = await prisma.$transaction((tx) =>
+    approveAdvance(tx, { claimId: recorded.id, sourceAccountId: bankLedger.id, actorId: admin.id }),
+  )
+  const afterConfirm = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
+  check('reimburse: confirming a recorded advance posts Dr member / Cr bank', confirmed.status === 'APPROVED' && confirmed.docId !== null && Number(afterConfirm) === 2000, afterConfirm)
 
   // =========================================================================
   // §6.2 Cash

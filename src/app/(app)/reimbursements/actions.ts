@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
-import { submitClaim, approveClaim, rejectClaim, recordMemberMoney } from '@/lib/ops/reimburse'
+import {
+  submitClaim, approveClaim, rejectClaim, recordMemberMoney, submitAdvanceReceived, approveAdvance,
+} from '@/lib/ops/reimburse'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { saveUpload } from '@/lib/files'
@@ -104,6 +106,50 @@ export async function rejectClaimAction(formData: FormData) {
       targetType: 'Reimbursement',
       targetId: claim.id,
       summary: `Rejected claim ₹${claim.amount}: ${reason}`,
+    })
+  })
+  revalidatePath('/reimbursements')
+}
+
+/** Member: "I received ₹X from the books" — pending until Admin confirms it. */
+export async function submitAdvanceAction(formData: FormData) {
+  const user = await requirePermission('reimbursementSubmit')
+  const entityId = String(formData.get('entityId') ?? '')
+  const amount = String(formData.get('amount') ?? '').trim()
+  const remarks = String(formData.get('remarks') ?? '').trim() || null
+  const date = new Date(String(formData.get('date') ?? ''))
+  if (!entityId) throw new Error('No books selected')
+  if (!amount) throw new Error('Amount is required')
+  if (isNaN(date.getTime())) throw new Error('Pick a date')
+
+  await auditedTransaction(async (tx) => {
+    const row = await submitAdvanceReceived(tx, { entityId, memberId: user.id, date, amount, remarks })
+    await audit(tx, {
+      actorId: user.id,
+      action: 'member.advance_recorded',
+      targetType: 'Reimbursement',
+      targetId: row.id,
+      summary: `Recorded advance received ₹${amount}`,
+    })
+  })
+  revalidatePath('/reimbursements')
+}
+
+/** Admin: confirm a member-recorded advance, naming the account it was paid from. */
+export async function approveAdvanceAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const claimId = String(formData.get('claimId') ?? '')
+  const sourceAccountId = String(formData.get('sourceAccountId') ?? '')
+  if (!sourceAccountId) throw new Error('Pick the bank or cash account it was paid from')
+
+  await auditedTransaction(async (tx) => {
+    const row = await approveAdvance(tx, { claimId, sourceAccountId, actorId: admin.id })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'member.advance_confirmed',
+      targetType: 'Reimbursement',
+      targetId: row.id,
+      summary: `Confirmed advance ₹${row.amount} paid to member`,
     })
   })
   revalidatePath('/reimbursements')

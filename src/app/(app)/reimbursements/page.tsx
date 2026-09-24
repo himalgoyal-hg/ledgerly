@@ -15,6 +15,8 @@ import {
   approveClaimAction,
   rejectClaimAction,
   memberMoneyAction,
+  submitAdvanceAction,
+  approveAdvanceAction,
 } from './actions'
 
 // Reimbursements & advances (spec §6.1, extended): one tab per member, the
@@ -70,13 +72,13 @@ export default async function ReimbursementsPage(props: {
   // Claims still waiting for approval — they have not touched the ledger
   // yet, but the tab must show them from the moment they are submitted.
   const pendingSums = await prisma.reimbursement.groupBy({
-    by: ['memberId'],
+    by: ['memberId', 'kind'],
     where: { entityId: entity.id, status: 'PENDING' },
     _sum: { amount: true },
   })
-  const pendingOf = (memberId: string) =>
+  const pendingOf = (memberId: string, kind: 'CLAIM' | 'ADVANCE' = 'CLAIM') =>
     new Prisma.Decimal(
-      String(pendingSums.find((p) => p.memberId === memberId)?._sum.amount ?? 0),
+      String(pendingSums.find((p) => p.memberId === memberId && p.kind === kind)?._sum.amount ?? 0),
     ).toFixed(2)
 
   const describe = (balance: string) => {
@@ -89,8 +91,10 @@ export default async function ReimbursementsPage(props: {
     const bal = describe(balanceOf(u.name))
     const pending = pendingOf(u.id)
     const parts: string[] = []
+    const pendingAdvance = pendingOf(u.id, 'ADVANCE')
     if (bal.short) parts.push(`${displayINR(bal.amount)} ${bal.short}`)
     if (Number(pending) > 0) parts.push(`${displayINR(pending)} pending`)
+    if (Number(pendingAdvance) > 0) parts.push(`${displayINR(pendingAdvance)} advance to confirm`)
     return parts.join(' · ') || displayINR('0.00')
   }
 
@@ -164,6 +168,8 @@ export default async function ReimbursementsPage(props: {
               ? `${selected.name} still holds this much of the books' money — claims will use it up.`
               : `The books owe ${selected.name} this much — pay it below to settle.`}
           {Number(pendingOf(selected.id)) > 0 && ` ${displayINR(pendingOf(selected.id))} in claims awaiting approval.`}
+          {Number(pendingOf(selected.id, 'ADVANCE')) > 0 &&
+            ` ${displayINR(pendingOf(selected.id, 'ADVANCE'))} advance recorded by ${selected.name}, awaiting confirmation.`}
         </p>
       </div>
 
@@ -184,6 +190,20 @@ export default async function ReimbursementsPage(props: {
             <input name="remarks" placeholder="Remarks" className={`${controlClass} flex-1 min-w-40`} />
             <button type="submit" className="rounded-lg bg-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-primary-strong">
               Submit
+            </button>
+          </form>
+
+          <h2 className="mt-5 font-medium text-ink">Advance received</h2>
+          <p className="mt-0.5 text-xs text-ink-3">
+            Money you received from the books (cash, UPI, transfer). It shows as pending until the Admin confirms it.
+          </p>
+          <form action={submitAdvanceAction} className="mt-2 flex flex-wrap items-center gap-2">
+            <input type="hidden" name="entityId" value={entity.id} />
+            <input name="date" type="date" required className={controlClass} />
+            <input name="amount" required inputMode="decimal" placeholder="Amount ₹" className={`${controlClass} w-28`} />
+            <input name="remarks" placeholder="Note (e.g. cash from Himal)" className={`${controlClass} flex-1 min-w-40`} />
+            <button type="submit" className="rounded-lg border border-primary/40 px-4 py-1.5 text-sm font-medium text-primary hover:bg-primary/10">
+              Record advance
             </button>
           </form>
         </div>
@@ -234,6 +254,9 @@ export default async function ReimbursementsPage(props: {
           <div key={claim.id} className="rounded-2xl border border-line bg-surface p-4 shadow-card">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="text-xs text-ink-3">{claim.date.toISOString().slice(0, 10)}</span>
+              {claim.kind === 'ADVANCE' && (
+                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">advance</span>
+              )}
               <span className="font-medium text-ink">{claim.category}</span>
               {claim.link && (
                 <a href={claim.link} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
@@ -259,7 +282,28 @@ export default async function ReimbursementsPage(props: {
                 {displayINR(String(claim.amount))}
               </span>
             </div>
-            {admin && claim.status === 'PENDING' && (
+            {admin && claim.status === 'PENDING' && claim.kind === 'ADVANCE' && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <form action={approveAdvanceAction} className="flex flex-wrap items-center gap-2">
+                  <input type="hidden" name="claimId" value={claim.id} />
+                  <SourceSelect
+                    suggestion={rankForAmount(baseSuggestion.options, String(claim.amount))}
+                    compact
+                  />
+                  <button type="submit" className="rounded-lg bg-success px-3 py-1.5 text-xs font-medium text-white hover:opacity-90">
+                    Confirm & post
+                  </button>
+                </form>
+                <form action={rejectClaimAction} className="flex items-center gap-2">
+                  <input type="hidden" name="claimId" value={claim.id} />
+                  <input name="reason" required placeholder="Rejection remarks" className={controlClass} />
+                  <button type="submit" className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs text-danger hover:bg-danger-soft">
+                    Reject
+                  </button>
+                </form>
+              </div>
+            )}
+            {admin && claim.status === 'PENDING' && claim.kind === 'CLAIM' && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <form action={approveClaimAction} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="claimId" value={claim.id} />

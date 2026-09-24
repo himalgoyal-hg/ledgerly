@@ -492,8 +492,13 @@ model StatementMapping {
 
 enum ClaimStatus {
   PENDING // submitted, awaiting Admin review
-  APPROVED // posted: Dr Expense / Cr Member Payable
+  APPROVED // posted: claim → Dr Expense / Cr Advance — M; advance → Dr Advance — M / Cr bank-cash
   REJECTED // requires remarks; nothing posted
+}
+
+enum ReimbursementKind {
+  CLAIM // member spent their own (or advance) money — approve picks the expense head
+  ADVANCE // member received money from the books — approve picks the paying account
 }
 
 model Reimbursement {
@@ -503,6 +508,7 @@ model Reimbursement {
   date     DateTime    @db.Date
   category String // member's free-text category
   amount   Decimal     @db.Decimal(14, 2)
+  kind     ReimbursementKind @default(CLAIM)
   link     String? // bill upload (Drive link)
   remarks  String?
   status   ClaimStatus @default(PENDING)
