@@ -19,6 +19,7 @@
     "backup": "tsx --conditions=react-server scripts/backup.ts",
     "restore": "tsx --conditions=react-server scripts/restore.ts",
     "fresh-start": "tsx --conditions=react-server scripts/fresh-start.ts",
+    "clear-reimbursements": "tsx --conditions=react-server scripts/clear-reimbursements.ts",
     "uploads-to-blob": "tsx --conditions=react-server scripts/uploads-to-blob.ts",
     "restore-drill": "tsx --conditions=react-server scripts/restore-drill.ts",
     "perf": "tsx --conditions=react-server scripts/perf-bench.ts",
