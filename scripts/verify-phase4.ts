@@ -7,7 +7,7 @@ import { seedChartOfAccounts, COA } from '../src/lib/ledger/coa'
 import { deleteJournalDocument, undoJournalDocument } from '../src/lib/ledger/posting'
 import { getPartyAccount, ledgerBalance } from '../src/lib/ops/party'
 import {
-  submitClaim, approveClaim, rejectClaim, settleMember, memberPayableName,
+  submitClaim, approveClaim, rejectClaim, recordMemberMoney, memberAdvanceName,
 } from '../src/lib/ops/reimburse'
 import { createCashEntry, cashBalances } from '../src/lib/ops/cash'
 import { createBill, payBill } from '../src/lib/ops/bills'
@@ -91,12 +91,12 @@ async function main() {
     approveClaim(tx, { claimId: claim.id, expenseAccountId: travel.id, costCentreId: hyrox.id, actorId: admin.id }),
   )
   const payable = await prisma.ledgerAccount.findFirstOrThrow({
-    where: { entityId: entity.id, name: memberPayableName(member.name) },
+    where: { entityId: entity.id, name: memberAdvanceName(member.name) },
   })
   const payableParent = await prisma.ledgerAccount.findUniqueOrThrow({ where: { id: payable.parentId! } })
-  check('reimburse: approve posts, payable auto-created under 2400', approved.status === 'APPROVED' && approved.docId !== null && payableParent.code === COA.PAYABLES_GROUP)
+  check('reimburse: approve posts, advance account auto-created under 1400', approved.status === 'APPROVED' && approved.docId !== null && payableParent.code === COA.ADVANCES_GROUP)
   const owed = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
-  check('reimburse: live payable balance = claim (Cr)', Number(owed) === -1200, owed)
+  check('reimburse: live member balance = −claim (owed to member)', Number(owed) === -1200, owed)
 
   const claim2 = await prisma.$transaction((tx) =>
     submitClaim(tx, {
@@ -122,13 +122,29 @@ async function main() {
   )
 
   await prisma.$transaction((tx) =>
-    settleMember(tx, {
-      entityId: entity.id, memberId: member.id, amount: '1200.00',
+    recordMemberMoney(tx, {
+      entityId: entity.id, memberId: member.id, amount: '1200.00', direction: 'paid',
       date: new Date('2026-07-10'), sourceAccountId: bankLedger.id, actorId: admin.id,
     }),
   )
   const owedAfter = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
-  check('reimburse: settlement clears the payable', Number(owedAfter) === 0, owedAfter)
+  check('reimburse: settlement clears the member balance', Number(owedAfter) === 0, owedAfter)
+  await prisma.$transaction((tx) =>
+    recordMemberMoney(tx, {
+      entityId: entity.id, memberId: member.id, amount: '5000.00', direction: 'paid',
+      date: new Date('2026-07-11'), sourceAccountId: bankLedger.id, actorId: admin.id,
+    }),
+  )
+  const advance = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
+  check('reimburse: advance paid shows as Dr balance with member', Number(advance) === 5000, advance)
+  await prisma.$transaction((tx) =>
+    recordMemberMoney(tx, {
+      entityId: entity.id, memberId: member.id, amount: '5000.00', direction: 'received',
+      date: new Date('2026-07-12'), sourceAccountId: bankLedger.id, actorId: admin.id,
+    }),
+  )
+  const returned = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
+  check('reimburse: advance returned brings balance back to zero', Number(returned) === 0, returned)
 
   // =========================================================================
   // §6.2 Cash

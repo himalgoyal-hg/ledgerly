@@ -9,6 +9,7 @@ import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
 import { describeNarration } from '@/lib/statements/rules'
 import { countAutoTaggable } from '@/lib/statements/auto-tag'
 import { aiConfigured } from '@/lib/ai/client'
+import { ensureMemberAccounts } from '@/lib/ops/reimburse'
 import { TagRowCells, BulkTagFields } from './tag-form'
 import { SelectAll } from './select-all'
 import { ColumnMenu } from './column-menu'
@@ -41,6 +42,8 @@ export default async function TaggingPage(props: {
   const user = await requirePermission('transactionTagging')
   const canEditPosted = hasPermission(user, 'transactionEditDelete')
   const entity = await getCurrentEntity(user)
+  // "Advance — <member>" heads must exist before a bank row can be tagged to them.
+  if (entity) await ensureMemberAccounts(entity.id)
   if (!entity) {
     return <p className="text-sm text-ink-2">No books to work on yet.</p>
   }

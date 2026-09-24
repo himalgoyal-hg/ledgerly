@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
-import { submitClaim, approveClaim, rejectClaim, settleMember } from '@/lib/ops/reimburse'
+import { submitClaim, approveClaim, rejectClaim, recordMemberMoney } from '@/lib/ops/reimburse'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { saveUpload } from '@/lib/files'
@@ -109,24 +109,29 @@ export async function rejectClaimAction(formData: FormData) {
   revalidatePath('/reimbursements')
 }
 
-export async function settleMemberAction(formData: FormData) {
+/** Admin: advance paid out, settlement paid, or unused advance received back. */
+export async function memberMoneyAction(formData: FormData) {
   const admin = await requireAdmin()
   const entityId = String(formData.get('entityId') ?? '')
   const memberId = String(formData.get('memberId') ?? '')
   const amount = String(formData.get('amount') ?? '')
   const sourceAccountId = String(formData.get('sourceAccountId') ?? '')
+  const note = String(formData.get('note') ?? '').trim() || null
+  const direction = String(formData.get('direction') ?? 'paid') === 'received' ? 'received' : 'paid'
   const date = new Date(String(formData.get('date') ?? ''))
-  if (!sourceAccountId) throw new Error('Pick the paying account')
+  if (!sourceAccountId) throw new Error('Pick the bank or cash account')
   if (isNaN(date.getTime())) throw new Error('Pick a date')
 
   await auditedTransaction(async (tx) => {
-    const doc = await settleMember(tx, { entityId, memberId, amount, date, sourceAccountId, actorId: admin.id })
+    const doc = await recordMemberMoney(tx, {
+      entityId, memberId, amount, date, sourceAccountId, direction, note, actorId: admin.id,
+    })
     await audit(tx, {
       actorId: admin.id,
-      action: 'reimbursement.settle',
+      action: direction === 'paid' ? 'member.advance_paid' : 'member.advance_returned',
       targetType: 'JournalDoc',
       targetId: doc.id,
-      summary: `Settled ₹${amount} of reimbursements`,
+      summary: direction === 'paid' ? `Paid ₹${amount} to member (advance / settlement)` : `Received ₹${amount} back from member`,
     })
   })
   revalidatePath('/reimbursements')

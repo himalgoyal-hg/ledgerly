@@ -10,6 +10,7 @@ export const NATURES = [
   { value: 'loan_given', label: 'Loan given' },
   { value: 'loan_received', label: 'Loan received' },
   { value: 'capital', label: 'Capital' },
+  { value: 'member_advance', label: 'Advance to member' },
   { value: 'reimbursement_settlement', label: 'Reimbursement settlement' },
   { value: 'gst_payment', label: 'GST payment' },
   { value: 'tds_deposit', label: 'TDS deposit' },
@@ -28,9 +29,10 @@ export function isNature(value: string): value is Nature {
  * prefill — the tag row can change it.
  */
 export function suggestNature(
-  head: { kind: string; code: string; masterNature?: string | null },
+  head: { kind: string; code: string; name?: string | null; masterNature?: string | null },
   isOutflow: boolean,
 ): Nature {
+  if (head.name?.startsWith('Advance — ')) return 'member_advance' // a member's advance account
   if (head.code.startsWith('11')) return 'transfer_own' // bank accounts group
   if (head.code.startsWith('12')) return 'transfer_own' // cash locations
   if (head.code.startsWith('18')) return 'transfer_own' // transfers in transit (contra)

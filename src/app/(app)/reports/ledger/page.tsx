@@ -17,6 +17,7 @@ const SOURCE_LABEL: Record<string, string> = {
   statement_txn: 'Bank statement',
   reimbursement: 'Reimbursement',
   reimbursement_settlement: 'Reimbursement settlement',
+  member_advance: 'Member advance',
   cash_entry: 'Cash entry',
   bill: 'Bill',
   bill_payment: 'Bill payment',
