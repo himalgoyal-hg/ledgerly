@@ -202,18 +202,18 @@ export async function rejectClaim(
 }
 
 /**
- * Delete one claim / advance record. A pending one simply goes (its owner or
- * Admin); a posted one is Admin-only and its journal document is reversed
- * first, so the ledger keeps the trail and the balance moves back.
+ * Delete one claim / advance record: a member may delete their own (never
+ * anyone else's), Admin may delete any. A pending one simply goes; a posted
+ * one has its journal document reversed first, so the ledger keeps the
+ * trail and the member balance moves back.
  */
 export async function deleteRecord(
   tx: Prisma.TransactionClient,
   args: { claimId: string; actor: { id: string; isAdmin: boolean } },
 ) {
   const row = await tx.reimbursement.findUniqueOrThrow({ where: { id: args.claimId } })
-  if (!args.actor.isAdmin) {
-    if (row.memberId !== args.actor.id) throw new OpsError('Only the Admin can delete someone else’s record')
-    if (row.status !== 'PENDING') throw new OpsError('This record is already reviewed — ask the Admin to delete it')
+  if (!args.actor.isAdmin && row.memberId !== args.actor.id) {
+    throw new OpsError('You can only delete your own records')
   }
   if (row.docId) await deleteJournalDocument(tx, { docId: row.docId, actorId: args.actor.id })
   await tx.reimbursement.delete({ where: { id: row.id } })

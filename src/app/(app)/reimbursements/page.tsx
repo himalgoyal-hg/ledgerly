@@ -284,7 +284,7 @@ export default async function ReimbursementsPage(props: {
               <span className="ml-auto font-semibold text-ink">
                 {displayINR(String(claim.amount))}
               </span>
-              {(admin || (claim.memberId === user.id && claim.status === 'PENDING')) && (
+              {(admin || claim.memberId === user.id) && (
                 <form action={deleteReimbursementAction}>
                   <input type="hidden" name="claimId" value={claim.id} />
                   <ConfirmButton

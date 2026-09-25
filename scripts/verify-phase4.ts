@@ -164,10 +164,10 @@ async function main() {
   const afterConfirm = await prisma.$transaction((tx) => ledgerBalance(tx, payable.id))
   check('reimburse: confirming a recorded advance posts Dr member / Cr bank', confirmed.status === 'APPROVED' && confirmed.docId !== null && Number(afterConfirm) === 2000, afterConfirm)
   await prisma.$transaction((tx) =>
-    deleteRecord(tx, { claimId: recorded.id, actor: { id: member.id, isAdmin: false } }),
+    deleteRecord(tx, { claimId: recorded.id, actor: { id: admin.id + '-someone-else', isAdmin: false } }),
   ).then(
-    () => check('reimburse: member cannot delete a reviewed record', false),
-    (e) => check('reimburse: member cannot delete a reviewed record', /already reviewed/.test(String(e))),
+    () => check('reimburse: member cannot delete someone else’s record', false),
+    (e) => check('reimburse: member cannot delete someone else’s record', /own records/.test(String(e))),
   )
   await prisma.$transaction((tx) =>
     deleteRecord(tx, { claimId: recorded.id, actor: { id: admin.id, isAdmin: true } }),
