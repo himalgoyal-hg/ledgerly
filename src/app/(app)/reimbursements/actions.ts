@@ -6,7 +6,9 @@ import { requireAdmin, requirePermission } from '@/lib/auth'
 import { audit, auditedTransaction } from '@/lib/audit'
 import {
   submitClaim, approveClaim, rejectClaim, recordMemberMoney, submitAdvanceReceived, approveAdvance,
+  deleteRecord, deleteMemberMoney,
 } from '@/lib/ops/reimburse'
+import { isAdmin } from '@/lib/auth'
 import { resolveCostCentre } from '@/lib/ops/cost-centres'
 import { resolveHeadAccount } from '@/lib/ops/heads'
 import { saveUpload } from '@/lib/files'
@@ -150,6 +152,42 @@ export async function approveAdvanceAction(formData: FormData) {
       targetType: 'Reimbursement',
       targetId: row.id,
       summary: `Confirmed advance ₹${row.amount} paid to member`,
+    })
+  })
+  revalidatePath('/reimbursements')
+}
+
+/** Delete a claim / advance record — own pending ones for members, anything for Admin. */
+export async function deleteReimbursementAction(formData: FormData) {
+  const user = await requirePermission('reimbursementSubmit')
+  const claimId = String(formData.get('claimId') ?? '')
+  await auditedTransaction(async (tx) => {
+    const row = await deleteRecord(tx, { claimId, actor: { id: user.id, isAdmin: isAdmin(user) } })
+    await audit(tx, {
+      actorId: user.id,
+      action: 'reimbursement.delete',
+      targetType: 'Reimbursement',
+      targetId: claimId,
+      summary: `Deleted ${row.kind === 'ADVANCE' ? 'advance record' : 'claim'} ₹${row.amount} (${row.category})${row.docId ? ' — posting reversed' : ''}`,
+      before: { kind: row.kind, status: row.status, amount: String(row.amount), category: row.category },
+    })
+  })
+  revalidatePath('/reimbursements')
+}
+
+/** Admin: reverse an advance / settlement entered directly on this page. */
+export async function deleteMemberMoneyAction(formData: FormData) {
+  const admin = await requireAdmin()
+  const docId = String(formData.get('docId') ?? '')
+  const entityId = String(formData.get('entityId') ?? '')
+  await auditedTransaction(async (tx) => {
+    await deleteMemberMoney(tx, { docId, entityId, actorId: admin.id })
+    await audit(tx, {
+      actorId: admin.id,
+      action: 'member.advance_deleted',
+      targetType: 'JournalDoc',
+      targetId: docId,
+      summary: 'Deleted an advance / settlement record (posting reversed)',
     })
   })
   revalidatePath('/reimbursements')

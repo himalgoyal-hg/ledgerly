@@ -9,6 +9,7 @@ import { memberAdvanceName, ensureMemberAccounts } from '@/lib/ops/reimburse'
 import { suggestPaymentSource, rankForAmount } from '@/lib/automation/suggest'
 import { HeadCostCentrePicker } from '@/components/head-cost-centre-picker'
 import { SourceSelect } from '../source-select'
+import { ConfirmButton } from '@/components/confirm-button'
 import { PageHeader, chipClass, controlClass, tableWrapClass, theadClass } from '@/components/ui'
 import {
   submitClaimAction,
@@ -17,6 +18,8 @@ import {
   memberMoneyAction,
   submitAdvanceAction,
   approveAdvanceAction,
+  deleteReimbursementAction,
+  deleteMemberMoneyAction,
 } from './actions'
 
 // Reimbursements & advances (spec §6.1, extended): one tab per member, the
@@ -281,6 +284,21 @@ export default async function ReimbursementsPage(props: {
               <span className="ml-auto font-semibold text-ink">
                 {displayINR(String(claim.amount))}
               </span>
+              {(admin || (claim.memberId === user.id && claim.status === 'PENDING')) && (
+                <form action={deleteReimbursementAction}>
+                  <input type="hidden" name="claimId" value={claim.id} />
+                  <ConfirmButton
+                    message={
+                      claim.docId
+                        ? `Delete this ${claim.kind === 'ADVANCE' ? 'advance' : 'claim'} of ${displayINR(String(claim.amount))}? Its posting will be reversed.`
+                        : `Delete this ${claim.kind === 'ADVANCE' ? 'advance record' : 'claim'} of ${displayINR(String(claim.amount))}?`
+                    }
+                    className="rounded border border-danger/30 px-1.5 py-1 text-[11px] text-danger hover:bg-danger-soft"
+                  >
+                    ✕
+                  </ConfirmButton>
+                </form>
+              )}
             </div>
             {admin && claim.status === 'PENDING' && claim.kind === 'ADVANCE' && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -356,6 +374,7 @@ export default async function ReimbursementsPage(props: {
                   <th className="px-4 py-2 text-right">Paid to member</th>
                   <th className="px-4 py-2 text-right">Spent / returned</th>
                   <th className="px-4 py-2 text-right">Balance</th>
+                  {admin && <th className="px-2 py-2" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-line-2">
@@ -383,6 +402,25 @@ export default async function ReimbursementsPage(props: {
                         {displayINR(running < 0 ? new Prisma.Decimal(line.running).neg().toFixed(2) : line.running)}
                         {running < 0 && <span className="ml-1 text-[10px] font-normal text-ink-3">owed</span>}
                       </td>
+                      {admin && (
+                        <td className="px-2 py-2 text-right">
+                          {doc &&
+                            !doc.deletedAt &&
+                            line.kind === 'FORWARD' &&
+                            (doc.sourceType === 'member_advance' || doc.sourceType === 'reimbursement_settlement') && (
+                              <form action={deleteMemberMoneyAction}>
+                                <input type="hidden" name="docId" value={doc.id} />
+                                <input type="hidden" name="entityId" value={entity.id} />
+                                <ConfirmButton
+                                  message={`Delete "${line.narration}"? Its posting will be reversed.`}
+                                  className="rounded border border-danger/30 px-1.5 py-0.5 text-[11px] text-danger hover:bg-danger-soft"
+                                >
+                                  ✕
+                                </ConfirmButton>
+                              </form>
+                            )}
+                        </td>
+                      )}
                     </tr>
                   )
                 })}

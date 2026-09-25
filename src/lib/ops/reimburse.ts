@@ -1,7 +1,7 @@
 import { Prisma } from '@/generated/prisma/client'
 import { prisma } from '@/lib/db'
 import { COA } from '@/lib/ledger/coa'
-import { createJournalDocument } from '@/lib/ledger/posting'
+import { createJournalDocument, deleteJournalDocument } from '@/lib/ledger/posting'
 import { parsePaise, formatPaise } from '@/lib/ledger/money'
 import { getPartyAccount, ledgerBalance } from './party'
 import { resolveDefaultCostCentre } from './cost-centres'
@@ -199,6 +199,39 @@ export async function rejectClaim(
       rejectReason: args.reason.trim(),
     },
   })
+}
+
+/**
+ * Delete one claim / advance record. A pending one simply goes (its owner or
+ * Admin); a posted one is Admin-only and its journal document is reversed
+ * first, so the ledger keeps the trail and the balance moves back.
+ */
+export async function deleteRecord(
+  tx: Prisma.TransactionClient,
+  args: { claimId: string; actor: { id: string; isAdmin: boolean } },
+) {
+  const row = await tx.reimbursement.findUniqueOrThrow({ where: { id: args.claimId } })
+  if (!args.actor.isAdmin) {
+    if (row.memberId !== args.actor.id) throw new OpsError('Only the Admin can delete someone else’s record')
+    if (row.status !== 'PENDING') throw new OpsError('This record is already reviewed — ask the Admin to delete it')
+  }
+  if (row.docId) await deleteJournalDocument(tx, { docId: row.docId, actorId: args.actor.id })
+  await tx.reimbursement.delete({ where: { id: row.id } })
+  return row
+}
+
+/** Admin: reverse an advance / settlement recorded directly (no claim row behind it). */
+export async function deleteMemberMoney(
+  tx: Prisma.TransactionClient,
+  args: { docId: string; entityId: string; actorId: string },
+) {
+  const doc = await tx.journalDoc.findUniqueOrThrow({ where: { id: args.docId } })
+  if (doc.entityId !== args.entityId) throw new OpsError('That record belongs to another book')
+  if (doc.sourceType !== 'member_advance' && doc.sourceType !== 'reimbursement_settlement') {
+    throw new OpsError('Only advance / settlement records can be deleted here')
+  }
+  await deleteJournalDocument(tx, { docId: doc.id, actorId: args.actorId })
+  return doc
 }
 
 export type MemberMoneyDirection = 'paid' | 'received'
