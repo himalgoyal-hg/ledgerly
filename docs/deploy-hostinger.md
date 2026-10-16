@@ -121,3 +121,23 @@ docker compose logs --tail 100 app
 docker compose restart app
 docker compose exec app npm run restore-drill   # prove the newest backup restores
 ```
+
+---
+
+## Coolify variant (what is actually running since 16 Oct 2026)
+
+The VPS is shared with Kinnect and managed by **Coolify** (`http://<VPS-IP>:8000`),
+so Caddy is not used — Coolify's Traefik terminates HTTPS. The stack is
+`docker-compose.coolify.yml` (app + Postgres), deployed as a Coolify
+*Docker Compose* application from the public GitHub repo, branch `main`.
+
+- Secrets (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `CRON_SECRET`) are Coolify
+  environment variables on the application.
+- Domain is set on the `app` service (Application → General → Domains).
+- Data lives in the compose volumes `pgdata`, `uploads`, `backups`.
+- Daily jobs run from the host's crontab via `/root/ledgerly-cron.sh`
+  (`automation` 01:30 UTC, `backup` 18:30 UTC, log `/var/log/ledgerly-cron.log`).
+- Ship an update: push to `main`, or Coolify → Application → **Deploy**.
+- Pull backups to the Mac: `scripts/pull-server-backups.sh` (weekly).
+- Restore onto a fresh database: copy the dump into the `backups` volume with
+  `docker cp`, then `docker exec <app container> npm run restore -- backups/<file>`.
