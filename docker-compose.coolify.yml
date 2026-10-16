@@ -1,0 +1,45 @@
+# Coolify stack: app + Postgres. No Caddy — Coolify's own proxy terminates
+# HTTPS and routes the domain to the app on port 3000.
+# Set the secrets in Coolify → Environment Variables (see env.production.example).
+services:
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ledgerly
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ledgerly
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ledgerly -d ledgerly"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://ledgerly:${POSTGRES_PASSWORD}@db:5432/ledgerly
+      SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+    volumes:
+      - uploads:/app/uploads
+      - backups:/app/backups
+
+volumes:
+  pgdata:
+  uploads:
+  backups:
