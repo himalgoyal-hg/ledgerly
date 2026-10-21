@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
+import { sortByLabel } from './option-labels'
 
 // Generic type-ahead picker — the same datalist pattern as HeadCombobox, for
 // everything that isn't a ledger head (natures, cost centres, ...): first
@@ -30,13 +31,13 @@ export function SmartCombobox(props: {
   /** Bind to a <form> elsewhere in the page (table-row layouts). */
   formId?: string
   onPick?: (opt: ComboOpt | null) => void
+  /** Id of a page-level <OptionDatalist> to share instead of a private list. */
+  listId?: string
 }) {
-  const listId = useId()
+  const ownListId = useId()
+  const listId = props.listId ?? ownListId
 
-  const options = useMemo(
-    () => [...props.options].sort((a, b) => a.label.localeCompare(b.label)),
-    [props.options],
-  )
+  const options = useMemo(() => sortByLabel(props.options), [props.options])
   const initial = options.find((o) => o.id === props.defaultId)
   const [text, setText] = useState(initial?.label ?? '')
   const [id, setId] = useState(initial?.id ?? '')
@@ -83,12 +84,14 @@ export function SmartCombobox(props: {
           props.className ?? 'min-w-40 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
         }
       />
-      <datalist id={listId}>
-        {creating && <option value={text}>➕ create new</option>}
-        {options.map((o) => (
-          <option key={o.id} value={o.label} />
-        ))}
-      </datalist>
+      {!props.listId && (
+        <datalist id={listId}>
+          {creating && <option value={text}>➕ create new</option>}
+          {options.map((o) => (
+            <option key={o.id} value={o.label} />
+          ))}
+        </datalist>
+      )}
       <input type="hidden" name={props.name} value={id} form={props.formId} />
       {props.createName && (
         <input type="hidden" name={props.createName} value={unresolved} form={props.formId} />

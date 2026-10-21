@@ -11,6 +11,7 @@ import { countAutoTaggable } from '@/lib/statements/auto-tag'
 import { aiConfigured } from '@/lib/ai/client'
 import { ensureMemberAccounts } from '@/lib/ops/reimburse'
 import { TagRowCells, BulkTagFields } from './tag-form'
+import { HeadDatalist, OptionDatalist } from '@/components/shared-datalists'
 import { SelectAll } from './select-all'
 import { ColumnMenu } from './column-menu'
 import { TxnDetails } from './txn-details'
@@ -579,6 +580,11 @@ export default async function TaggingPage(props: {
 
   return (
     <div className="space-y-4">
+      {/* One copy of each picker list for the whole page — every row's
+          Expense Head, Accounting Head and Cost centre inputs point here.
+          Per-row lists put ~60,000 <option>s (5 MB) on one screen. */}
+      <HeadDatalist id="tag-heads" heads={heads} />
+      <OptionDatalist id="tag-ccs" options={costCentres.map((c) => ({ id: c.id, label: c.name }))} />
       <PageHeader
         kicker="Books"
         title={`Tagging queue — ${entity.name} (${entity.code})`}
@@ -828,6 +834,8 @@ export default async function TaggingPage(props: {
                           isOutflow={Number(txn.debit) > 0}
                           heads={heads}
                           costCentres={costCentres}
+                          headListId="tag-heads"
+                          costCentreListId="tag-ccs"
                           action={tagTransaction}
                           submitLabel="Tag"
                           defaults={(() => {
@@ -952,6 +960,8 @@ export default async function TaggingPage(props: {
                       isOutflow={Number(txn.debit) > 0}
                       heads={heads}
                       costCentres={costCentres}
+                      headListId="tag-heads"
+                      costCentreListId="tag-ccs"
                       action={tagTransaction}
                       submitLabel="Save"
                       defaults={{
@@ -1050,6 +1060,8 @@ export default async function TaggingPage(props: {
                           isOutflow={Number(txn.debit) > 0}
                           heads={heads}
                           costCentres={costCentres}
+                          headListId="tag-heads"
+                          costCentreListId="tag-ccs"
                           action={retagPosted}
                           submitLabel="Save"
                           submitTitle="Posts a reversal + new version with this tag"

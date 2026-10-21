@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useMemo, useState } from 'react'
+import { headOptionLabels } from './option-labels'
 
 // Type-ahead account picker (v2 prototype's datalist inputs). The option
 // VALUE is the head's name, never "code · name": browsers match a datalist on
@@ -39,18 +40,18 @@ export function HeadCombobox(props: {
   createName?: string
   /** Fires on blur when the text will create a new head (unmatched + createName). */
   onCreateText?: (text: string) => void
+  /**
+   * Id of a page-level <HeadDatalist> to share instead of rendering a private
+   * list — the only sane choice when hundreds of rows carry this picker.
+   */
+  listId?: string
 }) {
-  const listId = useId()
+  const ownListId = useId()
+  const listId = props.listId ?? ownListId
 
   // A name that occurs twice in one set of books gets its code appended, so
   // every option still resolves to exactly one head.
-  const options = useMemo(() => {
-    const seen = new Map<string, number>()
-    for (const h of props.heads) seen.set(h.name, (seen.get(h.name) ?? 0) + 1)
-    return props.heads
-      .map((h) => ({ head: h, label: (seen.get(h.name) ?? 0) > 1 ? `${h.name} (${h.code})` : h.name }))
-      .sort((a, b) => a.label.localeCompare(b.label))
-  }, [props.heads])
+  const options = useMemo(() => headOptionLabels(props.heads), [props.heads])
 
   const initial = options.find((o) => o.head.id === props.defaultHeadId)
   const [text, setText] = useState(initial?.label ?? '')
@@ -107,14 +108,18 @@ export function HeadCombobox(props: {
           props.className ?? 'min-w-48 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
         }
       />
-      <datalist id={listId}>
-        {creating && <option value={text}>➕ create new head</option>}
-        {options.map((o) => (
-          <option key={o.head.id} value={o.label}>
-            {o.head.code}
-          </option>
-        ))}
-      </datalist>
+      {/* With a shared list the ➕ option is skipped — the hint below still
+          says the text will create a head, and the submit works the same. */}
+      {!props.listId && (
+        <datalist id={listId}>
+          {creating && <option value={text}>➕ create new head</option>}
+          {options.map((o) => (
+            <option key={o.head.id} value={o.label}>
+              {o.head.code}
+            </option>
+          ))}
+        </datalist>
+      )}
       <input type="hidden" name={props.name ?? 'headAccountId'} value={id} form={props.formId} />
       {props.createName && (
         <input
