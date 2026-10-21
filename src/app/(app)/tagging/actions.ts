@@ -20,7 +20,17 @@ import { resolveHeadAccount } from '@/lib/ops/heads'
 // "Transaction edit / delete / undo". Checked server-side, always.
 
 function tagFields(formData: FormData) {
-  const headAccountId = String(formData.get('headAccountId') ?? '')
+  // Two head columns, one head: Expense Head (any non-income head) and
+  // Income Head (Himal, 21 Oct: "jas Expense Head aahe tas Income head
+  // havay"). Whichever is filled is the row's head; both filled is a slip.
+  const expenseHeadId = String(formData.get('headAccountId') ?? '')
+  const expenseHeadText = String(formData.get('headText') ?? '').trim() || null
+  const incomeHeadId = String(formData.get('incomeHeadAccountId') ?? '')
+  const incomeHeadText = String(formData.get('incomeHeadText') ?? '').trim() || null
+  const expenseGiven = Boolean(expenseHeadId || expenseHeadText)
+  const incomeGiven = Boolean(incomeHeadId || incomeHeadText)
+  if (expenseGiven && incomeGiven) throw new Error('Pick either an Expense Head or an Income Head, not both')
+  const headAccountId = incomeGiven ? incomeHeadId : expenseHeadId
   const nature = String(formData.get('nature') ?? '')
   const costCentreId = String(formData.get('costCentreId') ?? '') || null
   // The tag's 2nd head — the Accounting Head column. It arrives prefilled
@@ -33,10 +43,12 @@ function tagFields(formData: FormData) {
   const note = formData.has('note') ? String(formData.get('note') ?? '').trim() : undefined
   // Creatable comboboxes: text that matched no head / cost centre arrives
   // here and is found-or-created in the books being tagged.
-  const headText = String(formData.get('headText') ?? '').trim() || null
+  const headText = incomeGiven ? incomeHeadText : expenseHeadText
   const costCentreText = String(formData.get('costCentreText') ?? '').trim() || null
-  // Where a brand-new head goes, when the row's toggle said so
-  const headKind = headKindOf(formData.get('headKind'))
+  // Where a brand-new head goes: the Income column says Income outright;
+  // the Expense column leaves the master its say and otherwise means Expense.
+  const headKind = incomeGiven ? ('INCOME' as const) : headKindOf(formData.get('headKind'))
+  const headFallbackKind = incomeGiven ? null : ('EXPENSE' as const)
   const accountingHeadKind = headKindOf(formData.get('accountingHeadKind'))
   if (!headAccountId && !headText) throw new Error('Pick a head')
   if (!nature) throw new Error('Pick a nature')
@@ -66,6 +78,7 @@ function tagFields(formData: FormData) {
     headText,
     costCentreText,
     headKind,
+    headFallbackKind,
     accountingHeadKind,
     tax,
   }
@@ -78,7 +91,8 @@ function headKindOf(v: FormDataEntryValue | null): 'EXPENSE' | 'INCOME' | null {
 export async function tagTransaction(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, accountingHeadText, headKind, accountingHeadKind, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, headKind, headFallbackKind, accountingHeadKind, ...raw } =
+    tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -90,6 +104,7 @@ export async function tagTransaction(formData: FormData) {
         headText,
         isOutflow: Number(txn.debit) > 0,
         kind: headKind,
+        fallbackKind: headFallbackKind,
       }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: txn.entityId,
@@ -441,7 +456,8 @@ export async function postAll(formData: FormData) {
 export async function retagPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, accountingHeadText, headKind, accountingHeadKind, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, headKind, headFallbackKind, accountingHeadKind, ...raw } =
+    tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const before = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -453,6 +469,7 @@ export async function retagPosted(formData: FormData) {
         headText,
         isOutflow: Number(before.debit) > 0,
         kind: headKind,
+        fallbackKind: headFallbackKind,
       }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: before.entityId,

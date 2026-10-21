@@ -41,6 +41,8 @@ export async function resolveHeadAccount(
      * nature; the master still lends its cost centre.
      */
     kind?: 'EXPENSE' | 'INCOME' | null
+    /** Where a new head goes when neither the user nor the master says — instead of the direction rule. */
+    fallbackKind?: 'EXPENSE' | 'INCOME' | null
   },
 ): Promise<string> {
   if (args.headAccountId) return args.headAccountId
@@ -59,7 +61,8 @@ export async function resolveHeadAccount(
   const masterRow = await tx.headMode.findFirst({ where: { category: { equals: name, mode: 'insensitive' } } })
   const spot = masterRow ? (NATURE_GROUP[masterRow.nature ?? 'Expense'] ?? NATURE_GROUP.Expense) : null
   const chosen = args.kind ? NATURE_GROUP[args.kind === 'INCOME' ? 'Income' : 'Expense'] : null
-  const groupCode = chosen?.code ?? spot?.code ?? (args.isOutflow ? '5000' : '4000')
+  const fallback = args.fallbackKind ? NATURE_GROUP[args.fallbackKind === 'INCOME' ? 'Income' : 'Expense'] : null
+  const groupCode = chosen?.code ?? spot?.code ?? fallback?.code ?? (args.isOutflow ? '5000' : '4000')
   const group = await tx.ledgerAccount.findUniqueOrThrow({
     where: { entityId_code: { entityId: args.entityId, code: groupCode } },
   })
@@ -68,7 +71,7 @@ export async function resolveHeadAccount(
       entityId: args.entityId,
       code: await nextChildCode(tx, args.entityId, groupCode),
       name,
-      kind: chosen?.kind ?? spot?.kind ?? (args.isOutflow ? 'EXPENSE' : 'INCOME'),
+      kind: chosen?.kind ?? spot?.kind ?? fallback?.kind ?? (args.isOutflow ? 'EXPENSE' : 'INCOME'),
       parentId: group.id,
     },
   })

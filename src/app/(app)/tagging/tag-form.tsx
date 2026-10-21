@@ -110,7 +110,13 @@ type TagRowCellsProps = Parameters<typeof TagRowCells>[0]
  */
 export function PostedRowCells(
   props: TagRowCellsProps & {
-    shown: { head: string; costCentre: string; accountingHead: string | null; note: string | null }
+    shown: {
+      head: string | null
+      incomeHead: string | null
+      costCentre: string
+      accountingHead: string | null
+      note: string | null
+    }
   },
 ) {
   const [editing, setEditing] = useState(false)
@@ -118,7 +124,10 @@ export function PostedRowCells(
     const t = props.shown
     return (
       <>
-        <td className="px-2 py-1.5 text-xs text-ink-2">{t.head}</td>
+        <td className="px-2 py-1.5 text-xs text-ink-2">{t.head ?? <span className="text-ink-3">—</span>}</td>
+        <td className="px-2 py-1.5 text-xs text-ink-2">
+          {t.incomeHead ?? <span className="text-ink-3">—</span>}
+        </td>
         <td className="px-2 py-1.5 text-xs text-ink-2">{t.costCentre}</td>
         <td className="px-2 py-1.5 text-xs">
           {/* overridden 2nd head shows highlighted; mirror shows muted */}
@@ -200,6 +209,11 @@ export function TagRowCells(props: {
   /** Page-level datalist ids (see shared-datalists.tsx) — one copy of the options for all rows. */
   headListId?: string
   costCentreListId?: string
+  /** The two head columns: Expense Head lists every non-income head, Income Head the income ones. */
+  expenseHeads: HeadOption[]
+  incomeHeads: HeadOption[]
+  expenseListId?: string
+  incomeListId?: string
 }) {
   const formId = `tag-${props.txnId}`
   const [nature, setNature] = useState(props.defaults?.nature ?? '')
@@ -208,6 +222,29 @@ export function TagRowCells(props: {
   // mirrors into Accounting Head automatically; changing the Accounting
   // Head is allowed and NEVER writes back into the Expense Head.
   const [expHeadId, setExpHeadId] = useState(props.defaults?.headAccountId ?? '')
+  // Which column holds the row's head; picking in one empties the other
+  // (its own seed re-mounts it blank) so a row never submits two heads.
+  const startsIncome = props.incomeHeads.some((h) => h.id === props.defaults?.headAccountId)
+  const [expenseSeed, setExpenseSeed] = useState(0)
+  const [incomeSeed, setIncomeSeed] = useState(0)
+  const headPicked = (head: HeadOpt) => {
+    setNature(suggestNature(head, props.isOutflow))
+    setCostCentreId(head.defaultCostCentreId ?? '')
+    // the Accounting Head follows the head pick (mirror); the user can
+    // still change it after — one-way only
+    setExpHeadId(head.id)
+    setAcctHeadId(head.id)
+    setSeed((s) => s + 1)
+  }
+  const headTyped = (kind: 'EXPENSE' | 'INCOME') => {
+    // A brand-new head lands in the column it was typed in — nature follows.
+    setNature(kind === 'INCOME' ? 'income' : 'expense')
+    setCostCentreId('')
+    // no id yet to mirror — the server stores NULL (= mirror)
+    setExpHeadId('')
+    setAcctHeadId('')
+    setSeed((s) => s + 1)
+  }
   const [acctHeadId, setAcctHeadId] = useState(
     props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? '',
   )
@@ -237,43 +274,57 @@ export function TagRowCells(props: {
       {/* The tag tiers share the table's slack (narration and amount stay
           snug) and the same input styling; the Accounting Head is a head
           picker of its own — it mirrors the Expense Head until changed. */}
-      <td className="w-[19%] px-2 py-1">
+      <td className="w-[16%] px-2 py-1">
         <HeadCombobox
-          heads={props.heads}
-          listId={props.headListId}
-          defaultHeadId={props.defaults?.headAccountId}
-          required
+          key={`e${expenseSeed}`}
+          heads={props.expenseHeads}
+          listId={props.expenseListId}
+          defaultHeadId={startsIncome ? undefined : props.defaults?.headAccountId}
           formId={formId}
           className={inputCls}
           placeholder="Expense Head — type or add"
           createName="headText"
-          kindChoice={{ name: 'headKind', initial: props.isOutflow ? 'EXPENSE' : 'INCOME' }}
           onPick={(head) => {
             if (head) {
-              setNature(suggestNature(head, props.isOutflow))
-              setCostCentreId(head.defaultCostCentreId ?? '')
-              // the Accounting Head follows the Expense Head pick (mirror);
-              // the user can still change it after — one-way only
-              setExpHeadId(head.id)
-              setAcctHeadId(head.id)
-              setSeed((s) => s + 1)
+              headPicked(head)
+              setIncomeSeed((s) => s + 1)
             }
           }}
-          onCreateText={(_text, kind) => {
-            // A brand-new head lands where the toggle says (default: Expenses
-            // for an outflow, Income for an inflow) — nature follows it.
-            setNature((kind ?? (props.isOutflow ? 'EXPENSE' : 'INCOME')) === 'INCOME' ? 'income' : 'expense')
-            setCostCentreId('')
-            // no id yet to mirror — the server stores NULL (= mirror)
-            setExpHeadId('')
-            setAcctHeadId('')
-            setSeed((s) => s + 1)
+          onCreateText={() => {
+            headTyped('EXPENSE')
+            setIncomeSeed((s) => s + 1)
+          }}
+        />
+      </td>
+      {/* Income Head — the same picker over the income heads only; a new
+          name typed here is born under Income. One of the two columns
+          carries the row's head, never both. */}
+      <td className="w-[14%] px-2 py-1">
+        <HeadCombobox
+          key={`i${incomeSeed}`}
+          heads={props.incomeHeads}
+          listId={props.incomeListId}
+          name="incomeHeadAccountId"
+          defaultHeadId={startsIncome ? props.defaults?.headAccountId : undefined}
+          formId={formId}
+          className={inputCls}
+          placeholder="Income Head — type or add"
+          createName="incomeHeadText"
+          onPick={(head) => {
+            if (head) {
+              headPicked(head)
+              setExpenseSeed((s) => s + 1)
+            }
+          }}
+          onCreateText={() => {
+            headTyped('INCOME')
+            setExpenseSeed((s) => s + 1)
           }}
         />
       </td>
       {/* Nature rides hidden — auto from the head / master, per Himal
           (18 Aug): it posts correctly without taking a column. */}
-      <td className="w-[15%] px-2 py-1">
+      <td className="w-[13%] px-2 py-1">
         <SmartCombobox
           key={`c${seed}`}
           options={props.costCentres.map((c) => ({ id: c.id, label: c.name }))}
@@ -291,7 +342,7 @@ export function TagRowCells(props: {
           Expense Head is (re-mounts on every head pick, the `seed` key),
           stays editable, and an override never flows back leftwards.
           Overridden = highlighted so a changed head is visible at a glance. */}
-      <td className="w-[15%] px-2 py-1">
+      <td className="w-[14%] px-2 py-1">
         <HeadCombobox
           key={`a${seed}`}
           heads={props.heads}
@@ -311,7 +362,7 @@ export function TagRowCells(props: {
         />
       </td>
       {/* Note — a free comment on the row, saved with the tag */}
-      <td className="w-[13%] px-2 py-1">
+      <td className="w-[11%] px-2 py-1">
         <input
           name="note"
           form={formId}

@@ -250,6 +250,12 @@ export default async function TaggingPage(props: {
   }
 
   const docById = new Map(docs.map((d) => [d.id, d]))
+  // Two head columns (Himal, 21 Oct): Income Head lists the income heads,
+  // Expense Head everything else (expenses, assets, liabilities, personal).
+  const incomeHeads = heads.filter((h) => h.kind === 'INCOME')
+  const expenseHeads = heads.filter((h) => h.kind !== 'INCOME')
+  const incomeHeadIds = new Set(incomeHeads.map((h) => h.id))
+  const isIncomeHead = (id: string | null) => id !== null && incomeHeadIds.has(id)
   const headName = (id: string | null) => {
     const h = heads.find((a) => a.id === id)
     return h ? `${h.code} · ${h.name}` : '—'
@@ -548,10 +554,11 @@ export default async function TaggingPage(props: {
             ]}
           />
         </th>
-        <th className="w-[19%] min-w-40 px-2 py-2">Expense Head</th>
-        <th className="w-[15%] min-w-36 px-2 py-2">Cost centre</th>
-        <th className="w-[15%] min-w-36 px-2 py-2">Accounting Head</th>
-        <th className="w-[13%] min-w-28 px-2 py-2">Note</th>
+        <th className="w-[16%] min-w-36 px-2 py-2">Expense Head</th>
+        <th className="w-[14%] min-w-32 px-2 py-2">Income Head</th>
+        <th className="w-[13%] min-w-32 px-2 py-2">Cost centre</th>
+        <th className="w-[14%] min-w-32 px-2 py-2">Accounting Head</th>
+        <th className="w-[11%] min-w-24 px-2 py-2">Note</th>
         {/* right after Accounting Head — one click drops every column
             filter and the search, back to the plain daybook. Pinned to the
             right edge with the Save buttons below it. */}
@@ -576,6 +583,8 @@ export default async function TaggingPage(props: {
           Expense Head, Accounting Head and Cost centre inputs point here.
           Per-row lists put ~60,000 <option>s (5 MB) on one screen. */}
       <HeadDatalist id="tag-heads" heads={heads} />
+      <HeadDatalist id="tag-expense-heads" heads={expenseHeads} />
+      <HeadDatalist id="tag-income-heads" heads={incomeHeads} />
       <OptionDatalist id="tag-ccs" options={costCentres.map((c) => ({ id: c.id, label: c.name }))} />
       <PageHeader
         kicker="Books"
@@ -776,7 +785,7 @@ export default async function TaggingPage(props: {
             {tableHead(false)}
             <tbody>
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-sm text-ink-3">
+                <td colSpan={10} className="px-3 py-8 text-center text-sm text-ink-3">
                   Nothing matches these filters —{' '}
                   <Link href="/tagging" className="text-primary hover:underline">
                     clear all
@@ -829,6 +838,10 @@ export default async function TaggingPage(props: {
                           costCentres={costCentres}
                           headListId="tag-heads"
                           costCentreListId="tag-ccs"
+                          expenseHeads={expenseHeads}
+                          incomeHeads={incomeHeads}
+                          expenseListId="tag-expense-heads"
+                          incomeListId="tag-income-heads"
                           action={tagTransaction}
                           submitLabel="Tag"
                           defaults={(() => {
@@ -849,7 +862,7 @@ export default async function TaggingPage(props: {
                       {hasSuggestion && (
                         <tr className="border-t-0 bg-primary-soft/70">
                           <td className="px-2 py-1" />
-                          <td colSpan={8} className="px-2 pb-1.5 pt-0.5">
+                          <td colSpan={9} className="px-2 pb-1.5 pt-0.5">
                             <div className="flex flex-wrap items-center gap-2 text-xs">
                               <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-primary">
                                 AI
@@ -955,6 +968,10 @@ export default async function TaggingPage(props: {
                       costCentres={costCentres}
                       headListId="tag-heads"
                       costCentreListId="tag-ccs"
+                      expenseHeads={expenseHeads}
+                      incomeHeads={incomeHeads}
+                      expenseListId="tag-expense-heads"
+                      incomeListId="tag-income-heads"
                       action={tagTransaction}
                       submitLabel="Save"
                       defaults={{
@@ -1042,10 +1059,14 @@ export default async function TaggingPage(props: {
                   // The tag as text for rows that cannot be retagged (mirrors,
                   // deleted docs); editable rows render the same text client-side
                   // and swap in the retag form on Edit (PostedRowCells).
+                  const incomeRow = isIncomeHead(txn.headAccountId)
                   const tagCells = (
                     <>
                       <td className="px-2 py-1.5 text-xs text-ink-2">
-                        {headName(txn.headAccountId)}
+                        {incomeRow ? <span className="text-ink-3">—</span> : headName(txn.headAccountId)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-ink-2">
+                        {incomeRow ? headName(txn.headAccountId) : <span className="text-ink-3">—</span>}
                       </td>
                       <td className="px-2 py-1.5 text-xs text-ink-2">
                         {ccName(txn.costCentreId) ?? '—'}
@@ -1091,7 +1112,8 @@ export default async function TaggingPage(props: {
                       {editable ? (
                         <PostedRowCells
                           shown={{
-                            head: headName(txn.headAccountId),
+                            head: incomeRow ? null : headName(txn.headAccountId),
+                            incomeHead: incomeRow ? headName(txn.headAccountId) : null,
                             costCentre: ccName(txn.costCentreId) ?? '—',
                             accountingHead: txn.accountingHeadId ? headName(txn.accountingHeadId) : null,
                             note: txn.note,
@@ -1102,6 +1124,10 @@ export default async function TaggingPage(props: {
                           costCentres={costCentres}
                           headListId="tag-heads"
                           costCentreListId="tag-ccs"
+                          expenseHeads={expenseHeads}
+                          incomeHeads={incomeHeads}
+                          expenseListId="tag-expense-heads"
+                          incomeListId="tag-income-heads"
                           action={retagPosted}
                           submitLabel="Save"
                           submitTitle="Posts a reversal + new version with this tag"
