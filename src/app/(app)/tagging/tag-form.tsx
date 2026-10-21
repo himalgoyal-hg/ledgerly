@@ -147,8 +147,14 @@ export function PostedRowCells(
     )
   }
   const { shown: _shown, ...rest } = props
+  // Save closes the row again once the retag has gone through; an error
+  // leaves it open with what was typed.
+  const saveAndClose = async (formData: FormData) => {
+    await props.action(formData)
+    setEditing(false)
+  }
   return (
-    <TagRowCells {...rest}>
+    <TagRowCells {...rest} action={saveAndClose}>
       <button
         type="button"
         onClick={() => setEditing(false)}
