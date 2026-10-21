@@ -39,7 +39,12 @@ export function HeadCombobox(props: {
   /** When set, unmatched text is submitted under this name for find-or-create. */
   createName?: string
   /** Fires on blur when the text will create a new head (unmatched + createName). */
-  onCreateText?: (text: string) => void
+  onCreateText?: (text: string, kind?: NewHeadKind) => void
+  /**
+   * Offer an Expense / Income choice for a head about to be created; the pick
+   * is submitted under `name`. Without it the server decides by direction.
+   */
+  kindChoice?: { name: string; initial: NewHeadKind }
   /**
    * Id of a page-level <HeadDatalist> to share instead of rendering a private
    * list — the only sane choice when hundreds of rows carry this picker.
@@ -84,6 +89,7 @@ export function HeadCombobox(props: {
   }
 
   const creating = Boolean(props.createName) && !id && text.trim() !== ''
+  const [kind, setKind] = useState<NewHeadKind>(props.kindChoice?.initial ?? 'EXPENSE')
 
   return (
     <>
@@ -102,7 +108,7 @@ export function HeadCombobox(props: {
           props.onPick?.(head)
         }}
         onBlur={() => {
-          if (creating) props.onCreateText?.(text.trim())
+          if (creating) props.onCreateText?.(text.trim(), props.kindChoice ? kind : undefined)
         }}
         className={
           props.className ?? 'min-w-48 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
@@ -134,6 +140,30 @@ export function HeadCombobox(props: {
           ➕ “{text.trim()}” — new head, created on save
         </span>
       )}
+      {creating && props.kindChoice && (
+        <span className="mt-0.5 flex w-full gap-1">
+          <input type="hidden" name={props.kindChoice.name} value={kind} form={props.formId} />
+          {(['EXPENSE', 'INCOME'] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => {
+                setKind(k)
+                props.onCreateText?.(text.trim(), k)
+              }}
+              className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${
+                kind === k
+                  ? 'border-primary bg-primary-soft text-primary'
+                  : 'border-line text-ink-3 hover:bg-surface-2'
+              }`}
+            >
+              {k === 'EXPENSE' ? 'as Expense' : 'as Income'}
+            </button>
+          ))}
+        </span>
+      )}
     </>
   )
 }
+
+export type NewHeadKind = 'EXPENSE' | 'INCOME'

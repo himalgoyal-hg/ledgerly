@@ -35,6 +35,9 @@ function tagFields(formData: FormData) {
   // here and is found-or-created in the books being tagged.
   const headText = String(formData.get('headText') ?? '').trim() || null
   const costCentreText = String(formData.get('costCentreText') ?? '').trim() || null
+  // Where a brand-new head goes, when the row's toggle said so
+  const headKind = headKindOf(formData.get('headKind'))
+  const accountingHeadKind = headKindOf(formData.get('accountingHeadKind'))
   if (!headAccountId && !headText) throw new Error('Pick a head')
   if (!nature) throw new Error('Pick a nature')
   // Optional tax details (spec §3 step 5 / §7) — validated in the service.
@@ -53,13 +56,29 @@ function tagFields(formData: FormData) {
   // Without it (a form that has no panel), say nothing, so a retag keeps
   // whatever the row already stores instead of blanking it.
   const tax = formData.has('taxPanel') || Object.values(taxRaw).some(Boolean) ? taxRaw : undefined
-  return { headAccountId, nature, costCentreId, accountingHeadId, accountingHeadText, note, headText, costCentreText, tax }
+  return {
+    headAccountId,
+    nature,
+    costCentreId,
+    accountingHeadId,
+    accountingHeadText,
+    note,
+    headText,
+    costCentreText,
+    headKind,
+    accountingHeadKind,
+    tax,
+  }
+}
+
+function headKindOf(v: FormDataEntryValue | null): 'EXPENSE' | 'INCOME' | null {
+  return v === 'EXPENSE' || v === 'INCOME' ? v : null
 }
 
 export async function tagTransaction(formData: FormData) {
   const user = await requirePermission('transactionTagging')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, accountingHeadText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, headKind, accountingHeadKind, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const txn = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -70,6 +89,7 @@ export async function tagTransaction(formData: FormData) {
         headAccountId: raw.headAccountId || null,
         headText,
         isOutflow: Number(txn.debit) > 0,
+        kind: headKind,
       }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: txn.entityId,
@@ -85,6 +105,7 @@ export async function tagTransaction(formData: FormData) {
               entityId: txn.entityId,
               headText: accountingHeadText,
               isOutflow: Number(txn.debit) > 0,
+              kind: accountingHeadKind,
             })
           : null),
     }
@@ -147,6 +168,8 @@ export async function bulkTag(formData: FormData) {
   const natureRaw = String(formData.get('nature') ?? '')
   const bulkAcctId = String(formData.get('accountingHeadId') ?? '') || null
   const bulkAcctText = String(formData.get('accountingHeadText') ?? '').trim() || null
+  const headKind = headKindOf(formData.get('headKind'))
+  const accountingHeadKind = headKindOf(formData.get('accountingHeadKind'))
   const field = (name: string) => String(formData.get(name) ?? '').trim() || null
   const tax = {
     gstType: field('gstType'),
@@ -166,6 +189,7 @@ export async function bulkTag(formData: FormData) {
       headAccountId: pickedHeadId,
       headText,
       isOutflow: Number(first.debit) > 0,
+      kind: headKind,
     })
     const head = await tx.ledgerAccount.findUniqueOrThrow({ where: { id: headAccountId } })
     const costCentreId = await resolveCostCentre(tx, {
@@ -181,6 +205,7 @@ export async function bulkTag(formData: FormData) {
             entityId: head.entityId,
             headText: bulkAcctText,
             isOutflow: Number(first.debit) > 0,
+            kind: accountingHeadKind,
           })
         : null)
     let tagged = 0
@@ -416,7 +441,7 @@ export async function postAll(formData: FormData) {
 export async function retagPosted(formData: FormData) {
   const user = await requirePermission('transactionEditDelete')
   const txnId = String(formData.get('txnId') ?? '')
-  const { costCentreText, headText, accountingHeadText, ...raw } = tagFields(formData)
+  const { costCentreText, headText, accountingHeadText, headKind, accountingHeadKind, ...raw } = tagFields(formData)
 
   await auditedTransaction(async (tx) => {
     const before = await tx.statementTransaction.findUniqueOrThrow({ where: { id: txnId } })
@@ -427,6 +452,7 @@ export async function retagPosted(formData: FormData) {
         headAccountId: raw.headAccountId || null,
         headText,
         isOutflow: Number(before.debit) > 0,
+        kind: headKind,
       }),
       costCentreId: await resolveCostCentre(tx, {
         entityId: before.entityId,
@@ -440,6 +466,7 @@ export async function retagPosted(formData: FormData) {
               entityId: before.entityId,
               headText: accountingHeadText,
               isOutflow: Number(before.debit) > 0,
+              kind: accountingHeadKind,
             })
           : null),
     }

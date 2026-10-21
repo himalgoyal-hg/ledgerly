@@ -35,6 +35,12 @@ export async function resolveHeadAccount(
     headAccountId?: string | null
     headText?: string | null
     isOutflow: boolean
+    /**
+     * The user's own say on where a NEW head goes (tag row's Expense/Income
+     * toggle, Himal 21 Oct) — wins over direction and over the master's
+     * nature; the master still lends its cost centre.
+     */
+    kind?: 'EXPENSE' | 'INCOME' | null
   },
 ): Promise<string> {
   if (args.headAccountId) return args.headAccountId
@@ -52,7 +58,8 @@ export async function resolveHeadAccount(
 
   const masterRow = await tx.headMode.findFirst({ where: { category: { equals: name, mode: 'insensitive' } } })
   const spot = masterRow ? (NATURE_GROUP[masterRow.nature ?? 'Expense'] ?? NATURE_GROUP.Expense) : null
-  const groupCode = spot?.code ?? (args.isOutflow ? '5000' : '4000')
+  const chosen = args.kind ? NATURE_GROUP[args.kind === 'INCOME' ? 'Income' : 'Expense'] : null
+  const groupCode = chosen?.code ?? spot?.code ?? (args.isOutflow ? '5000' : '4000')
   const group = await tx.ledgerAccount.findUniqueOrThrow({
     where: { entityId_code: { entityId: args.entityId, code: groupCode } },
   })
@@ -61,7 +68,7 @@ export async function resolveHeadAccount(
       entityId: args.entityId,
       code: await nextChildCode(tx, args.entityId, groupCode),
       name,
-      kind: spot?.kind ?? (args.isOutflow ? 'EXPENSE' : 'INCOME'),
+      kind: chosen?.kind ?? spot?.kind ?? (args.isOutflow ? 'EXPENSE' : 'INCOME'),
       parentId: group.id,
     },
   })

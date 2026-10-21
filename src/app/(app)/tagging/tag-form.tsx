@@ -54,6 +54,7 @@ export function BulkTagFields(props: {
         required
         placeholder="Expense Head — type or add"
         createName="headText"
+        kindChoice={{ name: 'headKind', initial: 'EXPENSE' }}
         className={cls}
         onPick={(head) => {
           setExpHeadId(head?.id ?? '')
@@ -83,6 +84,7 @@ export function BulkTagFields(props: {
         heads={props.heads}
         name="accountingHeadId"
         createName="accountingHeadText"
+        kindChoice={{ name: 'accountingHeadKind', initial: 'EXPENSE' }}
         defaultHeadId={acctHeadId || undefined}
         placeholder="Accounting Head — same as head"
         className={`${cls} ${
@@ -245,6 +247,7 @@ export function TagRowCells(props: {
           className={inputCls}
           placeholder="Expense Head — type or add"
           createName="headText"
+          kindChoice={{ name: 'headKind', initial: props.isOutflow ? 'EXPENSE' : 'INCOME' }}
           onPick={(head) => {
             if (head) {
               setNature(suggestNature(head, props.isOutflow))
@@ -256,10 +259,10 @@ export function TagRowCells(props: {
               setSeed((s) => s + 1)
             }
           }}
-          onCreateText={() => {
-            // A brand-new head lands under Expenses (outflow) or Income
-            // (inflow) on the server — suggest the matching nature here.
-            setNature(props.isOutflow ? 'expense' : 'income')
+          onCreateText={(_text, kind) => {
+            // A brand-new head lands where the toggle says (default: Expenses
+            // for an outflow, Income for an inflow) — nature follows it.
+            setNature((kind ?? (props.isOutflow ? 'EXPENSE' : 'INCOME')) === 'INCOME' ? 'income' : 'expense')
             setCostCentreId('')
             // no id yet to mirror — the server stores NULL (= mirror)
             setExpHeadId('')
@@ -295,6 +298,7 @@ export function TagRowCells(props: {
           listId={props.headListId}
           name="accountingHeadId"
           createName="accountingHeadText"
+          kindChoice={{ name: 'accountingHeadKind', initial: props.isOutflow ? 'EXPENSE' : 'INCOME' }}
           defaultHeadId={acctHeadId || undefined}
           formId={formId}
           placeholder="= Expense Head"
