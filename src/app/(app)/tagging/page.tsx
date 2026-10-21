@@ -1003,7 +1003,14 @@ export default async function TaggingPage(props: {
       )}
       {showPosted && (
       <div className="space-y-2">
-        <h2 className="font-medium text-ink">Posted — all {posted.length}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="font-medium text-ink">Posted — all {posted.length}</h2>
+          {view === 'all' && (
+            <Link href={hrefWith({ view: null })} className="text-sm font-medium text-primary hover:underline">
+              Hide
+            </Link>
+          )}
+        </div>
         {posted.length > 0 && (
           <div className={tableWrapClass}>
             <table className="w-full min-w-[72rem] text-left text-sm">
