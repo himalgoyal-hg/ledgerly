@@ -225,6 +225,11 @@ export function TagRowCells(props: {
   // Which column holds the row's head; picking in one empties the other
   // (its own seed re-mounts it blank) so a row never submits two heads.
   const startsIncome = props.incomeHeads.some((h) => h.id === props.defaults?.headAccountId)
+  // The column being used locks the other one (Himal, 21 Oct: "ek select
+  // kel ki dusra select honar nahi"); emptying the box unlocks it again.
+  const [headSide, setHeadSide] = useState<'expense' | 'income' | null>(
+    props.defaults?.headAccountId ? (startsIncome ? 'income' : 'expense') : null,
+  )
   const [expenseSeed, setExpenseSeed] = useState(0)
   const [incomeSeed, setIncomeSeed] = useState(0)
   const headPicked = (head: HeadOpt) => {
@@ -284,6 +289,8 @@ export function TagRowCells(props: {
           className={inputCls}
           placeholder="Expense Head — type or add"
           createName="headText"
+          disabled={headSide === 'income'}
+          onText={(t) => setHeadSide(t.trim() ? 'expense' : null)}
           onPick={(head) => {
             if (head) {
               headPicked(head)
@@ -310,6 +317,8 @@ export function TagRowCells(props: {
           className={inputCls}
           placeholder="Income Head — type or add"
           createName="incomeHeadText"
+          disabled={headSide === 'expense'}
+          onText={(t) => setHeadSide(t.trim() ? 'income' : null)}
           onPick={(head) => {
             if (head) {
               headPicked(head)

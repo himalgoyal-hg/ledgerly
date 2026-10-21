@@ -50,6 +50,10 @@ export function HeadCombobox(props: {
    * list — the only sane choice when hundreds of rows carry this picker.
    */
   listId?: string
+  /** Greyed out and not typeable — e.g. the other of two either/or head columns. */
+  disabled?: boolean
+  /** Every keystroke's text (resolved or not) — lets a parent know when the box is emptied. */
+  onText?: (text: string) => void
 }) {
   const ownListId = useId()
   const listId = props.listId ?? ownListId
@@ -97,12 +101,14 @@ export function HeadCombobox(props: {
         list={listId}
         value={text}
         required={props.required}
+        disabled={props.disabled}
         form={props.formId}
         placeholder={props.placeholder ?? 'Head — type to search'}
         autoComplete="off"
         onChange={(e) => {
           const v = e.target.value
           setText(v)
+          props.onText?.(v)
           const head = resolve(v)
           setId(head?.id ?? '')
           props.onPick?.(head)
@@ -110,9 +116,9 @@ export function HeadCombobox(props: {
         onBlur={() => {
           if (creating) props.onCreateText?.(text.trim(), props.kindChoice ? kind : undefined)
         }}
-        className={
+        className={`${
           props.className ?? 'min-w-48 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm'
-        }
+        } disabled:cursor-not-allowed disabled:opacity-40`}
       />
       {/* With a shared list the ➕ option is skipped — the hint below still
           says the text will create a head, and the submit works the same. */}
