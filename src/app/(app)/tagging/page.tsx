@@ -10,7 +10,7 @@ import { describeNarration } from '@/lib/statements/rules'
 import { countAutoTaggable } from '@/lib/statements/auto-tag'
 import { aiConfigured } from '@/lib/ai/client'
 import { ensureMemberAccounts } from '@/lib/ops/reimburse'
-import { TagRowCells, BulkTagFields } from './tag-form'
+import { TagRowCells, PostedRowCells, BulkTagFields } from './tag-form'
 import { HeadDatalist, OptionDatalist } from '@/components/shared-datalists'
 import { SelectAll } from './select-all'
 import { ColumnMenu } from './column-menu'
@@ -1031,6 +1031,32 @@ export default async function TaggingPage(props: {
                     </>
                   )
                   const editable = canEditPosted && Boolean(txn.docId) && !deleted
+                  // The tag as text for rows that cannot be retagged (mirrors,
+                  // deleted docs); editable rows render the same text client-side
+                  // and swap in the retag form on Edit (PostedRowCells).
+                  const tagCells = (
+                    <>
+                      <td className="px-2 py-1.5 text-xs text-ink-2">
+                        {headName(txn.headAccountId)}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-ink-2">
+                        {ccName(txn.costCentreId) ?? '—'}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs">
+                        {/* overridden 2nd head shows highlighted; mirror shows muted */}
+                        {txn.accountingHeadId ? (
+                          <span className="rounded bg-primary-soft px-1.5 py-0.5 font-medium text-primary">
+                            {headName(txn.accountingHeadId)}
+                          </span>
+                        ) : (
+                          <span className="text-ink-3" title="Same as the Expense Head">—</span>
+                        )}
+                      </td>
+                      <td className="px-2 py-1.5 text-xs text-ink-2" title={txn.note ?? undefined}>
+                        {txn.note ?? <span className="text-ink-3">—</span>}
+                      </td>
+                    </>
+                  )
                   return (
                     <tr
                       key={txn.id}
@@ -1055,7 +1081,13 @@ export default async function TaggingPage(props: {
                         chips,
                       )}
                       {editable ? (
-                        <TagRowCells
+                        <PostedRowCells
+                          shown={{
+                            head: headName(txn.headAccountId),
+                            costCentre: ccName(txn.costCentreId) ?? '—',
+                            accountingHead: txn.accountingHeadId ? headName(txn.accountingHeadId) : null,
+                            note: txn.note,
+                          }}
                           txnId={txn.id}
                           isOutflow={Number(txn.debit) > 0}
                           heads={heads}
@@ -1082,25 +1114,7 @@ export default async function TaggingPage(props: {
                         />
                       ) : (
                         <>
-                          <td className="px-2 py-1.5 text-xs text-ink-2">
-                            {headName(txn.headAccountId)}
-                          </td>
-                          <td className="px-2 py-1.5 text-xs text-ink-2">
-                            {ccName(txn.costCentreId) ?? '—'}
-                          </td>
-                          <td className="px-2 py-1.5 text-xs">
-                            {/* overridden 2nd head shows highlighted; mirror shows muted */}
-                            {txn.accountingHeadId ? (
-                              <span className="rounded bg-primary-soft px-1.5 py-0.5 font-medium text-primary">
-                                {headName(txn.accountingHeadId)}
-                              </span>
-                            ) : (
-                              <span className="text-ink-3" title="Same as the Expense Head">—</span>
-                            )}
-                          </td>
-                          <td className="px-2 py-1.5 text-xs text-ink-2" title={txn.note ?? undefined}>
-                            {txn.note ?? <span className="text-ink-3">—</span>}
-                          </td>
+                          {tagCells}
                           <td className="sticky right-0 z-10 bg-surface px-2 py-1.5" />
                         </>
                       )}

@@ -1,10 +1,10 @@
-"use client";
+'use client'
 
-import { useState, type ReactNode } from "react";
-import { NATURES, suggestNature } from "@/lib/statements/natures";
-import { GST_RATES, GST_TYPES, TDS_SECTIONS } from "@/lib/tax/calc";
-import { HeadCombobox, type HeadOpt } from "@/components/head-combobox";
-import { SmartCombobox } from "@/components/smart-combobox";
+import { useState, type ReactNode } from 'react'
+import { NATURES, suggestNature } from '@/lib/statements/natures'
+import { GST_RATES, GST_TYPES, TDS_SECTIONS } from '@/lib/tax/calc'
+import { HeadCombobox, type HeadOpt } from '@/components/head-combobox'
+import { SmartCombobox } from '@/components/smart-combobox'
 
 // Spreadsheet-style tag cells (spec §3 step 5): head → nature (auto-suggested
 // from the head) → cost centre, laid out as table cells so the queue reads
@@ -16,20 +16,19 @@ import { SmartCombobox } from "@/components/smart-combobox";
 // silently ride along into the new head). The nature/cc comboboxes re-mount
 // on every head pick (the `seed` key) so their text follows the head.
 
-export type HeadOption = HeadOpt;
+export type HeadOption = HeadOpt
 
 export interface CostCentreOption {
-  id: string;
-  name: string;
+  id: string
+  name: string
 }
 
-const inputCls =
-  "w-full rounded border border-line bg-surface px-1.5 py-1 text-xs";
+const inputCls = 'w-full rounded border border-line bg-surface px-1.5 py-1 text-xs'
 
 export const NATURE_OPTIONS = NATURES.map((n) => ({
   id: n.value,
   label: n.label,
-}));
+}))
 
 /**
  * The bulk bar's three linked fields (Himal, 20 Aug: "expense head jari
@@ -39,15 +38,15 @@ export const NATURE_OPTIONS = NATURES.map((n) => ({
  * editable; a changed Accounting Head highlights and never writes back.
  */
 export function BulkTagFields(props: {
-  heads: HeadOption[];
-  costCentres: CostCentreOption[];
-  className?: string;
+  heads: HeadOption[]
+  costCentres: CostCentreOption[]
+  className?: string
 }) {
-  const cls = props.className ?? inputCls;
-  const [ccId, setCcId] = useState("");
-  const [expHeadId, setExpHeadId] = useState("");
-  const [acctHeadId, setAcctHeadId] = useState("");
-  const [seed, setSeed] = useState(0);
+  const cls = props.className ?? inputCls
+  const [ccId, setCcId] = useState('')
+  const [expHeadId, setExpHeadId] = useState('')
+  const [acctHeadId, setAcctHeadId] = useState('')
+  const [seed, setSeed] = useState(0)
   return (
     <>
       <HeadCombobox
@@ -57,16 +56,16 @@ export function BulkTagFields(props: {
         createName="headText"
         className={cls}
         onPick={(head) => {
-          setExpHeadId(head?.id ?? "");
-          setAcctHeadId(head?.id ?? "");
-          setCcId(head?.defaultCostCentreId ?? "");
-          setSeed((s) => s + 1);
+          setExpHeadId(head?.id ?? '')
+          setAcctHeadId(head?.id ?? '')
+          setCcId(head?.defaultCostCentreId ?? '')
+          setSeed((s) => s + 1)
         }}
         onCreateText={() => {
-          setExpHeadId("");
-          setAcctHeadId("");
-          setCcId("");
-          setSeed((s) => s + 1);
+          setExpHeadId('')
+          setAcctHeadId('')
+          setCcId('')
+          setSeed((s) => s + 1)
         }}
       />
       <SmartCombobox
@@ -77,7 +76,7 @@ export function BulkTagFields(props: {
         defaultId={ccId}
         placeholder="Cost centre — type or add"
         className={cls}
-        onPick={(o) => setCcId(o?.id ?? "")}
+        onPick={(o) => setCcId(o?.id ?? '')}
       />
       <HeadCombobox
         key={`a${seed}`}
@@ -88,81 +87,142 @@ export function BulkTagFields(props: {
         placeholder="Accounting Head — same as head"
         className={`${cls} ${
           acctHeadId && acctHeadId !== expHeadId
-            ? "border-primary/40 bg-primary-soft font-medium text-primary"
-            : ""
+            ? 'border-primary/40 bg-primary-soft font-medium text-primary'
+            : ''
         }`}
-        onPick={(h) => setAcctHeadId(h?.id ?? "")}
+        onPick={(h) => setAcctHeadId(h?.id ?? '')}
       />
     </>
-  );
+  )
+}
+
+type TagRowCellsProps = Parameters<typeof TagRowCells>[0]
+
+/**
+ * A posted row: the tag as plain text with an Edit button; the full retag
+ * form (TagRowCells) mounts only on click. Hundreds of posted rows each
+ * carrying three pickers and a form made the page seconds slow to hydrate —
+ * and retagging a posted row is the rare action, not the common one.
+ * The text comes as four strings (not rendered cells) to keep the payload
+ * small — the page sends ~600 of these.
+ */
+export function PostedRowCells(
+  props: TagRowCellsProps & {
+    shown: { head: string; costCentre: string; accountingHead: string | null; note: string | null }
+  },
+) {
+  const [editing, setEditing] = useState(false)
+  if (!editing) {
+    const t = props.shown
+    return (
+      <>
+        <td className="px-2 py-1.5 text-xs text-ink-2">{t.head}</td>
+        <td className="px-2 py-1.5 text-xs text-ink-2">{t.costCentre}</td>
+        <td className="px-2 py-1.5 text-xs">
+          {/* overridden 2nd head shows highlighted; mirror shows muted */}
+          {t.accountingHead ? (
+            <span className="rounded bg-primary-soft px-1.5 py-0.5 font-medium text-primary">
+              {t.accountingHead}
+            </span>
+          ) : (
+            <span className="text-ink-3" title="Same as the Expense Head">
+              —
+            </span>
+          )}
+        </td>
+        <td className="px-2 py-1.5 text-xs text-ink-2" title={t.note ?? undefined}>
+          {t.note ?? <span className="text-ink-3">—</span>}
+        </td>
+        <td className="sticky right-0 z-10 bg-surface px-2 py-1.5">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            title={props.submitTitle}
+            className="whitespace-nowrap rounded border border-line px-2 py-0.5 text-xs text-ink-2 hover:bg-surface-2"
+          >
+            Edit
+          </button>
+        </td>
+      </>
+    )
+  }
+  const { shown: _shown, ...rest } = props
+  return (
+    <TagRowCells {...rest}>
+      <button
+        type="button"
+        onClick={() => setEditing(false)}
+        className="whitespace-nowrap rounded border border-line px-2 py-1 text-xs text-ink-2 hover:bg-surface-2"
+      >
+        Cancel
+      </button>
+      {props.children}
+    </TagRowCells>
+  )
 }
 
 export function TagRowCells(props: {
-  txnId: string;
-  isOutflow: boolean;
-  heads: HeadOption[];
-  costCentres: CostCentreOption[];
-  action: (formData: FormData) => Promise<void>;
-  submitLabel: string;
-  submitTitle?: string;
+  txnId: string
+  isOutflow: boolean
+  heads: HeadOption[]
+  costCentres: CostCentreOption[]
+  action: (formData: FormData) => Promise<void>
+  submitLabel: string
+  submitTitle?: string
   defaults?: {
-    headAccountId?: string | null;
-    nature?: string | null;
-    costCentreId?: string | null;
+    headAccountId?: string | null
+    nature?: string | null
+    costCentreId?: string | null
     /** The tag's 2nd head; null = mirrors the Expense Head. */
-    accountingHeadId?: string | null;
+    accountingHeadId?: string | null
     /** Free comment on the row. */
-    note?: string | null;
+    note?: string | null
     // Stored GST/TDS details — prefilled into the panel, so a re-save or
     // a retag carries them forward instead of silently blanking them.
-    gstType?: string | null;
-    gstRate?: string | null;
-    hsn?: string | null;
-    counterpartyGstin?: string | null;
-    tdsSection?: string | null;
-    tdsRate?: string | null;
-    deducteePan?: string | null;
-  };
+    gstType?: string | null
+    gstRate?: string | null
+    hsn?: string | null
+    counterpartyGstin?: string | null
+    tdsSection?: string | null
+    tdsRate?: string | null
+    deducteePan?: string | null
+  }
   /** Extra row actions (Untag / Undo forms) rendered next to the submit. */
-  children?: ReactNode;
+  children?: ReactNode
   /** Page-level datalist ids (see shared-datalists.tsx) — one copy of the options for all rows. */
-  headListId?: string;
-  costCentreListId?: string;
+  headListId?: string
+  costCentreListId?: string
 }) {
-  const formId = `tag-${props.txnId}`;
-  const [nature, setNature] = useState(props.defaults?.nature ?? "");
-  const [costCentreId, setCostCentreId] = useState(
-    props.defaults?.costCentreId ?? "",
-  );
+  const formId = `tag-${props.txnId}`
+  const [nature, setNature] = useState(props.defaults?.nature ?? '')
+  const [costCentreId, setCostCentreId] = useState(props.defaults?.costCentreId ?? '')
   // The tag's 2nd head (Himal, 20 Aug): whatever lands in Expense Head
   // mirrors into Accounting Head automatically; changing the Accounting
   // Head is allowed and NEVER writes back into the Expense Head.
-  const [expHeadId, setExpHeadId] = useState(
-    props.defaults?.headAccountId ?? "",
-  );
+  const [expHeadId, setExpHeadId] = useState(props.defaults?.headAccountId ?? '')
   const [acctHeadId, setAcctHeadId] = useState(
-    props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? "",
-  );
-  const [seed, setSeed] = useState(0);
+    props.defaults?.accountingHeadId ?? props.defaults?.headAccountId ?? '',
+  )
+  const [seed, setSeed] = useState(0)
 
   // GST and TDS can ride together on a row (professional fees: taxable +
   // GST − TDS; the server splits with TDS on the taxable value). Back at
   // Himal's ask, 20 Aug — prefilled, so re-saving never blanks them.
   const [gst, setGst] = useState({
-    type: props.defaults?.gstType ?? "",
-    rate: props.defaults?.gstRate ?? "",
-    hsn: props.defaults?.hsn ?? "",
-    gstin: props.defaults?.counterpartyGstin ?? "",
-  });
+    type: props.defaults?.gstType ?? '',
+    rate: props.defaults?.gstRate ?? '',
+    hsn: props.defaults?.hsn ?? '',
+    gstin: props.defaults?.counterpartyGstin ?? '',
+  })
   const [tds, setTds] = useState({
-    section: props.defaults?.tdsSection ?? "",
-    rate: props.defaults?.tdsRate ?? "",
-    pan: props.defaults?.deducteePan ?? "",
-  });
+    section: props.defaults?.tdsSection ?? '',
+    rate: props.defaults?.tdsRate ?? '',
+    pan: props.defaults?.deducteePan ?? '',
+  })
   // The panel's controls render only while it is open; closed, the same
   // values ride as hidden inputs so a plain Save still carries GST/TDS.
   // Hundreds of rows × a full panel each was a third of the page's HTML.
-  const [taxOpen, setTaxOpen] = useState(false);
+  const [taxOpen, setTaxOpen] = useState(false)
 
   return (
     <>
@@ -181,24 +241,24 @@ export function TagRowCells(props: {
           createName="headText"
           onPick={(head) => {
             if (head) {
-              setNature(suggestNature(head, props.isOutflow));
-              setCostCentreId(head.defaultCostCentreId ?? "");
+              setNature(suggestNature(head, props.isOutflow))
+              setCostCentreId(head.defaultCostCentreId ?? '')
               // the Accounting Head follows the Expense Head pick (mirror);
               // the user can still change it after — one-way only
-              setExpHeadId(head.id);
-              setAcctHeadId(head.id);
-              setSeed((s) => s + 1);
+              setExpHeadId(head.id)
+              setAcctHeadId(head.id)
+              setSeed((s) => s + 1)
             }
           }}
           onCreateText={() => {
             // A brand-new head lands under Expenses (outflow) or Income
             // (inflow) on the server — suggest the matching nature here.
-            setNature(props.isOutflow ? "expense" : "income");
-            setCostCentreId("");
+            setNature(props.isOutflow ? 'expense' : 'income')
+            setCostCentreId('')
             // no id yet to mirror — the server stores NULL (= mirror)
-            setExpHeadId("");
-            setAcctHeadId("");
-            setSeed((s) => s + 1);
+            setExpHeadId('')
+            setAcctHeadId('')
+            setSeed((s) => s + 1)
           }}
         />
       </td>
@@ -215,7 +275,7 @@ export function TagRowCells(props: {
           formId={formId}
           placeholder="Cost centre — type or add"
           className={inputCls}
-          onPick={(opt) => setCostCentreId(opt?.id ?? "")}
+          onPick={(opt) => setCostCentreId(opt?.id ?? '')}
         />
       </td>
       {/* The tag's 2nd head — its own column: it mirrors whatever the
@@ -234,10 +294,10 @@ export function TagRowCells(props: {
           placeholder="= Expense Head"
           className={`${inputCls} ${
             acctHeadId && acctHeadId !== expHeadId
-              ? "border-primary/40 bg-primary-soft font-medium text-primary"
-              : ""
+              ? 'border-primary/40 bg-primary-soft font-medium text-primary'
+              : ''
           }`}
-          onPick={(h) => setAcctHeadId(h?.id ?? "")}
+          onPick={(h) => setAcctHeadId(h?.id ?? '')}
         />
       </td>
       {/* Note — a free comment on the row, saved with the tag */}
@@ -245,7 +305,7 @@ export function TagRowCells(props: {
         <input
           name="note"
           form={formId}
-          defaultValue={props.defaults?.note ?? ""}
+          defaultValue={props.defaults?.note ?? ''}
           placeholder="Note"
           title="A comment on this transaction — saved with the tag"
           className={inputCls}
@@ -255,11 +315,7 @@ export function TagRowCells(props: {
         <div className="flex items-start gap-1.5">
           <form id={formId} action={props.action}>
             <input type="hidden" name="txnId" value={props.txnId} />
-            <input
-              type="hidden"
-              name="nature"
-              value={nature || (props.isOutflow ? "expense" : "income")}
-            />
+            <input type="hidden" name="nature" value={nature || (props.isOutflow ? 'expense' : 'income')} />
             <button
               type="submit"
               title={props.submitTitle}
@@ -275,76 +331,38 @@ export function TagRowCells(props: {
           <details onToggle={(e) => setTaxOpen(e.currentTarget.open)}>
             <summary
               className={`cursor-pointer whitespace-nowrap py-1 text-[10px] ${
-                gst.rate || tds.rate
-                  ? "font-semibold text-warning"
-                  : "text-ink-3 hover:text-ink-2"
+                gst.rate || tds.rate ? 'font-semibold text-warning' : 'text-ink-3 hover:text-ink-2'
               }`}
             >
               {[
-                gst.rate ? `GST ${gst.rate}%` : "",
-                tds.rate
-                  ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ""}`
-                  : "",
+                gst.rate ? `GST ${gst.rate}%` : '',
+                tds.rate ? `TDS ${tds.rate}%${tds.section ? ` ${tds.section}` : ''}` : '',
               ]
                 .filter(Boolean)
-                .join(" + ") || "GST/TDS"}
+                .join(' + ') || 'GST/TDS'}
             </summary>
             {/* marks the panel as present, so a blank one means "no tax"
                 rather than "say nothing" — see tagFields */}
             <input type="hidden" name="taxPanel" value="1" form={formId} />
             {!taxOpen && (
               <>
-                <input
-                  type="hidden"
-                  name="gstType"
-                  value={gst.type}
-                  form={formId}
-                />
-                <input
-                  type="hidden"
-                  name="gstRate"
-                  value={gst.rate}
-                  form={formId}
-                />
+                <input type="hidden" name="gstType" value={gst.type} form={formId} />
+                <input type="hidden" name="gstRate" value={gst.rate} form={formId} />
                 <input type="hidden" name="hsn" value={gst.hsn} form={formId} />
-                <input
-                  type="hidden"
-                  name="counterpartyGstin"
-                  value={gst.gstin}
-                  form={formId}
-                />
-                <input
-                  type="hidden"
-                  name="tdsSection"
-                  value={tds.section}
-                  form={formId}
-                />
-                <input
-                  type="hidden"
-                  name="tdsRate"
-                  value={tds.rate}
-                  form={formId}
-                />
-                <input
-                  type="hidden"
-                  name="deducteePan"
-                  value={tds.pan}
-                  form={formId}
-                />
+                <input type="hidden" name="counterpartyGstin" value={gst.gstin} form={formId} />
+                <input type="hidden" name="tdsSection" value={tds.section} form={formId} />
+                <input type="hidden" name="tdsRate" value={tds.rate} form={formId} />
+                <input type="hidden" name="deducteePan" value={tds.pan} form={formId} />
               </>
             )}
             {taxOpen && (
               <div className="mt-1 w-44 space-y-1 rounded-lg bg-surface-2/60 p-1.5">
-                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-3">
-                  GST
-                </p>
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-ink-3">GST</p>
                 <select
                   name="gstType"
                   form={formId}
                   value={gst.type}
-                  onChange={(e) =>
-                    setGst((g) => ({ ...g, type: e.target.value }))
-                  }
+                  onChange={(e) => setGst((g) => ({ ...g, type: e.target.value }))}
                   className={inputCls}
                 >
                   <option value="">GST type</option>
@@ -358,9 +376,7 @@ export function TagRowCells(props: {
                   name="gstRate"
                   form={formId}
                   value={gst.rate}
-                  onChange={(e) =>
-                    setGst((g) => ({ ...g, rate: e.target.value }))
-                  }
+                  onChange={(e) => setGst((g) => ({ ...g, rate: e.target.value }))}
                   className={inputCls}
                 >
                   <option value="">GST rate %</option>
@@ -374,9 +390,7 @@ export function TagRowCells(props: {
                   name="hsn"
                   form={formId}
                   value={gst.hsn}
-                  onChange={(e) =>
-                    setGst((g) => ({ ...g, hsn: e.target.value }))
-                  }
+                  onChange={(e) => setGst((g) => ({ ...g, hsn: e.target.value }))}
                   placeholder="HSN/SAC"
                   className={inputCls}
                 />
@@ -384,9 +398,7 @@ export function TagRowCells(props: {
                   name="counterpartyGstin"
                   form={formId}
                   value={gst.gstin}
-                  onChange={(e) =>
-                    setGst((g) => ({ ...g, gstin: e.target.value }))
-                  }
+                  onChange={(e) => setGst((g) => ({ ...g, gstin: e.target.value }))}
                   placeholder="Party GSTIN"
                   className={inputCls}
                 />
@@ -397,9 +409,7 @@ export function TagRowCells(props: {
                   name="tdsSection"
                   form={formId}
                   value={tds.section}
-                  onChange={(e) =>
-                    setTds((t) => ({ ...t, section: e.target.value }))
-                  }
+                  onChange={(e) => setTds((t) => ({ ...t, section: e.target.value }))}
                   className={inputCls}
                 >
                   <option value="">TDS section</option>
@@ -413,9 +423,7 @@ export function TagRowCells(props: {
                   name="tdsRate"
                   form={formId}
                   value={tds.rate}
-                  onChange={(e) =>
-                    setTds((t) => ({ ...t, rate: e.target.value }))
-                  }
+                  onChange={(e) => setTds((t) => ({ ...t, rate: e.target.value }))}
                   placeholder="TDS rate %"
                   inputMode="decimal"
                   className={inputCls}
@@ -424,9 +432,7 @@ export function TagRowCells(props: {
                   name="deducteePan"
                   form={formId}
                   value={tds.pan}
-                  onChange={(e) =>
-                    setTds((t) => ({ ...t, pan: e.target.value }))
-                  }
+                  onChange={(e) => setTds((t) => ({ ...t, pan: e.target.value }))}
                   placeholder="Deductee PAN"
                   className={inputCls}
                 />
@@ -436,5 +442,5 @@ export function TagRowCells(props: {
         </div>
       </td>
     </>
-  );
+  )
 }
