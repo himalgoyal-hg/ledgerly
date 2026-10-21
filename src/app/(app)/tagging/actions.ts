@@ -1,7 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { requirePermission, hasPermission } from '@/lib/auth'
+import { requirePermission, hasPermission, visibleEntityFilter } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 import { audit, auditedTransaction } from '@/lib/audit'
 import {
   applyTag,
@@ -483,4 +484,35 @@ export async function autoTagRepeats(formData: FormData) {
     })
   })
   revalidatePath('/tagging')
+}
+
+/**
+ * The current journal lines under a posted row — fetched when its popup
+ * opens, rather than shipped for every row on the page.
+ */
+export async function journalForDoc(docId: string) {
+  const user = await requirePermission('transactionTagging')
+  const doc = await prisma.journalDoc.findFirst({
+    where: { id: docId, entity: visibleEntityFilter(user) },
+    select: {
+      currentEntry: {
+        select: {
+          lines: {
+            select: {
+              debit: true,
+              credit: true,
+              account: { select: { code: true, name: true } },
+              costCentre: { select: { name: true } },
+            },
+          },
+        },
+      },
+    },
+  })
+  return (doc?.currentEntry?.lines ?? []).map((l) => ({
+    account: `${l.account.code} · ${l.account.name}`,
+    costCentre: l.costCentre?.name ?? null,
+    debit: String(l.debit),
+    credit: String(l.credit),
+  }))
 }

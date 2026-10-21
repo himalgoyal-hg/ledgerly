@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { journalForDoc } from './actions'
 
 // Click the narration, see the whole transaction: every field of the row,
 // the full narration, the tag, tax details, and (for posted rows) the
@@ -12,18 +13,38 @@ export interface TxnDetailData {
   narration: string
   fields: [string, string][] // label → value, in display order
   tax?: string | null
-  journal?: { account: string; costCentre: string | null; debit: string; credit: string }[]
+  journal?: JournalLineView[]
+  /** Posted rows: the journal underneath is fetched when the popup opens. */
+  docId?: string | null
+}
+
+export interface JournalLineView {
+  account: string
+  costCentre: string | null
+  debit: string
+  credit: string
 }
 
 export function TxnDetails(props: { data: TxnDetailData; className?: string }) {
   const [open, setOpen] = useState(false)
   const d = props.data
+  const [journal, setJournal] = useState<JournalLineView[] | undefined>(d.journal)
+  const [loading, setLoading] = useState(false)
+  // Posted rows: fetch the journal underneath the first time the popup opens.
+  const show = () => {
+    setOpen(true)
+    if (journal || !d.docId || loading) return
+    setLoading(true)
+    journalForDoc(d.docId)
+      .then(setJournal)
+      .finally(() => setLoading(false))
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={show}
         title={d.narration}
         className={
           props.className ??
@@ -70,7 +91,8 @@ export function TxnDetails(props: { data: TxnDetailData; className?: string }) {
                 )}
               </tbody>
             </table>
-            {d.journal && d.journal.length > 0 && (
+            {loading && <p className="mt-3 text-xs text-ink-3">Loading journal…</p>}
+            {journal && journal.length > 0 && (
               <div className="mt-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-ink-3">
                   Journal entry
@@ -84,7 +106,7 @@ export function TxnDetails(props: { data: TxnDetailData; className?: string }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line-2">
-                    {d.journal.map((l, i) => (
+                    {journal.map((l, i) => (
                       <tr key={i}>
                         <td className="py-1 text-ink-2">
                           {l.account}

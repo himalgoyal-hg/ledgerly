@@ -53,7 +53,12 @@ export default async function TaggingPage(props: {
   const q = (sp.q ?? '').trim()
   const bank = sp.bank ?? ''
   const month = /^\d{4}-\d{2}$/.test(sp.month ?? '') ? sp.month! : ''
-  const view = ['pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'all'
+  // Default view is the work: untagged + tagged rows, with the posted
+  // section folded to one line (count + Show all). Six hundred posted rows
+  // on every open made the page slow (Himal, 21 Oct); `view=all` shows
+  // everything as before, still with no cap.
+  const view = ['all', 'pending', 'tagged', 'posted'].includes(sp.view ?? '') ? sp.view! : 'work'
+  const showPosted = view === 'all' || view === 'posted'
   const year = /^\d{4}$/.test(sp.year ?? '') ? sp.year! : ''
   const day = /^\d{4}-\d{2}-\d{2}$/.test(sp.day ?? '') ? sp.day! : ''
   // The Narration column's Show filter. 'blank' = a real gap (no Expense
@@ -171,7 +176,7 @@ export default async function TaggingPage(props: {
     ...(tagFilter === 'ahother' ? { accountingHeadId: { not: null } } : {}),
   }
 
-  const [pending, tagged, posted, heads, costCentres, banks, users, totalEntries, sums, monthRows] =
+  const [pending, tagged, posted, heads, costCentres, banks, users, totalEntries, sums, monthRows, postedCount] =
     await Promise.all([
       prisma.statementTransaction.findMany({
         where: { ...filter, status: 'PENDING' },
@@ -181,12 +186,15 @@ export default async function TaggingPage(props: {
         where: { ...filter, status: 'TAGGED' },
         orderBy: [{ date: 'asc' }, { id: 'asc' }],
       }),
-      prisma.statementTransaction.findMany({
-        where: { ...filter, status: 'POSTED' },
-        // no cap (Himal, 20 Aug: "50 distet fkt, baki dist nahit") — every
-        // posted row the filter matches shows, date → A/c like a daybook
-        orderBy: [{ date: 'asc' }, { id: 'asc' }],
-      }),
+      // no cap (Himal, 20 Aug: "50 distet fkt, baki dist nahit") — every
+      // posted row the filter matches shows, date → A/c like a daybook —
+      // but only fetched when the posted section is open
+      showPosted
+        ? prisma.statementTransaction.findMany({
+            where: { ...filter, status: 'POSTED' },
+            orderBy: [{ date: 'asc' }, { id: 'asc' }],
+          })
+        : Promise.resolve([] as never[]),
       prisma.ledgerAccount.findMany({
         where: { entityId: entity.id, isGroup: false, archivedAt: null },
         orderBy: { code: 'asc' },
@@ -219,6 +227,7 @@ export default async function TaggingPage(props: {
         SELECT DISTINCT to_char(date, 'YYYY-MM') AS m
         FROM "StatementTransaction" WHERE "entityId" = ${entity.id} ORDER BY 1 DESC
       `,
+      prisma.statementTransaction.count({ where: { ...filter, status: 'POSTED' } }),
     ])
 
   const docs = await prisma.journalDoc.findMany({
@@ -227,20 +236,8 @@ export default async function TaggingPage(props: {
       id: true,
       deletedAt: true,
       _count: { select: { entries: true } },
-      // The current version's lines — the "show me the transaction" popup
-      // renders the journal underneath a posted row.
-      currentEntry: {
-        select: {
-          lines: {
-            select: {
-              debit: true,
-              credit: true,
-              account: { select: { code: true, name: true } },
-              costCentre: { select: { name: true } },
-            },
-          },
-        },
-      },
+      // The journal lines are NOT loaded here — the popup fetches them on
+      // open (journalForDoc), instead of shipping them for every row.
     },
   })
   // The master sheet's Nature rides on every head option, so picking a
@@ -328,9 +325,8 @@ export default async function TaggingPage(props: {
     const L = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     return `${L[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`
   }
-  const showPending = view === 'all' || view === 'pending'
-  const showTagged = view === 'all' || view === 'tagged'
-  const showPosted = view === 'all' || view === 'posted'
+  const showPending = view === 'all' || view === 'work' || view === 'pending'
+  const showTagged = view === 'all' || view === 'work' || view === 'tagged'
   const filtered = Boolean(q || bank || month || year || day || tagFilter !== 'all')
 
   const kpiTiles: [string, string, string, string][] = [
@@ -373,12 +369,8 @@ export default async function TaggingPage(props: {
           : []),
       ] as [string, string][],
       tax: taxBits.length ? taxBits.join(' + ') : null,
-      journal: doc?.currentEntry?.lines.map((l) => ({
-        account: `${l.account.code} · ${l.account.name}`,
-        costCentre: l.costCentre?.name ?? null,
-        debit: String(l.debit),
-        credit: String(l.credit),
-      })),
+      // posted rows: the popup loads the journal underneath on open
+      docId: doc ? txn.docId : null,
     }
     const title = [txn.narration, txn.reference ? `ref ${txn.reference}` : '', tip ?? '']
       .filter(Boolean)
@@ -430,7 +422,7 @@ export default async function TaggingPage(props: {
     if (year) base.year = year
     if (day) base.day = day
     if (tagFilter !== 'all') base.tag = tagFilter
-    if (view !== 'all') base.view = view
+    if (view !== 'work') base.view = view
     if (!(sortKey === 'date' && sortDir === 'asc')) {
       base.sort = sortKey
       base.dir = sortDir
@@ -692,6 +684,7 @@ export default async function TaggingPage(props: {
           ))}
         </select>
         <select name="view" defaultValue={view} className={controlClass}>
+          <option value="work">Untagged + tagged</option>
           <option value="all">All entries</option>
           <option value="pending">Untagged only</option>
           <option value="tagged">Tagged only</option>
@@ -1000,6 +993,14 @@ export default async function TaggingPage(props: {
       {/* Posted — retag lives right in the row; posted rows cannot be
           deleted one by one, the books only move forward via retag
           (reversal + new version). */}
+      {view === 'work' && (
+        <div className="flex items-center gap-3">
+          <h2 className="font-medium text-ink">Posted — {postedCount}</h2>
+          <Link href={hrefWith({ view: 'all' })} className="text-sm font-medium text-primary hover:underline">
+            Show all
+          </Link>
+        </div>
+      )}
       {showPosted && (
       <div className="space-y-2">
         <h2 className="font-medium text-ink">Posted — all {posted.length}</h2>
